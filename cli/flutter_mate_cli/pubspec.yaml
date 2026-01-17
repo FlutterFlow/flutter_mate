@@ -1,0 +1,19 @@
+name: flutter_mate_cli
+description: CLI tool for Flutter Mate - automate Flutter apps from the command line
+version: 0.1.0
+
+environment:
+  sdk: ^3.0.0
+
+dependencies:
+  args: ^2.4.2
+  http: ^1.1.0
+  vm_service: ^14.0.0
+  web_socket_channel: ^2.4.0
+
+dev_dependencies:
+  lints: ^3.0.0
+
+executables:
+  flutter_mate:
+    flutter_mate

@@ -189,8 +189,30 @@ class FlutterMate {
     debugPrint('FlutterMate: Initialized (semantics enabled)');
   }
 
+  /// Initialize for widget tests (use with tester.ensureSemantics())
+  ///
+  /// In tests, use tester.ensureSemantics() for semantics handling,
+  /// then call this to enable FlutterMate without creating a second handle.
+  ///
+  /// ```dart
+  /// testWidgets('my test', (tester) async {
+  ///   final handle = tester.ensureSemantics();
+  ///   FlutterMate.initializeForTest();
+  ///   // ... test code ...
+  ///   handle.dispose();
+  /// });
+  /// ```
+  static void initializeForTest() {
+    _initialized = true;
+  }
+
+  static bool _extensionsRegistered = false;
+
   /// Register VM Service extensions for external control via CLI
   static void _registerServiceExtensions() {
+    // Only register once (extensions persist across test runs in same VM)
+    if (_extensionsRegistered) return;
+
     // Only register in debug/profile mode
     assert(() {
       // ext.flutter_mate.snapshot - Get UI snapshot
@@ -353,6 +375,7 @@ class FlutterMate {
             jsonEncode({'success': success}));
       });
 
+      _extensionsRegistered = true;
       debugPrint('FlutterMate: Service extensions registered');
       return true;
     }());
@@ -1393,6 +1416,140 @@ class FlutterMate {
     }
 
     return null;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // LABEL-BASED FINDING (for readable tests and AI agents)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /// Find element ref by semantic label
+  ///
+  /// Searches the current snapshot for an element whose label or value
+  /// contains the given text (case-insensitive).
+  ///
+  /// ```dart
+  /// final ref = await FlutterMate.findByLabel('Email');
+  /// if (ref != null) {
+  ///   await FlutterMate.fill(ref, 'test@example.com');
+  /// }
+  /// ```
+  static Future<String?> findByLabel(String label) async {
+    _ensureInitialized();
+
+    final snap = await snapshot();
+    final lowerLabel = label.toLowerCase();
+
+    for (final node in snap.nodes) {
+      // Check label
+      if (node.label != null &&
+          node.label!.toLowerCase().contains(lowerLabel)) {
+        return node.ref;
+      }
+      // Check value
+      if (node.value != null &&
+          node.value!.toLowerCase().contains(lowerLabel)) {
+        return node.ref;
+      }
+    }
+
+    return null;
+  }
+
+  /// Find all element refs matching a label pattern
+  ///
+  /// Returns all refs whose label or value matches the pattern.
+  ///
+  /// ```dart
+  /// final refs = await FlutterMate.findAllByLabel('Item');
+  /// for (final ref in refs) {
+  ///   await FlutterMate.tap(ref);
+  /// }
+  /// ```
+  static Future<List<String>> findAllByLabel(String labelPattern) async {
+    _ensureInitialized();
+
+    final snap = await snapshot();
+    final pattern = RegExp(labelPattern, caseSensitive: false);
+    final refs = <String>[];
+
+    for (final node in snap.nodes) {
+      if (node.label != null && pattern.hasMatch(node.label!)) {
+        refs.add(node.ref);
+      } else if (node.value != null && pattern.hasMatch(node.value!)) {
+        refs.add(node.ref);
+      }
+    }
+
+    return refs;
+  }
+
+  /// Tap element by label (convenience method)
+  ///
+  /// Finds element by label and taps it.
+  ///
+  /// ```dart
+  /// await FlutterMate.tapByLabel('Login');
+  /// await FlutterMate.tapByLabel('Submit');
+  /// ```
+  static Future<bool> tapByLabel(String label) async {
+    final ref = await findByLabel(label);
+    if (ref == null) {
+      debugPrint(
+          'FlutterMate: tapByLabel - No element found with label: $label');
+      return false;
+    }
+    return tap(ref);
+  }
+
+  /// Fill text field by label (convenience method)
+  ///
+  /// Finds text field by label, focuses it, and types the text.
+  ///
+  /// ```dart
+  /// await FlutterMate.fillByLabel('Email', 'test@example.com');
+  /// await FlutterMate.fillByLabel('Password', 'secret123');
+  /// ```
+  static Future<bool> fillByLabel(String label, String text) async {
+    final ref = await findByLabel(label);
+    if (ref == null) {
+      debugPrint(
+          'FlutterMate: fillByLabel - No element found with label: $label');
+      return false;
+    }
+    return fill(ref, text);
+  }
+
+  /// Long press element by label (convenience method)
+  static Future<bool> longPressByLabel(String label) async {
+    final ref = await findByLabel(label);
+    if (ref == null) {
+      debugPrint(
+          'FlutterMate: longPressByLabel - No element found with label: $label');
+      return false;
+    }
+    return longPress(ref);
+  }
+
+  /// Double tap element by label (convenience method)
+  static Future<bool> doubleTapByLabel(String label) async {
+    final ref = await findByLabel(label);
+    if (ref == null) {
+      debugPrint(
+          'FlutterMate: doubleTapByLabel - No element found with label: $label');
+      return false;
+    }
+    return doubleTap(ref);
+  }
+
+  /// Focus element by label (convenience method)
+  static Future<bool> focusByLabel(String label) async {
+    final ref = await findByLabel(label);
+    if (ref == null) {
+      debugPrint(
+          'FlutterMate: focusByLabel - No element found with label: $label');
+      return false;
+    }
+    return focus(ref);
   }
 
   // === Private Methods ===

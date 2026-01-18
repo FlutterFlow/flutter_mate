@@ -4,7 +4,7 @@
 
 Like [Vercel's agent-browser](https://github.com/vercel-labs/agent-browser) but for Flutter!
 
-## Two Ways to Use
+## Three Ways to Use
 
 ### 1. 📱 Dart SDK (In-App AI Agent)
 
@@ -53,6 +53,31 @@ flutter_mate> fill w5 test@example.com
 flutter_mate> tap w10
 ```
 
+### 3. 🤖 MCP Server (AI Agent Integration)
+
+Integrate with **Cursor**, **Claude**, or any MCP-compatible client for AI-powered automation:
+
+```json
+// ~/.cursor/mcp.json
+{
+  "mcpServers": {
+    "flutter_mate": {
+      "command": "dart",
+      "args": ["run", "/path/to/flutter_mate/cli/flutter_mate_cli/bin/mcp_server.dart"],
+      "env": {
+        "FLUTTER_MATE_URI": "ws://127.0.0.1:12345/abc=/ws"
+      }
+    }
+  }
+}
+```
+
+Once configured, ask Cursor/Claude to:
+- "Take a snapshot of the Flutter app"
+- "Fill the email field with test@example.com"
+- "Tap the Submit button"
+- "Scroll down and find the settings option"
+
 ---
 
 ## Installation
@@ -93,6 +118,16 @@ dart pub global activate --source path .
 flutter_mate --help
 ```
 
+### MCP Server (AI Integration)
+
+```bash
+cd cli/flutter_mate_cli
+dart pub get
+
+# Test the MCP server
+dart run bin/mcp_server.dart --uri=ws://127.0.0.1:12345/abc=/ws
+```
+
 ---
 
 ## API Reference
@@ -104,6 +139,7 @@ flutter_mate --help
 | `initialize()` | Initialize FlutterMate (call once at startup) |
 | `dispose()` | Clean up resources |
 | `snapshot({interactiveOnly})` | Get UI tree with refs, labels, actions |
+| `snapshotCombined({consolidate})` | Get widget tree merged with semantics |
 | `waitFor(pattern, {timeout})` | Wait for element matching pattern |
 
 ### Semantics-Based Actions
@@ -154,11 +190,21 @@ flutter_mate --help
 flutter_mate --uri <ws://...> <command> [args]
 
 Commands:
-  snapshot              Get UI tree (-i for interactive only)
+  snapshot              Get UI tree (-i for interactive only, -m combined for widget tree)
   tap <ref>             Tap element
+  doubleTap <ref>       Double tap element
+  longPress <ref>       Long press element
   fill <ref> <text>     Fill text field
+  clear <ref>           Clear text field
+  typeText <text>       Type text character by character
+  pressKey <key>        Press keyboard key (enter, tab, escape, etc.)
   scroll <ref> [dir]    Scroll (up/down/left/right)
+  swipe <dir>           Swipe gesture
   focus <ref>           Focus element
+  back                  Navigate back
+  wait <ms>             Wait milliseconds
+  getText <ref>         Get element text
+  screenshot [path]     Capture screenshot
   extensions            List available service extensions
   attach                Interactive REPL mode
 
@@ -166,8 +212,37 @@ Options:
   --uri, -u             VM Service WebSocket URI (required)
   --json, -j            Output as JSON
   --interactive, -i     Show only interactive elements
+  --mode, -m            Snapshot mode: semantics (default) or combined
   --help, -h            Show help
 ```
+
+---
+
+## MCP Tools Reference
+
+When using the MCP server, the following tools are available:
+
+| Tool | Description |
+|------|-------------|
+| `connect` | Connect to a Flutter app by VM Service URI |
+| `snapshot` | Get UI tree with element refs |
+| `tap` | Tap element by ref |
+| `doubleTap` | Double tap element |
+| `longPress` | Long press element |
+| `fill` | Fill text field |
+| `clear` | Clear text field |
+| `typeText` | Type text character by character |
+| `pressKey` | Press keyboard key |
+| `scroll` | Scroll element |
+| `swipe` | Swipe gesture |
+| `focus` | Focus element |
+| `toggle` | Toggle switch/checkbox |
+| `select` | Select dropdown option |
+| `back` | Navigate back |
+| `wait` | Wait for duration |
+| `getText` | Get element text |
+| `isVisible` | Check element visibility |
+| `screenshot` | Capture screenshot (returns PNG) |
 
 ---
 
@@ -270,6 +345,7 @@ class LLMAgent {
 │  ┌─────────────────────────────────────────────────────┐    │
 │  │  FlutterMate SDK                                     │    │
 │  │  • Semantics tree access                             │    │
+│  │  • Widget tree introspection                         │    │
 │  │  • Gesture/keyboard simulation                       │    │
 │  │  • Service extensions (ext.flutter_mate.*)           │    │
 │  └─────────────────────────────────────────────────────┘    │
@@ -278,13 +354,14 @@ class LLMAgent {
 │                          │ (WebSocket)                       │
 └──────────────────────────┼──────────────────────────────────┘
                            │
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   flutter_mate CLI                           │
-│  • snapshot, tap, fill, scroll, focus                        │
-│  • Interactive REPL mode                                     │
-│  • JSON output for AI integration                            │
-└─────────────────────────────────────────────────────────────┘
+          ┌────────────────┼────────────────┐
+          │                │                │
+          ▼                ▼                ▼
+┌──────────────┐  ┌──────────────┐  ┌──────────────────┐
+│  CLI Tool    │  │  MCP Server  │  │  Custom Client   │
+│  snapshot    │  │  (Cursor,    │  │  (Your Code)     │
+│  tap, fill   │  │  Claude...)  │  │                  │
+└──────────────┘  └──────────────┘  └──────────────────┘
 ```
 
 ---
@@ -309,21 +386,27 @@ Service extensions (`ext.flutter_mate.*`) expose the SDK functionality via VM Se
 ```
 flutter_mate/
 ├── packages/
-│   └── flutter_mate/           # Dart SDK
+│   └── flutter_mate/               # Dart SDK
 │       ├── lib/
 │       │   ├── flutter_mate.dart
 │       │   └── src/
-│       │       ├── flutter_mate.dart  # Main API
-│       │       └── snapshot.dart      # Snapshot types
+│       │       ├── flutter_mate.dart     # Main API
+│       │       ├── snapshot.dart         # Semantics snapshot
+│       │       ├── combined_snapshot.dart # Widget + semantics tree
+│       │       ├── protocol.dart         # Command definitions
+│       │       ├── command_executor.dart # Execute commands
+│       │       └── actions.dart          # Action types
 │       └── pubspec.yaml
 ├── apps/
-│   └── demo_app/               # Demo Flutter app
+│   └── demo_app/                   # Demo Flutter app
 └── cli/
-    └── flutter_mate_cli/       # CLI tool (VM Service)
+    └── flutter_mate_cli/           # CLI and MCP server
         ├── bin/
-        │   └── flutter_mate.dart
+        │   ├── flutter_mate.dart   # CLI tool
+        │   └── mcp_server.dart     # MCP server
         └── lib/
-            └── vm_service_client.dart
+            ├── vm_service_client.dart
+            └── flutter_mate_mcp.dart
 ```
 
 ---
@@ -336,7 +419,9 @@ flutter_mate/
 - [x] Keyboard/text input simulation
 - [x] VM Service CLI for external control
 - [x] Interactive REPL mode
-- [ ] Screenshot capture
+- [x] Combined widget tree + semantics snapshot
+- [x] MCP Server for AI agent integration
+- [x] Screenshot capture
 - [ ] Record & replay
 - [ ] Test generation from recordings
 - [ ] Web platform testing

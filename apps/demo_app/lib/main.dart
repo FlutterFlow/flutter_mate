@@ -3,10 +3,7 @@ import 'package:flutter_mate/flutter_mate.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize Flutter Mate for in-app AI agent usage
   await FlutterMate.initialize();
-
   runApp(const DemoApp());
 }
 
@@ -27,6 +24,10 @@ class DemoApp extends StatelessWidget {
   }
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// LOGIN PAGE - Tests: tap, fill, focus, pressKey
+// ════════════════════════════════════════════════════════════════════════════
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -40,153 +41,27 @@ class _LoginPageState extends State<LoginPage> {
   String _message = '';
   bool _isLoading = false;
 
-  @override
-  void initState() {
-    super.initState();
-    // Register controllers with FlutterMate for AI agent access
-    FlutterMate.registerTextField('email', _emailController);
-    FlutterMate.registerTextField('password', _passwordController);
-  }
-
-  @override
-  void dispose() {
-    // Unregister controllers
-    FlutterMate.unregisterTextField('email');
-    FlutterMate.unregisterTextField('password');
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
-
   void _handleLogin() async {
-    setState(() {
-      _isLoading = true;
-      _message = '';
-    });
-
-    await Future.delayed(const Duration(seconds: 1));
+    setState(() => _isLoading = true);
+    await Future.delayed(const Duration(milliseconds: 500));
 
     final email = _emailController.text;
     final password = _passwordController.text;
 
-    setState(() {
-      _isLoading = false;
-    });
+    setState(() => _isLoading = false);
 
     if (email == 'test@example.com' && password == 'password') {
       if (mounted) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const CounterPage()),
+          MaterialPageRoute(builder: (_) => const DashboardPage()),
         );
       }
     } else if (email.isEmpty || password.isEmpty) {
-      setState(() {
-        _message = 'Please fill in all fields';
-      });
+      setState(() => _message = 'Please fill in all fields');
     } else {
-      setState(() {
-        _message = 'Invalid email or password';
-      });
+      setState(() =>
+          _message = 'Invalid credentials. Try: test@example.com / password');
     }
-  }
-
-  // Demo 1: Use semantics-based actions (fill, tap)
-  void _runSemanticDemo() async {
-    debugPrint('=== Running Semantics Demo ===');
-
-    final snapshot = await FlutterMate.snapshot(interactiveOnly: true);
-    debugPrint(snapshot.toString());
-
-    // Fill using semantics
-    for (final node in snapshot.nodes) {
-      if (node.label?.toLowerCase().contains('email') == true) {
-        debugPrint('Filling email field: ${node.ref}');
-        await FlutterMate.fill(node.ref, 'test@example.com');
-      }
-      if (node.label?.toLowerCase().contains('password') == true) {
-        debugPrint('Filling password field: ${node.ref}');
-        await FlutterMate.fill(node.ref, 'password');
-      }
-    }
-
-    // Find and tap login button
-    await Future.delayed(const Duration(milliseconds: 300));
-    for (final node in snapshot.nodes) {
-      if (node.label?.toLowerCase() == 'login' && node.hasAction('tap')) {
-        debugPrint('Tapping login button: ${node.ref}');
-        await FlutterMate.tap(node.ref);
-        break;
-      }
-    }
-  }
-
-  // Demo 2: Use gesture + keyboard simulation (platform channel)
-  void _runGestureKeyboardDemo() async {
-    debugPrint('=== Running Gesture & Keyboard Demo ===');
-    debugPrint('Simulating REAL keyboard input via platform channels');
-
-    final snapshot = await FlutterMate.snapshot(interactiveOnly: true);
-    debugPrint(snapshot.toString());
-
-    // Find the email field and tap on it using gesture simulation
-    for (final node in snapshot.nodes) {
-      if (node.label?.toLowerCase().contains('email') == true) {
-        final center = node.rect.center;
-        debugPrint('1. Tapping email field at: (${center.dx}, ${center.dy})');
-        FlutterMate.tapAt(center);
-        await Future.delayed(const Duration(milliseconds: 300));
-
-        // When we tap a TextField, Flutter creates a new text input connection
-        // Connection IDs increment: 1, 2, 3...
-        FlutterMate.nextConnection();
-        debugPrint(
-            '   Connection ID: ${FlutterMate.activeTextInputConnectionId}');
-
-        // Type using platform channel (like a real keyboard)
-        debugPrint('2. Typing email via platform channel...');
-        final emailTyped = await FlutterMate.typeText('test@example.com');
-        debugPrint('   Typed: $emailTyped');
-        break;
-      }
-    }
-
-    await Future.delayed(const Duration(milliseconds: 200));
-
-    // Find and tap password field
-    final snapshot2 = await FlutterMate.snapshot(interactiveOnly: true);
-    for (final node in snapshot2.nodes) {
-      if (node.label?.toLowerCase().contains('password') == true) {
-        final center = node.rect.center;
-        debugPrint(
-            '3. Tapping password field at: (${center.dx}, ${center.dy})');
-        FlutterMate.tapAt(center);
-        await Future.delayed(const Duration(milliseconds: 300));
-
-        // New field = new connection
-        FlutterMate.nextConnection();
-        debugPrint(
-            '   Connection ID: ${FlutterMate.activeTextInputConnectionId}');
-
-        debugPrint('4. Typing password via platform channel...');
-        final pwTyped = await FlutterMate.typeText('password');
-        debugPrint('   Typed: $pwTyped');
-        break;
-      }
-    }
-
-    await Future.delayed(const Duration(milliseconds: 200));
-
-    // Find and tap login button
-    final snapshot3 = await FlutterMate.snapshot(interactiveOnly: true);
-    for (final node in snapshot3.nodes) {
-      if (node.label?.toLowerCase() == 'login' && node.hasAction('tap')) {
-        debugPrint('5. Tapping Login button: ${node.ref}');
-        await FlutterMate.tap(node.ref);
-        break;
-      }
-    }
-
-    debugPrint('=== Demo Complete ===');
   }
 
   @override
@@ -195,18 +70,6 @@ class _LoginPageState extends State<LoginPage> {
       appBar: AppBar(
         title: const Text('Login'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.smart_toy),
-            tooltip: 'Semantics Demo',
-            onPressed: _runSemanticDemo,
-          ),
-          IconButton(
-            icon: const Icon(Icons.keyboard),
-            tooltip: 'Gesture & Keyboard Demo',
-            onPressed: _runGestureKeyboardDemo,
-          ),
-        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -218,17 +81,15 @@ class _LoginPageState extends State<LoginPage> {
               'Welcome Back',
               style: Theme.of(context).textTheme.headlineMedium,
               textAlign: TextAlign.center,
-              semanticsLabel: 'Welcome Back',
             ),
             const SizedBox(height: 32),
             Semantics(
-              label: 'Email input field',
+              label: 'Email field',
               textField: true,
               child: TextField(
                 controller: _emailController,
                 decoration: const InputDecoration(
                   labelText: 'Email',
-                  hintText: 'Enter your email',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.email),
                 ),
@@ -237,17 +98,17 @@ class _LoginPageState extends State<LoginPage> {
             ),
             const SizedBox(height: 16),
             Semantics(
-              label: 'Password input field',
+              label: 'Password field',
               textField: true,
               child: TextField(
                 controller: _passwordController,
                 decoration: const InputDecoration(
                   labelText: 'Password',
-                  hintText: 'Enter your password',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.lock),
                 ),
                 obscureText: true,
+                onSubmitted: (_) => _handleLogin(),
               ),
             ),
             const SizedBox(height: 24),
@@ -256,20 +117,13 @@ class _LoginPageState extends State<LoginPage> {
                 padding: const EdgeInsets.only(bottom: 16),
                 child: Text(
                   _message,
-                  style: TextStyle(
-                    color: _message.contains('Invalid') ||
-                            _message.contains('Please')
-                        ? Colors.red
-                        : Colors.green,
-                  ),
+                  style: const TextStyle(color: Colors.red),
                   textAlign: TextAlign.center,
-                  semanticsLabel: _message,
                 ),
               ),
             Semantics(
               label: 'Login button',
               button: true,
-              enabled: !_isLoading,
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _handleLogin,
                 style: ElevatedButton.styleFrom(
@@ -284,14 +138,68 @@ class _LoginPageState extends State<LoginPage> {
                     : const Text('Login', style: TextStyle(fontSize: 18)),
               ),
             ),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _message = 'Forgot password clicked';
-                });
-              },
-              child: const Text('Forgot Password?'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// DASHBOARD - Bottom navigation with 4 tabs
+// ════════════════════════════════════════════════════════════════════════════
+
+class DashboardPage extends StatefulWidget {
+  const DashboardPage({super.key});
+
+  @override
+  State<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
+  int _currentIndex = 0;
+
+  final _pages = const [
+    ListPage(),
+    FormPage(),
+    ActionsPage(),
+    SettingsPage(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: _pages[_currentIndex],
+      bottomNavigationBar: Semantics(
+        label: 'Navigation bar',
+        child: NavigationBar(
+          selectedIndex: _currentIndex,
+          onDestinationSelected: (index) {
+            setState(() => _currentIndex = index);
+          },
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.list),
+              label: 'List',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.edit_note),
+              label: 'Form',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.touch_app),
+              label: 'Actions',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.settings),
+              label: 'Settings',
             ),
           ],
         ),
@@ -300,97 +208,575 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
-class CounterPage extends StatefulWidget {
-  const CounterPage({super.key});
+// ════════════════════════════════════════════════════════════════════════════
+// LIST PAGE - Tests: scroll, tap on list items
+// ════════════════════════════════════════════════════════════════════════════
+
+class ListPage extends StatefulWidget {
+  const ListPage({super.key});
 
   @override
-  State<CounterPage> createState() => _CounterPageState();
+  State<ListPage> createState() => _ListPageState();
 }
 
-class _CounterPageState extends State<CounterPage> {
-  int _counter = 0;
+class _ListPageState extends State<ListPage> {
+  String _selectedItem = '';
 
-  void _increment() => setState(() => _counter++);
-  void _decrement() => setState(() => _counter--);
-  void _reset() => setState(() => _counter = 0);
+  final _items = List.generate(
+    30,
+    (i) => 'Item ${i + 1}',
+  );
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Counter'),
+        title: const Text('Scrollable List'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const LoginPage()),
-              );
-            },
-            tooltip: 'Logout',
+      ),
+      body: Column(
+        children: [
+          if (_selectedItem.isNotEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              color: Colors.green.shade100,
+              child: Semantics(
+                label: 'Selected: $_selectedItem',
+                child: Text(
+                  'Selected: $_selectedItem',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          Expanded(
+            child: Semantics(
+              label: 'Scrollable item list',
+              child: ListView.builder(
+                itemCount: _items.length,
+                itemBuilder: (context, index) {
+                  final item = _items[index];
+                  return Semantics(
+                    label: item,
+                    button: true,
+                    child: ListTile(
+                      leading: CircleAvatar(child: Text('${index + 1}')),
+                      title: Text(item),
+                      subtitle: Text('Tap to select $item'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        setState(() => _selectedItem = item);
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
         ],
       ),
-      body: Center(
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// FORM PAGE - Tests: toggle (switch/checkbox), select (dropdown), fill, clear
+// ════════════════════════════════════════════════════════════════════════════
+
+class FormPage extends StatefulWidget {
+  const FormPage({super.key});
+
+  @override
+  State<FormPage> createState() => _FormPageState();
+}
+
+class _FormPageState extends State<FormPage> {
+  final _nameController = TextEditingController();
+  final _bioController = TextEditingController();
+  bool _newsletter = false;
+  bool _notifications = true;
+  String _selectedCountry = 'USA';
+  double _volume = 50;
+
+  final _countries = ['USA', 'Canada', 'UK', 'Germany', 'France', 'Japan'];
+
+  void _submitForm() {
+    final summary = '''
+Form Submitted:
+- Name: ${_nameController.text}
+- Bio: ${_bioController.text}
+- Newsletter: $_newsletter
+- Notifications: $_notifications
+- Country: $_selectedCountry
+- Volume: ${_volume.round()}
+''';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(summary), duration: const Duration(seconds: 3)),
+    );
+  }
+
+  void _clearForm() {
+    setState(() {
+      _nameController.clear();
+      _bioController.clear();
+      _newsletter = false;
+      _notifications = true;
+      _selectedCountry = 'USA';
+      _volume = 50;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Form Controls'),
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'Counter Value',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 16),
+            // Text field
             Semantics(
-              label: 'Counter value: $_counter',
-              child: Text(
-                '$_counter',
-                style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: _counter < 0 ? Colors.red : Colors.green,
-                    ),
+              label: 'Name field',
+              textField: true,
+              child: TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Name',
+                  border: OutlineInputBorder(),
+                ),
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 16),
+
+            // Multi-line text field
+            Semantics(
+              label: 'Bio field',
+              textField: true,
+              child: TextField(
+                controller: _bioController,
+                decoration: const InputDecoration(
+                  labelText: 'Bio',
+                  border: OutlineInputBorder(),
+                  alignLabelWithHint: true,
+                ),
+                maxLines: 3,
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Checkbox
+            Semantics(
+              label: 'Newsletter checkbox',
+              checked: _newsletter,
+              child: CheckboxListTile(
+                title: const Text('Subscribe to newsletter'),
+                subtitle: const Text('Get weekly updates'),
+                value: _newsletter,
+                onChanged: (v) => setState(() => _newsletter = v ?? false),
+              ),
+            ),
+
+            // Switch
+            Semantics(
+              label: 'Notifications switch',
+              toggled: _notifications,
+              child: SwitchListTile(
+                title: const Text('Push notifications'),
+                subtitle: const Text('Receive push notifications'),
+                value: _notifications,
+                onChanged: (v) => setState(() => _notifications = v),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Dropdown
+            Semantics(
+              label: 'Country dropdown',
+              child: DropdownButtonFormField<String>(
+                value: _selectedCountry,
+                decoration: const InputDecoration(
+                  labelText: 'Country',
+                  border: OutlineInputBorder(),
+                ),
+                items: _countries.map((c) {
+                  return DropdownMenuItem(
+                    value: c,
+                    child: Semantics(label: c, child: Text(c)),
+                  );
+                }).toList(),
+                onChanged: (v) => setState(() => _selectedCountry = v ?? 'USA'),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Slider
+            Text('Volume: ${_volume.round()}'),
+            Semantics(
+              label: 'Volume slider',
+              slider: true,
+              value: '${_volume.round()}',
+              child: Slider(
+                value: _volume,
+                min: 0,
+                max: 100,
+                divisions: 10,
+                label: _volume.round().toString(),
+                onChanged: (v) => setState(() => _volume = v),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Buttons
             Row(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Semantics(
-                  label: 'Decrement button',
-                  button: true,
-                  child: FloatingActionButton(
-                    heroTag: 'decrement',
-                    onPressed: _decrement,
-                    tooltip: 'Decrement',
-                    child: const Icon(Icons.remove),
+                Expanded(
+                  child: Semantics(
+                    label: 'Clear form button',
+                    button: true,
+                    child: OutlinedButton(
+                      onPressed: _clearForm,
+                      child: const Text('Clear'),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 16),
-                Semantics(
-                  label: 'Reset button',
-                  button: true,
-                  child: FloatingActionButton(
-                    heroTag: 'reset',
-                    onPressed: _reset,
-                    tooltip: 'Reset',
-                    child: const Icon(Icons.refresh),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Semantics(
-                  label: 'Increment button',
-                  button: true,
-                  child: FloatingActionButton(
-                    heroTag: 'increment',
-                    onPressed: _increment,
-                    tooltip: 'Increment',
-                    child: const Icon(Icons.add),
+                Expanded(
+                  child: Semantics(
+                    label: 'Submit form button',
+                    button: true,
+                    child: ElevatedButton(
+                      onPressed: _submitForm,
+                      child: const Text('Submit'),
+                    ),
                   ),
                 ),
               ],
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _bioController.dispose();
+    super.dispose();
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ACTIONS PAGE - Tests: longPress, doubleTap, custom gestures
+// ════════════════════════════════════════════════════════════════════════════
+
+class ActionsPage extends StatefulWidget {
+  const ActionsPage({super.key});
+
+  @override
+  State<ActionsPage> createState() => _ActionsPageState();
+}
+
+class _ActionsPageState extends State<ActionsPage> {
+  String _lastAction = 'None';
+  int _tapCount = 0;
+  int _doubleTapCount = 0;
+  int _longPressCount = 0;
+
+  void _showAction(String action) {
+    setState(() => _lastAction = action);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(action),
+        duration: const Duration(milliseconds: 500),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Gesture Actions'),
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Status display
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    Semantics(
+                      label: 'Last action: $_lastAction',
+                      child: Text(
+                        'Last Action: $_lastAction',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                        'Taps: $_tapCount | Double-taps: $_doubleTapCount | Long-presses: $_longPressCount'),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Tap button
+            Semantics(
+              label: 'Tap button',
+              button: true,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  setState(() => _tapCount++);
+                  _showAction('Tap detected!');
+                },
+                icon: const Icon(Icons.touch_app),
+                label: const Text('Tap Me'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.all(20),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Double-tap area
+            Semantics(
+              label: 'Double tap area',
+              button: true,
+              child: GestureDetector(
+                onDoubleTap: () {
+                  setState(() => _doubleTapCount++);
+                  _showAction('Double-tap detected!');
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blue, width: 2),
+                  ),
+                  child: const Column(
+                    children: [
+                      Icon(Icons.ads_click, size: 48, color: Colors.blue),
+                      SizedBox(height: 8),
+                      Text(
+                        'Double-Tap Here',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Long-press area
+            Semantics(
+              label: 'Long press area',
+              button: true,
+              onLongPress: () {
+                setState(() => _longPressCount++);
+                _showAction('Long-press detected!');
+              },
+              child: GestureDetector(
+                onLongPress: () {
+                  setState(() => _longPressCount++);
+                  _showAction('Long-press detected!');
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.orange, width: 2),
+                  ),
+                  child: const Column(
+                    children: [
+                      Icon(Icons.pan_tool, size: 48, color: Colors.orange),
+                      SizedBox(height: 8),
+                      Text(
+                        'Long-Press Here',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange,
+                        ),
+                      ),
+                      Text(
+                        '(Hold for 500ms)',
+                        style: TextStyle(color: Colors.orange),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Reset button
+            Semantics(
+              label: 'Reset counters button',
+              button: true,
+              child: TextButton(
+                onPressed: () {
+                  setState(() {
+                    _tapCount = 0;
+                    _doubleTapCount = 0;
+                    _longPressCount = 0;
+                    _lastAction = 'Counters reset';
+                  });
+                },
+                child: const Text('Reset Counters'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// SETTINGS PAGE - Tests: toggle, navigation, logout
+// ════════════════════════════════════════════════════════════════════════════
+
+class SettingsPage extends StatefulWidget {
+  const SettingsPage({super.key});
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  bool _darkMode = false;
+  bool _biometrics = true;
+  bool _analytics = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Settings'),
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+      ),
+      body: ListView(
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text(
+              'Preferences',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Semantics(
+            label: 'Dark mode switch',
+            toggled: _darkMode,
+            child: SwitchListTile(
+              title: const Text('Dark Mode'),
+              subtitle: const Text('Use dark theme'),
+              secondary: const Icon(Icons.dark_mode),
+              value: _darkMode,
+              onChanged: (v) => setState(() => _darkMode = v),
+            ),
+          ),
+          Semantics(
+            label: 'Biometrics switch',
+            toggled: _biometrics,
+            child: SwitchListTile(
+              title: const Text('Biometric Login'),
+              subtitle: const Text('Use fingerprint or face'),
+              secondary: const Icon(Icons.fingerprint),
+              value: _biometrics,
+              onChanged: (v) => setState(() => _biometrics = v),
+            ),
+          ),
+          Semantics(
+            label: 'Analytics switch',
+            toggled: _analytics,
+            child: SwitchListTile(
+              title: const Text('Send Analytics'),
+              subtitle: const Text('Help improve the app'),
+              secondary: const Icon(Icons.analytics),
+              value: _analytics,
+              onChanged: (v) => setState(() => _analytics = v),
+            ),
+          ),
+          const Divider(),
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text(
+              'Account',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          Semantics(
+            label: 'Profile button',
+            button: true,
+            child: ListTile(
+              leading: const Icon(Icons.person),
+              title: const Text('Profile'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Profile tapped')),
+                );
+              },
+            ),
+          ),
+          Semantics(
+            label: 'About button',
+            button: true,
+            child: ListTile(
+              leading: const Icon(Icons.info),
+              title: const Text('About'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                showAboutDialog(
+                  context: context,
+                  applicationName: 'Flutter Mate Demo',
+                  applicationVersion: '1.0.0',
+                );
+              },
+            ),
+          ),
+          const Divider(),
+          Semantics(
+            label: 'Logout button',
+            button: true,
+            child: ListTile(
+              leading: const Icon(Icons.logout, color: Colors.red),
+              title: const Text('Logout', style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => const LoginPage()),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

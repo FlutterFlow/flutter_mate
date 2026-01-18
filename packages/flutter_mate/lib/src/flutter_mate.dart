@@ -10,7 +10,66 @@ import 'package:flutter/widgets.dart';
 
 export 'package:flutter/widgets.dart' show TextEditingController;
 
+import 'combined_snapshot.dart';
 import 'snapshot.dart';
+
+// ══════════════════════════════════════════════════════════════════════════════
+// WIDGET CONSOLIDATION - Skip these wrapper widgets when they have single child
+// Based on Hologram's widget_tree_filter.dart
+// ══════════════════════════════════════════════════════════════════════════════
+
+const _skipWidgets = <String>{
+  // Layout wrappers
+  'Padding',
+  'Align',
+  'Center',
+  'Expanded',
+  'Flexible',
+  'Positioned',
+  'SizedBox',
+  'ConstrainedBox',
+  'UnconstrainedBox',
+  'LimitedBox',
+  'FittedBox',
+  'FractionallySizedBox',
+  'IntrinsicHeight',
+  'IntrinsicWidth',
+  'AspectRatio',
+  // Gesture wrappers
+  'GestureDetector',
+  'InkWell',
+  'MouseRegion',
+  'AbsorbPointer',
+  'IgnorePointer',
+  // Visual wrappers
+  'Opacity',
+  'Visibility',
+  'ClipRect',
+  'ClipRRect',
+  'ClipOval',
+  'ClipPath',
+  'Transform',
+  'RotatedBox',
+  'AnimatedOpacity',
+  'AnimatedAlign',
+  'AnimatedPadding',
+  'AnimatedPositioned',
+  'AnimatedSize',
+  // Semantics wrappers
+  'Semantics',
+  'MergeSemantics',
+  'ExcludeSemantics',
+  // Framework internals
+  'Material',
+  'SafeArea',
+  'Builder',
+  'RepaintBoundary',
+  'KeyedSubtree',
+  'Offstage',
+  'WillPopScope',
+  'AnimatedBuilder',
+  // Private/internal widgets (start with _)
+};
 
 /// Flutter Mate SDK — Automate Flutter apps
 ///
@@ -156,6 +215,9 @@ class FlutterMate {
       registerExtension('ext.flutter_mate.scroll', (method, params) async {
         final ref = params['ref'];
         final dirStr = params['direction'] ?? 'down';
+        final distanceStr = params['distance'];
+        final distance =
+            distanceStr != null ? double.tryParse(distanceStr) ?? 300.0 : 300.0;
         if (ref == null) {
           return ServiceExtensionResponse.error(
             ServiceExtensionResponse.invalidParams,
@@ -168,7 +230,7 @@ class FlutterMate {
           'right' => ScrollDirection.right,
           _ => ScrollDirection.down,
         };
-        final success = await scroll(ref, direction);
+        final success = await scroll(ref, direction, distance: distance);
         return ServiceExtensionResponse.result(
             jsonEncode({'success': success}));
       });
@@ -183,6 +245,78 @@ class FlutterMate {
           );
         }
         final success = await focus(ref);
+        return ServiceExtensionResponse.result(
+            jsonEncode({'success': success}));
+      });
+
+      // ext.flutter_mate.snapshotCombined - Get combined widget tree + semantics
+      registerExtension('ext.flutter_mate.snapshotCombined',
+          (method, params) async {
+        final consolidate = params['consolidate'] != 'false';
+        final snap = await snapshotCombined(consolidate: consolidate);
+        return ServiceExtensionResponse.result(jsonEncode(snap.toJson()));
+      });
+
+      // ext.flutter_mate.getSemanticsNodes - Get structured semantics tree
+      registerExtension('ext.flutter_mate.getSemanticsNodes',
+          (method, params) async {
+        final interactiveOnly = params['interactiveOnly'] != 'false';
+        final nodes = getSemanticsNodes(interactiveOnly: interactiveOnly);
+        return ServiceExtensionResponse.result(jsonEncode(nodes));
+      });
+
+      // ext.flutter_mate.longPress - Long press element by ref
+      registerExtension('ext.flutter_mate.longPress', (method, params) async {
+        final ref = params['ref'];
+        if (ref == null) {
+          return ServiceExtensionResponse.error(
+            ServiceExtensionResponse.invalidParams,
+            'Missing ref parameter',
+          );
+        }
+        final success = await longPress(ref);
+        return ServiceExtensionResponse.result(
+            jsonEncode({'success': success}));
+      });
+
+      // ext.flutter_mate.typeText - Type text into focused field
+      registerExtension('ext.flutter_mate.typeText', (method, params) async {
+        final text = params['text'];
+        if (text == null) {
+          return ServiceExtensionResponse.error(
+            ServiceExtensionResponse.invalidParams,
+            'Missing text parameter',
+          );
+        }
+        final success = await typeText(text);
+        return ServiceExtensionResponse.result(
+            jsonEncode({'success': success}));
+      });
+
+      // ext.flutter_mate.clearText - Clear focused text field
+      registerExtension('ext.flutter_mate.clearText', (method, params) async {
+        final success = await clearText();
+        return ServiceExtensionResponse.result(
+            jsonEncode({'success': success}));
+      });
+
+      // ext.flutter_mate.pressKey - Press a keyboard key
+      registerExtension('ext.flutter_mate.pressKey', (method, params) async {
+        final key = params['key'];
+        if (key == null) {
+          return ServiceExtensionResponse.error(
+            ServiceExtensionResponse.invalidParams,
+            'Missing key parameter',
+          );
+        }
+        final logicalKey = _parseLogicalKey(key);
+        if (logicalKey == null) {
+          return ServiceExtensionResponse.error(
+            ServiceExtensionResponse.invalidParams,
+            'Unknown key: $key',
+          );
+        }
+        final success = await pressKey(logicalKey);
         return ServiceExtensionResponse.result(
             jsonEncode({'success': success}));
       });
@@ -254,6 +388,259 @@ class FlutterMate {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
+  // COMBINED SNAPSHOT
+  // Walks the Element tree (widget tree) and attaches semantics info.
+  // Provides both widget structure and interaction capabilities.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /// Get a combined snapshot of the widget tree with semantics
+  ///
+  /// This provides both structural context (widget types, hierarchy) and
+  /// interaction capabilities (actions, labels, values).
+  ///
+  /// Set [consolidate] to true (default) to skip wrapper widgets like
+  /// Padding, Align, GestureDetector when they have a single child.
+  ///
+  /// ```dart
+  /// final snapshot = await FlutterMate.snapshotCombined();
+  /// print(snapshot);
+  /// ```
+  static Future<CombinedSnapshot> snapshotCombined({
+    bool consolidate = true,
+  }) async {
+    _ensureInitialized();
+
+    // Wait for first frame if needed
+    final rootElement = WidgetsBinding.instance.rootElement;
+    if (rootElement == null) {
+      await _waitForFirstFrame();
+    }
+
+    final root = WidgetsBinding.instance.rootElement;
+    if (root == null) {
+      return CombinedSnapshot(
+        success: false,
+        error: 'No root element found. Is the UI rendered?',
+        timestamp: DateTime.now(),
+        nodes: [],
+      );
+    }
+
+    final nodes = <CombinedNode>[];
+    int refCounter = 0;
+
+    void walkElement(Element element, int depth) {
+      final widget = element.widget;
+      final widgetType = widget.runtimeType.toString();
+
+      // Consolidation: skip wrapper widgets with single child
+      if (consolidate && _shouldSkipWidget(widgetType)) {
+        int childCount = 0;
+        Element? singleChild;
+        element.visitChildren((child) {
+          childCount++;
+          singleChild = child;
+        });
+        if (childCount == 1 && singleChild != null) {
+          walkElement(singleChild!, depth);
+          return;
+        }
+      }
+
+      // Skip private/internal widgets (start with _)
+      if (widgetType.startsWith('_') && consolidate) {
+        element.visitChildren((child) {
+          walkElement(child, depth);
+        });
+        return;
+      }
+
+      final ref = 'w${refCounter++}';
+
+      // Get bounds and semantics from RenderObject
+      CombinedRect? bounds;
+      SemanticsInfo? semantics;
+
+      if (element is RenderObjectElement) {
+        final ro = element.renderObject;
+
+        // Get bounds
+        if (ro is RenderBox && ro.hasSize) {
+          try {
+            final topLeft = ro.localToGlobal(Offset.zero);
+            bounds = CombinedRect(
+              x: topLeft.dx,
+              y: topLeft.dy,
+              width: ro.size.width,
+              height: ro.size.height,
+            );
+          } catch (_) {
+            // localToGlobal can fail if not attached
+          }
+        }
+
+        // Get semantics from RenderObject
+        final sn = ro.debugSemantics;
+        if (sn != null) {
+          semantics = _extractSemanticsInfo(sn);
+        }
+      }
+
+      // Collect children refs by walking first
+      final childRefs = <String>[];
+      final childStartRef = refCounter;
+
+      element.visitChildren((child) {
+        final beforeCount = refCounter;
+        walkElement(child, depth + 1);
+        // If refCounter advanced, a child was added
+        if (refCounter > beforeCount) {
+          childRefs.add('w$beforeCount');
+        }
+      });
+
+      // Insert this node at the correct position (before its children)
+      final nodeIndex = nodes.length - (refCounter - childStartRef);
+      nodes.insert(
+        nodeIndex < 0 ? 0 : nodeIndex,
+        CombinedNode(
+          ref: ref,
+          widget: widgetType,
+          depth: depth,
+          bounds: bounds,
+          children: childRefs,
+          semantics: semantics,
+        ),
+      );
+    }
+
+    walkElement(root, 0);
+
+    // Reorder nodes to be in depth-first order (parents before children)
+    nodes.sort((a, b) {
+      final refA = int.parse(a.ref.substring(1));
+      final refB = int.parse(b.ref.substring(1));
+      return refA.compareTo(refB);
+    });
+
+    return CombinedSnapshot(
+      success: true,
+      timestamp: DateTime.now(),
+      nodes: nodes,
+    );
+  }
+
+  /// Check if a widget type should be skipped during consolidation
+  static bool _shouldSkipWidget(String widgetType) {
+    // Check exact match
+    if (_skipWidgets.contains(widgetType)) return true;
+
+    // Check for private widgets that wrap public ones (e.g., _InkWell)
+    final withoutUnderscore =
+        widgetType.startsWith('_') ? widgetType.substring(1) : null;
+    if (withoutUnderscore != null && _skipWidgets.contains(withoutUnderscore)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /// Extract semantics info from a SemanticsNode
+  static SemanticsInfo _extractSemanticsInfo(SemanticsNode node) {
+    final data = node.getSemanticsData();
+
+    return SemanticsInfo(
+      id: node.id,
+      label: data.label.isNotEmpty ? data.label : null,
+      value: data.value.isNotEmpty ? data.value : null,
+      hint: data.hint.isNotEmpty ? data.hint : null,
+      increasedValue:
+          data.increasedValue.isNotEmpty ? data.increasedValue : null,
+      decreasedValue:
+          data.decreasedValue.isNotEmpty ? data.decreasedValue : null,
+      flags: _getFlags(data).toSet(),
+      actions: _getActions(data).toSet(),
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // SEMANTICS TREE EXTRACTION
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /// Get semantics nodes as a structured list
+  ///
+  /// Returns all semantics nodes with their actions, flags, labels, and bounds.
+  /// Used by CLI via ext.flutter_mate.getSemanticsNodes service extension.
+  ///
+  /// ```dart
+  /// final nodes = FlutterMate.getSemanticsNodes();
+  /// print(nodes); // [{ref: "s0", id: 1, label: "Login", ...}, ...]
+  /// ```
+  static List<Map<String, dynamic>> getSemanticsNodes({
+    bool interactiveOnly = true,
+  }) {
+    final binding = WidgetsBinding.instance;
+    final owner = binding.pipelineOwner.semanticsOwner;
+    if (owner == null) return [];
+    final root = owner.rootSemanticsNode;
+    if (root == null) return [];
+
+    final results = <Map<String, dynamic>>[];
+    var idx = 0;
+
+    void visit(SemanticsNode node) {
+      final data = node.getSemanticsData();
+      final label = data.label;
+      final actions = _getActions(data);
+      final flags = _getFlags(data);
+
+      // Get rect with transform
+      final rect = node.rect;
+      final transform = node.transform;
+      var left = rect.left;
+      var top = rect.top;
+      var right = rect.right;
+      var bottom = rect.bottom;
+      if (transform != null) {
+        final tl = MatrixUtils.transformPoint(transform, rect.topLeft);
+        final br = MatrixUtils.transformPoint(transform, rect.bottomRight);
+        left = tl.dx;
+        top = tl.dy;
+        right = br.dx;
+        bottom = br.dy;
+      }
+
+      // Filter to interactive only
+      final isInteractive = label.isNotEmpty || actions.isNotEmpty;
+      if (!interactiveOnly || isInteractive) {
+        results.add({
+          'ref': 's$idx',
+          'id': node.id,
+          'label': label,
+          'value': data.value,
+          'actions': actions,
+          'flags': flags,
+          'rect': {
+            'left': left,
+            'top': top,
+            'right': right,
+            'bottom': bottom,
+          },
+        });
+        idx++;
+      }
+
+      node.visitChildren((child) {
+        visit(child);
+        return true;
+      });
+    }
+
+    visit(root);
+    return results;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
   // SEMANTICS-BASED ACTIONS
   // These use Flutter's accessibility system to interact with elements.
   // Most reliable way to interact with standard Flutter widgets.
@@ -305,17 +692,131 @@ class FlutterMate {
 
   /// Scroll an element
   ///
+  /// First tries semantic scroll action on the node or its ancestors.
+  /// Falls back to gesture-based scrolling if no semantic scroll is available.
+  ///
   /// ```dart
   /// await FlutterMate.scroll('w10', ScrollDirection.down);
   /// ```
-  static Future<bool> scroll(String ref, ScrollDirection direction) async {
+  static Future<bool> scroll(String ref, ScrollDirection direction,
+      {double distance = 200}) async {
+    // NOTE: SemanticsAction scroll directions refer to VIEW movement, not content:
+    // - scrollUp = view moves up = content moves down = reveals content BELOW
+    // - scrollDown = view moves down = content moves up = reveals content ABOVE
+    //
+    // When user says "scroll down" they mean "see content below", so we use scrollUp
     final action = switch (direction) {
-      ScrollDirection.up => SemanticsAction.scrollUp,
-      ScrollDirection.down => SemanticsAction.scrollDown,
-      ScrollDirection.left => SemanticsAction.scrollLeft,
-      ScrollDirection.right => SemanticsAction.scrollRight,
+      ScrollDirection.up => SemanticsAction.scrollDown, // see content above
+      ScrollDirection.down => SemanticsAction.scrollUp, // see content below
+      ScrollDirection.left => SemanticsAction.scrollRight,
+      ScrollDirection.right => SemanticsAction.scrollLeft,
     };
-    return _performAction(ref, action);
+
+    // Find the node
+    final node = _findNode(ref);
+    if (node == null) {
+      debugPrint('FlutterMate: Scroll - Node not found: $ref');
+      return false;
+    }
+
+    // TODO: Re-enable semantic scrolling after gesture fallback is verified
+    // For now, skip semantic scroll and use gesture directly
+    const useSemanticScroll = false;
+
+    if (useSemanticScroll) {
+      // Try to find a scrollable ancestor (including this node)
+      SemanticsNode? current = node;
+      while (current != null) {
+        final data = current.getSemanticsData();
+        final hasScrollUp = data.hasAction(SemanticsAction.scrollUp);
+        final hasScrollDown = data.hasAction(SemanticsAction.scrollDown);
+
+        debugPrint(
+            'FlutterMate: Checking w${current.id} - scrollUp=$hasScrollUp scrollDown=$hasScrollDown');
+
+        if (data.hasAction(action)) {
+          debugPrint('FlutterMate: Performing $action on w${current.id}');
+          current.owner?.performAction(current.id, action);
+          await Future.delayed(const Duration(milliseconds: 300));
+          return true;
+        }
+        current = current.parent;
+      }
+    }
+
+    // Use gesture-based scrolling
+    debugPrint('FlutterMate: No semantic scroll, using gesture scroll');
+
+    return scrollGestureByDirection(ref, direction, distance);
+  }
+
+  /// Scroll using gesture simulation, staying within element bounds
+  static Future<bool> scrollGestureByDirection(
+      String ref, ScrollDirection direction, double distance) async {
+    _ensureInitialized();
+
+    // Find the semantics node directly (not through snapshot which is slow)
+    final node = _findNode(ref);
+    if (node == null) {
+      debugPrint(
+          'FlutterMate: scrollGestureByDirection - Node not found: $ref');
+      return false;
+    }
+
+    // Get the node's rect in global coordinates
+    final localRect = node.rect;
+    final transform = node.transform;
+
+    Offset topLeft = localRect.topLeft;
+    Offset bottomRight = localRect.bottomRight;
+    if (transform != null) {
+      topLeft = MatrixUtils.transformPoint(transform, localRect.topLeft);
+      bottomRight =
+          MatrixUtils.transformPoint(transform, localRect.bottomRight);
+    }
+
+    final centerX = (topLeft.dx + bottomRight.dx) / 2;
+    final topY = topLeft.dy + (bottomRight.dy - topLeft.dy) * 0.25;
+    final bottomY = topLeft.dy + (bottomRight.dy - topLeft.dy) * 0.75;
+
+    // User direction refers to content they want to see:
+    // - "scroll down" = see content below = drag finger UP (bottom to top)
+    // - "scroll up" = see content above = drag finger DOWN (top to bottom)
+    Offset from, to;
+    switch (direction) {
+      case ScrollDirection.down:
+        // See content below: swipe up (drag from bottom to top)
+        from = Offset(centerX, bottomY);
+        to = Offset(centerX, topY);
+        break;
+      case ScrollDirection.up:
+        // See content above: swipe down (drag from top to bottom)
+        from = Offset(centerX, topY);
+        to = Offset(centerX, bottomY);
+        break;
+      case ScrollDirection.left:
+        // See content on left: swipe right
+        final leftX = topLeft.dx + (bottomRight.dx - topLeft.dx) * 0.25;
+        final rightX = topLeft.dx + (bottomRight.dx - topLeft.dx) * 0.75;
+        final centerY = (topLeft.dy + bottomRight.dy) / 2;
+        from = Offset(leftX, centerY);
+        to = Offset(rightX, centerY);
+        break;
+      case ScrollDirection.right:
+        // See content on right: swipe left
+        final leftX = topLeft.dx + (bottomRight.dx - topLeft.dx) * 0.25;
+        final rightX = topLeft.dx + (bottomRight.dx - topLeft.dx) * 0.75;
+        final centerY = (topLeft.dy + bottomRight.dy) / 2;
+        from = Offset(rightX, centerY);
+        to = Offset(leftX, centerY);
+        break;
+    }
+
+    debugPrint('FlutterMate: scrollGesture $direction from $from to $to');
+
+    await drag(from: from, to: to);
+
+    return true;
   }
 
   /// Focus on an element by ref
@@ -398,8 +899,8 @@ class FlutterMate {
   static Future<void> drag({
     required Offset from,
     required Offset to,
-    Duration duration = const Duration(milliseconds: 300),
-    int steps = 20,
+    Duration duration = const Duration(milliseconds: 200),
+    int steps = 10,
   }) async {
     _ensureInitialized();
 
@@ -407,37 +908,60 @@ class FlutterMate {
     final startTime =
         Duration(milliseconds: DateTime.now().millisecondsSinceEpoch);
     final stepDuration = duration ~/ steps;
-    final delta = (to - from) / steps.toDouble();
+    final totalDelta = to - from;
+    final stepDelta = totalDelta / steps.toDouble();
 
-    // Pointer down at start
+    debugPrint('FlutterMate: drag from $from to $to');
+
+    // Pointer down at start - use touch device kind for scrolling
     GestureBinding.instance.handlePointerEvent(PointerDownEvent(
       pointer: pointerId,
       position: from,
       timeStamp: startTime,
+      kind: PointerDeviceKind.touch,
     ));
 
-    // Move through intermediate points
+    await Future.delayed(const Duration(milliseconds: 16));
+
+    // Move through intermediate points with acceleration
     var currentPosition = from;
     for (var i = 1; i <= steps; i++) {
-      await Future.delayed(stepDuration);
-      currentPosition = from + delta * i.toDouble();
+      currentPosition = from + stepDelta * i.toDouble();
 
       GestureBinding.instance.handlePointerEvent(PointerMoveEvent(
         pointer: pointerId,
         position: currentPosition,
-        delta: delta,
+        delta: stepDelta,
         timeStamp: startTime + stepDuration * i,
+        kind: PointerDeviceKind.touch,
       ));
+
+      await Future.delayed(const Duration(milliseconds: 8));
+    }
+
+    // Quick final moves to add velocity
+    for (var i = 0; i < 3; i++) {
+      currentPosition = currentPosition + stepDelta * 0.5;
+      GestureBinding.instance.handlePointerEvent(PointerMoveEvent(
+        pointer: pointerId,
+        position: currentPosition,
+        delta: stepDelta * 0.5,
+        timeStamp: startTime + duration + Duration(milliseconds: i * 8),
+        kind: PointerDeviceKind.touch,
+      ));
+      await Future.delayed(const Duration(milliseconds: 8));
     }
 
     // Pointer up at end
     GestureBinding.instance.handlePointerEvent(PointerUpEvent(
       pointer: pointerId,
-      position: to,
-      timeStamp: startTime + duration,
+      position: currentPosition,
+      timeStamp: startTime + duration + const Duration(milliseconds: 50),
+      kind: PointerDeviceKind.touch,
     ));
 
-    await Future.delayed(const Duration(milliseconds: 50));
+    // Wait for scroll physics to settle
+    await Future.delayed(const Duration(milliseconds: 300));
   }
 
   /// Simulate a scroll gesture on an element
@@ -451,7 +975,7 @@ class FlutterMate {
     final snap = await snapshot();
     final node = snap[ref];
     if (node == null) {
-      debugPrint('FlutterMate: Node not found: $ref');
+      debugPrint('FlutterMate: scrollGesture - Node not found: $ref');
       return false;
     }
 
@@ -460,11 +984,17 @@ class FlutterMate {
       node.rect.y + node.rect.height / 2,
     );
 
+    debugPrint(
+        'FlutterMate: scrollGesture from $center delta $delta (to ${center + delta})');
+
     await drag(
       from: center,
       to: center + delta,
-      duration: const Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: 300),
     );
+
+    // Wait for scroll physics to settle
+    await Future.delayed(const Duration(milliseconds: 100));
 
     return true;
   }
@@ -612,9 +1142,9 @@ class FlutterMate {
       _currentText = '';
 
       final message = const JSONMethodCodec().encodeMethodCall(
-        MethodCall('TextInputClient.updateEditingState', <dynamic>[
+        MethodCall('TextInputClient.updateEditingState', [
           _activeTextInputConnectionId,
-          <String, dynamic>{
+          const <String, dynamic>{
             'text': '',
             'selectionBase': 0,
             'selectionExtent': 0,
@@ -911,6 +1441,23 @@ class FlutterMate {
           interactiveOnly: interactiveOnly, depth: depth + 1);
       return true;
     });
+  }
+
+  /// Parse a key name string to LogicalKeyboardKey
+  static LogicalKeyboardKey? _parseLogicalKey(String key) {
+    return switch (key.toLowerCase()) {
+      'enter' => LogicalKeyboardKey.enter,
+      'tab' => LogicalKeyboardKey.tab,
+      'escape' => LogicalKeyboardKey.escape,
+      'backspace' => LogicalKeyboardKey.backspace,
+      'delete' => LogicalKeyboardKey.delete,
+      'space' => LogicalKeyboardKey.space,
+      'arrowup' => LogicalKeyboardKey.arrowUp,
+      'arrowdown' => LogicalKeyboardKey.arrowDown,
+      'arrowleft' => LogicalKeyboardKey.arrowLeft,
+      'arrowright' => LogicalKeyboardKey.arrowRight,
+      _ => null,
+    };
   }
 
   static List<String> _getActions(SemanticsData data) {

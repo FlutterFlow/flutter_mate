@@ -130,6 +130,52 @@ dart run bin/mcp_server.dart --uri=ws://127.0.0.1:12345/abc=/ws
 
 ---
 
+## Two-Tier Action System
+
+Flutter Mate uses a two-tier approach for maximum compatibility:
+
+### Tier 1: Semantic Actions (High-Level)
+
+Uses Flutter's accessibility system via `SemanticsOwner.performAction()`.
+
+| Method | Semantic Action | Description |
+|--------|-----------------|-------------|
+| `tap(ref)` | `SemanticsAction.tap` | Tap element |
+| `focus(ref)` | `SemanticsAction.focus` | Focus element |
+| `scroll(ref, dir)` | `SemanticsAction.scrollUp/Down` | Scroll container |
+| `fill(ref, text)` | Focus + typeText | Fill text field |
+
+**Best for**: Standard Flutter widgets with proper semantics labels.
+
+### Tier 2: Gesture/Input Simulation (Low-Level)
+
+Mimics actual user input by injecting pointer events and using platform APIs.
+
+| Method | Simulation | Description |
+|--------|------------|-------------|
+| `tapGesture(ref)` | `PointerDown` → `PointerUp` | Tap via gesture |
+| `longPressGesture(ref)` | `PointerDown` → delay → `PointerUp` | Long press |
+| `doubleTap(ref)` | Two quick tap sequences | Double tap |
+| `drag(from, to)` | `PointerDown` → `Move` → `Up` | Drag gesture |
+| `typeText(text)` | `updateEditingValue()` | Type like real keyboard |
+| `pressKey(key)` | `KeyDownEvent` + `KeyUpEvent` | Keyboard input |
+
+**Best for**: Custom widgets, GestureDetector callbacks, input formatters.
+
+### Fallback Strategy
+
+Most actions try Tier 1 first, then fall back to Tier 2:
+
+| Action | Primary (Tier 1) | Fallback (Tier 2) |
+|--------|------------------|-------------------|
+| `tap` | Semantic action | Gesture injection |
+| `longPress` | — | Gesture only (more reliable) |
+| `doubleTap` | — | Gesture only |
+| `scroll` | Semantic action | Gesture injection |
+| `typeText` | — | `updateEditingValue()` |
+
+---
+
 ## API Reference
 
 ### Core
@@ -142,37 +188,36 @@ dart run bin/mcp_server.dart --uri=ws://127.0.0.1:12345/abc=/ws
 | `snapshotCombined({consolidate})` | Get widget tree merged with semantics |
 | `waitFor(pattern, {timeout})` | Wait for element matching pattern |
 
-### Semantics-Based Actions
+### Actions (Automatic Tier Selection)
 
 | Method | Description |
 |--------|-------------|
-| `tap(ref)` | Tap element via semantics |
-| `longPress(ref)` | Long press element |
-| `fill(ref, text)` | Fill text field via semantics |
-| `scroll(ref, direction)` | Scroll (up/down/left/right) |
-| `focus(ref)` | Focus element |
+| `tap(ref)` | Tap element (semantic → gesture fallback) |
+| `longPress(ref)` | Long press element (gesture) |
+| `doubleTap(ref)` | Double tap element (gesture) |
+| `fill(ref, text)` | Focus + type into text field |
+| `scroll(ref, direction)` | Scroll (semantic → gesture fallback) |
+| `focus(ref)` | Focus element (semantic) |
 
-### Gesture Simulation
+### Gesture Simulation (Tier 2 Only)
 
 | Method | Description |
 |--------|-------------|
 | `tapAt(Offset)` | Tap at screen position |
 | `tapGesture(ref)` | Tap element center via gesture |
-| `longPressAt(Offset, {duration})` | Long press at position |
+| `longPressGesture(ref)` | Long press via gesture |
 | `drag({from, to, duration})` | Drag gesture |
-| `scrollGesture(ref, delta)` | Scroll via gesture |
+| `scrollGestureByDirection(ref, dir)` | Scroll via gesture |
 
-### Keyboard / Text Input
+### Text Input
 
 | Method | Description |
 |--------|-------------|
-| `typeText(text)` | Type into focused field (platform channel) |
-| `clearText()` | Clear current field |
-| `nextConnection()` | Track new text field focus |
+| `typeText(text)` | Type into focused field (uses `updateEditingValue`) |
+| `clearText()` | Clear focused field |
 | `pressKey(LogicalKeyboardKey)` | Press any key |
 | `pressEnter/Tab/Escape/Backspace()` | Common keys |
 | `pressArrowUp/Down/Left/Right()` | Arrow keys |
-| `pressShortcut(key, {ctrl, shift, alt, cmd})` | Keyboard shortcuts |
 
 ### Registered Controllers (Convenience)
 
@@ -191,20 +236,16 @@ flutter_mate --uri <ws://...> <command> [args]
 
 Commands:
   snapshot              Get UI tree (-i for interactive only, -m combined for widget tree)
-  tap <ref>             Tap element
-  doubleTap <ref>       Double tap element
-  longPress <ref>       Long press element
-  fill <ref> <text>     Fill text field
+  tap <ref>             Tap element (semantic → gesture fallback)
+  doubleTap <ref>       Double tap element (gesture)
+  longPress <ref>       Long press element (gesture)
+  fill <ref> <text>     Focus + type into text field
   clear <ref>           Clear text field
-  typeText <text>       Type text character by character
+  typeText <text>       Type text (uses updateEditingValue)
   pressKey <key>        Press keyboard key (enter, tab, escape, etc.)
-  scroll <ref> [dir]    Scroll (up/down/left/right)
-  swipe <dir>           Swipe gesture
-  focus <ref>           Focus element
-  back                  Navigate back
+  scroll <ref> [dir]    Scroll (semantic → gesture fallback)
+  focus <ref>           Focus element (semantic)
   wait <ms>             Wait milliseconds
-  getText <ref>         Get element text
-  screenshot [path]     Capture screenshot
   extensions            List available service extensions
   attach                Interactive REPL mode
 
@@ -234,15 +275,8 @@ When using the MCP server, the following tools are available:
 | `typeText` | Type text character by character |
 | `pressKey` | Press keyboard key |
 | `scroll` | Scroll element |
-| `swipe` | Swipe gesture |
 | `focus` | Focus element |
-| `toggle` | Toggle switch/checkbox |
-| `select` | Select dropdown option |
-| `back` | Navigate back |
 | `wait` | Wait for duration |
-| `getText` | Get element text |
-| `isVisible` | Check element visibility |
-| `screenshot` | Capture screenshot (returns PNG) |
 
 ---
 
@@ -275,29 +309,28 @@ class LoginAgent {
 
 ---
 
-## Example: Keyboard Simulation
+## Example: Text Input Simulation
 
 ```dart
-// 1. Tap to focus field
-FlutterMate.tapAt(emailFieldCenter);
-await Future.delayed(Duration(milliseconds: 300));
+// 1. Focus the email field
+await FlutterMate.focus('w5');
 
-// 2. Track the new text input connection
-FlutterMate.nextConnection();
-
-// 3. Type like a real keyboard (character by character)
+// 2. Type like a real keyboard (uses updateEditingValue internally)
 await FlutterMate.typeText('test@example.com');
 
-// 4. Press Tab to move to next field
+// 3. Press Tab to move to next field
 await FlutterMate.pressTab();
 
-// 5. Type password
-FlutterMate.nextConnection();
-await FlutterMate.typeText('password');
+// 4. Type password (automatically uses newly focused field)
+await FlutterMate.typeText('password123');
 
-// 6. Press Enter to submit
+// 5. Press Enter to submit
 await FlutterMate.pressEnter();
 ```
+
+This triggers input formatters and `onChanged` callbacks correctly because
+`typeText` uses `EditableTextState.updateEditingValue()` — the same method
+called when the platform sends keyboard input.
 
 ---
 
@@ -368,6 +401,8 @@ class LLMAgent {
 
 ## How It Works
 
+### Tier 1: Semantics Tree
+
 Flutter Mate leverages Flutter's **Semantics Tree** — the same tree used for accessibility. This tree contains:
 
 - **Labels and values** for UI elements
@@ -375,9 +410,21 @@ Flutter Mate leverages Flutter's **Semantics Tree** — the same tree used for a
 - **Element types** (button, text field, link, etc.)
 - **Position and bounds**
 
-For keyboard simulation, we use Flutter's **platform channels** (`flutter/textinput`) to send text input exactly like a real keyboard would.
+Actions like `tap()` and `scroll()` use `SemanticsOwner.performAction()` to trigger the same behavior as screen readers.
 
-Service extensions (`ext.flutter_mate.*`) expose the SDK functionality via VM Service Protocol, enabling external control without modifying app code.
+### Tier 2: Gesture/Input Simulation
+
+When semantic actions aren't available or don't trigger the right callbacks, Flutter Mate falls back to low-level simulation:
+
+- **Pointer Events**: Inject `PointerDownEvent`, `PointerMoveEvent`, `PointerUpEvent` via `GestureBinding.handlePointerEvent()`
+- **Text Input**: Call `EditableTextState.updateEditingValue()` — the exact method the platform calls for keyboard input
+- **Key Events**: Dispatch `KeyDownEvent`/`KeyUpEvent` via `HardwareKeyboard`
+
+This ensures input formatters, `onChanged` callbacks, and `GestureDetector` handlers all work correctly.
+
+### Service Extensions
+
+Service extensions (`ext.flutter_mate.*`) expose the SDK functionality via VM Service Protocol, enabling external control from CLI or MCP without modifying app code.
 
 ---
 
@@ -414,17 +461,17 @@ flutter_mate/
 ## Roadmap
 
 - [x] Dart SDK for in-app automation
-- [x] Semantics-based actions (tap, fill, scroll)
-- [x] Gesture simulation (tapAt, drag, scroll)
-- [x] Keyboard/text input simulation
+- [x] Two-tier action system (semantic + gesture fallback)
+- [x] Realistic text input via `updateEditingValue()`
+- [x] Keyboard simulation (press any key, shortcuts)
 - [x] VM Service CLI for external control
 - [x] Interactive REPL mode
 - [x] Combined widget tree + semantics snapshot
 - [x] MCP Server for AI agent integration
-- [x] Screenshot capture
+- [ ] Screenshot capture
 - [ ] Record & replay
 - [ ] Test generation from recordings
-- [ ] Web platform testing
+- [ ] Web platform JS injection (zero-code automation)
 - [ ] Visual element matching (fallback)
 
 ---

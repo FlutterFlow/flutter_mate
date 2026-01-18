@@ -93,7 +93,25 @@ const _skipWidgets = <String>{
 /// await FlutterMate.tap('w10');
 /// ```
 ///
-/// ## Three Ways to Interact
+/// ## Two-Tier Action System
+///
+/// ### Tier 1: Semantic Actions (High-Level)
+/// Uses Flutter's accessibility system via `SemanticsOwner.performAction()`.
+/// - `tap()`, `focus()`, `scroll()` — work with semantic nodes
+/// - Best for standard widgets with proper semantics
+/// - Platform-native behavior
+///
+/// ### Tier 2: Gesture/Input Simulation (Low-Level)
+/// Mimics actual user input at the gesture/keyboard level.
+/// - `tapGesture()`, `longPressGesture()`, `doubleTap()` — inject PointerEvents
+/// - `typeText()` — uses `EditableTextState.updateEditingValue()` (same as platform)
+/// - `pressKey()` — simulates keyboard events
+/// - Works with custom widgets that don't have standard semantics
+/// - Triggers all GestureDetector callbacks
+///
+/// Most actions try Tier 1 first, then fall back to Tier 2 if needed.
+///
+/// ## Legacy API (Still Supported)
 ///
 /// 1. **Semantics Actions** — `tap()`, `fill()`, `scroll()`, `focus()`
 ///    Uses Flutter's accessibility system. Most reliable.
@@ -802,34 +820,22 @@ class FlutterMate {
       return false;
     }
 
-    // TODO: Re-enable semantic scrolling after gesture fallback is verified
-    // For now, skip semantic scroll and use gesture directly
-    const useSemanticScroll = false;
-
-    if (useSemanticScroll) {
-      // Try to find a scrollable ancestor (including this node)
-      SemanticsNode? current = node;
-      while (current != null) {
-        final data = current.getSemanticsData();
-        final hasScrollUp = data.hasAction(SemanticsAction.scrollUp);
-        final hasScrollDown = data.hasAction(SemanticsAction.scrollDown);
-
-        debugPrint(
-            'FlutterMate: Checking w${current.id} - scrollUp=$hasScrollUp scrollDown=$hasScrollDown');
-
-        if (data.hasAction(action)) {
-          debugPrint('FlutterMate: Performing $action on w${current.id}');
-          current.owner?.performAction(current.id, action);
-          await Future.delayed(const Duration(milliseconds: 300));
-          return true;
-        }
-        current = current.parent;
+    // Tier 1: Try semantic scrolling first
+    // Walk up the tree to find a scrollable ancestor
+    SemanticsNode? current = node;
+    while (current != null) {
+      final data = current.getSemanticsData();
+      if (data.hasAction(action)) {
+        debugPrint('FlutterMate: Scroll via semantic action on w${current.id}');
+        current.owner?.performAction(current.id, action);
+        await Future.delayed(const Duration(milliseconds: 300));
+        return true;
       }
+      current = current.parent;
     }
 
-    // Use gesture-based scrolling
-    debugPrint('FlutterMate: No semantic scroll, using gesture scroll');
-
+    // Tier 2: Fall back to gesture-based scrolling
+    debugPrint('FlutterMate: No semantic scroll available, using gesture');
     return scrollGestureByDirection(ref, direction, distance);
   }
 
@@ -1153,7 +1159,8 @@ class FlutterMate {
       // Find the currently focused element
       final focusNode = FocusManager.instance.primaryFocus;
       if (focusNode == null) {
-        debugPrint('FlutterMate: No focused element - is a text field focused?');
+        debugPrint(
+            'FlutterMate: No focused element - is a text field focused?');
         return false;
       }
 
@@ -1172,13 +1179,13 @@ class FlutterMate {
       // This is the exact method the platform calls for keyboard input
       for (int i = 0; i < text.length; i++) {
         currentText += text[i];
-        
+
         // Call updateEditingValue - same as platform keyboard input
         editableState.updateEditingValue(TextEditingValue(
           text: currentText,
           selection: TextSelection.collapsed(offset: currentText.length),
         ));
-        
+
         // Small delay between characters for realism
         await Future.delayed(const Duration(milliseconds: 20));
       }

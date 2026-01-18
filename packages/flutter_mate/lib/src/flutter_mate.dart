@@ -221,6 +221,43 @@ class FlutterMate {
     }
   }
 
+  /// Dispatch a pointer event through the appropriate binding
+  ///
+  /// In test mode, uses WidgetsBinding which properly integrates with FakeAsync.
+  /// At runtime, uses GestureBinding directly.
+  static void _dispatchPointerEvent(PointerEvent event) {
+    // Use WidgetsBinding if available (works in both test and runtime)
+    // This properly integrates with the test binding's event queue
+    WidgetsBinding.instance.handlePointerEvent(event);
+  }
+
+  /// Dispatch text input via platform message simulation
+  ///
+  /// Uses the same mechanism as Flutter's TestTextInput - injects a
+  /// platform message to simulate keyboard input.
+  static Future<void> _dispatchTextInput(int clientId, String text) async {
+    final messenger = WidgetsBinding.instance.defaultBinaryMessenger;
+    final codec = const JSONMethodCodec();
+
+    await messenger.handlePlatformMessage(
+      'flutter/textinput',
+      codec.encodeMethodCall(MethodCall(
+        'TextInputClient.updateEditingState',
+        <dynamic>[
+          clientId,
+          <String, dynamic>{
+            'text': text,
+            'selectionBase': text.length,
+            'selectionExtent': text.length,
+            'composingBase': -1,
+            'composingExtent': -1,
+          },
+        ],
+      )),
+      (_) {},
+    );
+  }
+
   static bool _extensionsRegistered = false;
 
   /// Register VM Service extensions for external control via CLI
@@ -973,7 +1010,7 @@ class FlutterMate {
     final now = Duration(milliseconds: DateTime.now().millisecondsSinceEpoch);
 
     // Pointer down
-    GestureBinding.instance.handlePointerEvent(PointerDownEvent(
+    _dispatchPointerEvent(PointerDownEvent(
       pointer: pointerId,
       position: position,
       timeStamp: now,
@@ -982,7 +1019,7 @@ class FlutterMate {
     await _delay(const Duration(milliseconds: 50));
 
     // Pointer up
-    GestureBinding.instance.handlePointerEvent(PointerUpEvent(
+    _dispatchPointerEvent(PointerUpEvent(
       pointer: pointerId,
       position: position,
       timeStamp: now + const Duration(milliseconds: 50),
@@ -1041,7 +1078,7 @@ class FlutterMate {
     debugPrint('FlutterMate: drag from $from to $to');
 
     // Pointer down at start - use touch device kind for scrolling
-    GestureBinding.instance.handlePointerEvent(PointerDownEvent(
+    _dispatchPointerEvent(PointerDownEvent(
       pointer: pointerId,
       position: from,
       timeStamp: startTime,
@@ -1055,7 +1092,7 @@ class FlutterMate {
     for (var i = 1; i <= steps; i++) {
       currentPosition = from + stepDelta * i.toDouble();
 
-      GestureBinding.instance.handlePointerEvent(PointerMoveEvent(
+      _dispatchPointerEvent(PointerMoveEvent(
         pointer: pointerId,
         position: currentPosition,
         delta: stepDelta,
@@ -1069,7 +1106,7 @@ class FlutterMate {
     // Quick final moves to add velocity
     for (var i = 0; i < 3; i++) {
       currentPosition = currentPosition + stepDelta * 0.5;
-      GestureBinding.instance.handlePointerEvent(PointerMoveEvent(
+      _dispatchPointerEvent(PointerMoveEvent(
         pointer: pointerId,
         position: currentPosition,
         delta: stepDelta * 0.5,
@@ -1080,7 +1117,7 @@ class FlutterMate {
     }
 
     // Pointer up at end
-    GestureBinding.instance.handlePointerEvent(PointerUpEvent(
+    _dispatchPointerEvent(PointerUpEvent(
       pointer: pointerId,
       position: currentPosition,
       timeStamp: startTime + duration + const Duration(milliseconds: 50),
@@ -1139,7 +1176,7 @@ class FlutterMate {
     final now = Duration(milliseconds: DateTime.now().millisecondsSinceEpoch);
 
     // Pointer down - use touch for gesture recognition
-    GestureBinding.instance.handlePointerEvent(PointerDownEvent(
+    _dispatchPointerEvent(PointerDownEvent(
       pointer: pointerId,
       position: position,
       timeStamp: now,
@@ -1150,7 +1187,7 @@ class FlutterMate {
     await _delay(pressDuration);
 
     // Pointer up
-    GestureBinding.instance.handlePointerEvent(PointerUpEvent(
+    _dispatchPointerEvent(PointerUpEvent(
       pointer: pointerId,
       position: position,
       timeStamp: now + pressDuration,

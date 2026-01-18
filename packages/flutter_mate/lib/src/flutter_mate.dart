@@ -1134,8 +1134,11 @@ class FlutterMate {
 
   /// Type text into the currently focused text field
   ///
-  /// Finds the focused element and updates its text controller directly.
-  /// This is more reliable than platform message simulation.
+  /// Uses `EditableTextState.updateEditingValue()` - the same method called
+  /// when the platform sends keyboard input. This ensures:
+  /// - Input formatters are applied
+  /// - onChanged callbacks fire correctly
+  /// - Same code path as real keyboard input
   ///
   /// ```dart
   /// await FlutterMate.focus('w5');
@@ -1150,64 +1153,37 @@ class FlutterMate {
       // Find the currently focused element
       final focusNode = FocusManager.instance.primaryFocus;
       if (focusNode == null) {
-        debugPrint('FlutterMate: No focused element');
+        debugPrint('FlutterMate: No focused element - is a text field focused?');
         return false;
       }
 
-      // Find the EditableTextState from the focus node's context
-      final context = focusNode.context;
-      if (context == null) {
-        debugPrint('FlutterMate: Focus node has no context');
-        return false;
-      }
-
-      // Look for EditableTextState in the widget tree
-      EditableTextState? editableState;
-      
-      // Try to find it as an ancestor or in the subtree
-      void visitor(Element element) {
-        if (editableState != null) return;
-        if (element is StatefulElement && element.state is EditableTextState) {
-          editableState = element.state as EditableTextState;
-          return;
-        }
-        element.visitChildren(visitor);
-      }
-      
-      // Start from the focused element and search its subtree
-      (context as Element).visitChildren(visitor);
-      
-      // If not found in subtree, look for ancestor
+      // Find the EditableTextState (implements TextInputClient)
+      final editableState = _findEditableTextState(focusNode.context);
       if (editableState == null) {
-        context.visitAncestorElements((element) {
-          if (element is StatefulElement && element.state is EditableTextState) {
-            editableState = element.state as EditableTextState;
-            return false; // stop
-          }
-          return true; // continue
-        });
-      }
-
-      if (editableState == null) {
-        debugPrint('FlutterMate: No EditableTextState found');
+        debugPrint('FlutterMate: No EditableTextState found in focus tree');
         return false;
       }
 
-      // Get the controller and update text
-      final controller = editableState!.widget.controller;
-      final currentText = controller.text;
-      
-      // Type character by character for realism
+      // Get current text value
+      final currentValue = editableState.currentTextEditingValue;
+      String currentText = currentValue.text;
+
+      // Type character by character, using updateEditingValue
+      // This is the exact method the platform calls for keyboard input
       for (int i = 0; i < text.length; i++) {
-        final newText = currentText + text.substring(0, i + 1);
-        controller.value = TextEditingValue(
-          text: newText,
-          selection: TextSelection.collapsed(offset: newText.length),
-        );
-        await Future.delayed(const Duration(milliseconds: 25));
+        currentText += text[i];
+        
+        // Call updateEditingValue - same as platform keyboard input
+        editableState.updateEditingValue(TextEditingValue(
+          text: currentText,
+          selection: TextSelection.collapsed(offset: currentText.length),
+        ));
+        
+        // Small delay between characters for realism
+        await Future.delayed(const Duration(milliseconds: 20));
       }
 
-      debugPrint('FlutterMate: Typed "$text" successfully');
+      debugPrint('FlutterMate: Typed "$text" via updateEditingValue');
       return true;
     } catch (e, stack) {
       debugPrint('FlutterMate: typeText error: $e\n$stack');
@@ -1215,6 +1191,37 @@ class FlutterMate {
     }
   }
 
+  /// Find EditableTextState from a BuildContext
+  static EditableTextState? _findEditableTextState(BuildContext? context) {
+    if (context == null) return null;
+
+    EditableTextState? found;
+
+    // Search subtree first
+    void visitor(Element element) {
+      if (found != null) return;
+      if (element is StatefulElement && element.state is EditableTextState) {
+        found = element.state as EditableTextState;
+        return;
+      }
+      element.visitChildren(visitor);
+    }
+
+    (context as Element).visitChildren(visitor);
+
+    // If not in subtree, check ancestors
+    if (found == null) {
+      context.visitAncestorElements((element) {
+        if (element is StatefulElement && element.state is EditableTextState) {
+          found = element.state as EditableTextState;
+          return false;
+        }
+        return true;
+      });
+    }
+
+    return found;
+  }
 
   /// Clear the currently focused text field
   static Future<bool> clearText() async {
@@ -1223,50 +1230,23 @@ class FlutterMate {
     debugPrint('FlutterMate: clearText');
 
     try {
-      // Find the currently focused element
       final focusNode = FocusManager.instance.primaryFocus;
       if (focusNode == null) {
         debugPrint('FlutterMate: No focused element');
         return false;
       }
 
-      final context = focusNode.context;
-      if (context == null) {
-        debugPrint('FlutterMate: Focus node has no context');
-        return false;
-      }
-
-      // Find EditableTextState
-      EditableTextState? editableState;
-      
-      void visitor(Element element) {
-        if (editableState != null) return;
-        if (element is StatefulElement && element.state is EditableTextState) {
-          editableState = element.state as EditableTextState;
-          return;
-        }
-        element.visitChildren(visitor);
-      }
-      
-      (context as Element).visitChildren(visitor);
-      
-      if (editableState == null) {
-        context.visitAncestorElements((element) {
-          if (element is StatefulElement && element.state is EditableTextState) {
-            editableState = element.state as EditableTextState;
-            return false;
-          }
-          return true;
-        });
-      }
-
+      final editableState = _findEditableTextState(focusNode.context);
       if (editableState == null) {
         debugPrint('FlutterMate: No EditableTextState found');
         return false;
       }
 
-      // Clear the controller
-      editableState!.widget.controller.clear();
+      // Use updateEditingValue to clear - same as platform input
+      editableState.updateEditingValue(const TextEditingValue(
+        text: '',
+        selection: TextSelection.collapsed(offset: 0),
+      ));
       debugPrint('FlutterMate: Text cleared');
       return true;
     } catch (e) {

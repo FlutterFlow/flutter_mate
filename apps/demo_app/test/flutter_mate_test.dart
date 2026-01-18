@@ -1,11 +1,20 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_mate/flutter_mate.dart';
 import 'package:demo_app/main.dart';
 
+/// FlutterMate widget tests
+///
+/// In widget tests, FlutterMate is best used for:
+/// - Finding elements by semantic label (no widget keys needed)
+/// - Inspecting UI state via snapshots
+///
+/// For actual interactions (tap, type), use standard tester methods
+/// because widget tests use mocked input that doesn't integrate with
+/// gesture injection.
 void main() {
   group('FlutterMate Demo Tests', () {
     testWidgets('can take snapshot and find elements by label', (tester) async {
-      // Use tester's semantics (automatically disposed by test framework)
       final semanticsHandle = tester.ensureSemantics();
       FlutterMate.initializeForTest();
 
@@ -26,7 +35,7 @@ void main() {
         print('  ${node.ref}: ${node.label ?? "(no label)"}');
       }
 
-      // Test findByLabel
+      // Test findByLabel - the key feature for tests!
       final emailRef = await FlutterMate.findByLabel('Email');
       final passwordRef = await FlutterMate.findByLabel('Password');
       final loginRef = await FlutterMate.findByLabel('Login');
@@ -80,11 +89,44 @@ void main() {
 
       // Find email field
       final emailNode = snapshot.nodes.firstWhere(
-        (n) => n.label?.contains('Email') == true && n.flags.contains('isTextField'),
+        (n) =>
+            n.label?.contains('Email') == true &&
+            n.flags.contains('isTextField'),
         orElse: () => throw Exception('Email field not found'),
       );
 
       expect(emailNode.flags, contains('isTextField'));
+
+      semanticsHandle.dispose();
+    });
+
+    testWidgets('can use findByLabel with standard tester actions',
+        (tester) async {
+      final semanticsHandle = tester.ensureSemantics();
+      FlutterMate.initializeForTest();
+
+      await tester.pumpWidget(const DemoApp());
+      await tester.pumpAndSettle();
+
+      // Use FlutterMate to find by label (no widget keys needed!)
+      final emailRef = await FlutterMate.findByLabel('Email');
+      expect(emailRef, isNotNull);
+
+      // Get the actual widget using standard tester (by semantics label)
+      final emailFinder = find.bySemanticsLabel(RegExp('Email'));
+
+      // Use standard tester methods for reliable actions in tests
+      await tester.enterText(emailFinder.first, 'test@example.com');
+      await tester.pump();
+
+      // Verify via snapshot
+      final snapshot = await FlutterMate.snapshot();
+      final emailNode = snapshot.nodes.firstWhere(
+        (n) => n.label?.contains('Email') == true,
+      );
+      
+      // ignore: avoid_print
+      print('Email value: ${emailNode.value}');
 
       semanticsHandle.dispose();
     });

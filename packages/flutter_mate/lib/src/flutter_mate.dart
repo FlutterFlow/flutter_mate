@@ -194,6 +194,8 @@ class FlutterMate {
   /// In tests, use tester.ensureSemantics() for semantics handling,
   /// then call this to enable FlutterMate without creating a second handle.
   ///
+  /// This also enables test mode which skips real delays (incompatible with FakeAsync).
+  ///
   /// ```dart
   /// testWidgets('my test', (tester) async {
   ///   final handle = tester.ensureSemantics();
@@ -204,6 +206,19 @@ class FlutterMate {
   /// ```
   static void initializeForTest() {
     _initialized = true;
+    _testMode = true;
+  }
+
+  static bool _testMode = false;
+
+  /// Whether running in test mode (skips real delays)
+  static bool get isTestMode => _testMode;
+
+  /// Delay that respects test mode (skips in FakeAsync environment)
+  static Future<void> _delay(Duration duration) async {
+    if (!_testMode) {
+      await Future.delayed(duration);
+    }
   }
 
   static bool _extensionsRegistered = false;
@@ -393,7 +408,7 @@ class FlutterMate {
     SchedulerBinding.instance.scheduleFrame();
     await completer.future;
     // Give semantics tree time to build
-    await Future.delayed(const Duration(milliseconds: 100));
+    await _delay(const Duration(milliseconds: 100));
   }
 
   /// Dispose Flutter Mate resources
@@ -746,11 +761,11 @@ class FlutterMate {
     // First tap
     await tapAt(position);
     // Short delay between taps (must be <300ms for double tap recognition)
-    await Future.delayed(const Duration(milliseconds: 100));
+    await _delay(const Duration(milliseconds: 100));
     // Second tap
     await tapAt(position);
 
-    await Future.delayed(const Duration(milliseconds: 50));
+    await _delay(const Duration(milliseconds: 50));
   }
 
   /// Long press on an element by ref
@@ -803,13 +818,13 @@ class FlutterMate {
     // Try to focus first
     if (data.hasAction(SemanticsAction.focus)) {
       node.owner?.performAction(node.id, SemanticsAction.focus);
-      await Future.delayed(const Duration(milliseconds: 50));
+      await _delay(const Duration(milliseconds: 50));
     }
 
     // Try setText even if not advertised - it often works anyway!
     // TextField may handle it internally even without advertising
     node.owner?.performAction(node.id, SemanticsAction.setText, text);
-    await Future.delayed(const Duration(milliseconds: 100));
+    await _delay(const Duration(milliseconds: 100));
 
     return true;
   }
@@ -851,7 +866,7 @@ class FlutterMate {
       if (data.hasAction(action)) {
         debugPrint('FlutterMate: Scroll via semantic action on w${current.id}');
         current.owner?.performAction(current.id, action);
-        await Future.delayed(const Duration(milliseconds: 300));
+        await _delay(const Duration(milliseconds: 300));
         return true;
       }
       current = current.parent;
@@ -964,7 +979,7 @@ class FlutterMate {
       timeStamp: now,
     ));
 
-    await Future.delayed(const Duration(milliseconds: 50));
+    await _delay(const Duration(milliseconds: 50));
 
     // Pointer up
     GestureBinding.instance.handlePointerEvent(PointerUpEvent(
@@ -973,7 +988,7 @@ class FlutterMate {
       timeStamp: now + const Duration(milliseconds: 50),
     ));
 
-    await Future.delayed(const Duration(milliseconds: 50));
+    await _delay(const Duration(milliseconds: 50));
   }
 
   /// Simulate a tap on an element using its bounding box
@@ -1033,7 +1048,7 @@ class FlutterMate {
       kind: PointerDeviceKind.touch,
     ));
 
-    await Future.delayed(const Duration(milliseconds: 16));
+    await _delay(const Duration(milliseconds: 16));
 
     // Move through intermediate points with acceleration
     var currentPosition = from;
@@ -1048,7 +1063,7 @@ class FlutterMate {
         kind: PointerDeviceKind.touch,
       ));
 
-      await Future.delayed(const Duration(milliseconds: 8));
+      await _delay(const Duration(milliseconds: 8));
     }
 
     // Quick final moves to add velocity
@@ -1061,7 +1076,7 @@ class FlutterMate {
         timeStamp: startTime + duration + Duration(milliseconds: i * 8),
         kind: PointerDeviceKind.touch,
       ));
-      await Future.delayed(const Duration(milliseconds: 8));
+      await _delay(const Duration(milliseconds: 8));
     }
 
     // Pointer up at end
@@ -1073,7 +1088,7 @@ class FlutterMate {
     ));
 
     // Wait for scroll physics to settle
-    await Future.delayed(const Duration(milliseconds: 300));
+    await _delay(const Duration(milliseconds: 300));
   }
 
   /// Simulate a scroll gesture on an element
@@ -1106,7 +1121,7 @@ class FlutterMate {
     );
 
     // Wait for scroll physics to settle
-    await Future.delayed(const Duration(milliseconds: 100));
+    await _delay(const Duration(milliseconds: 100));
 
     return true;
   }
@@ -1132,7 +1147,7 @@ class FlutterMate {
     ));
 
     // Hold for long press duration (must be >500ms for recognition)
-    await Future.delayed(pressDuration);
+    await _delay(pressDuration);
 
     // Pointer up
     GestureBinding.instance.handlePointerEvent(PointerUpEvent(
@@ -1141,7 +1156,7 @@ class FlutterMate {
       timeStamp: now + pressDuration,
     ));
 
-    await Future.delayed(const Duration(milliseconds: 50));
+    await _delay(const Duration(milliseconds: 50));
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -1209,8 +1224,10 @@ class FlutterMate {
           selection: TextSelection.collapsed(offset: currentText.length),
         ));
 
-        // Small delay between characters for realism
-        await Future.delayed(const Duration(milliseconds: 20));
+        // Small delay between characters for realism (skip in test mode - FakeAsync incompatible)
+        if (!_testMode) {
+          await Future.delayed(const Duration(milliseconds: 20));
+        }
       }
 
       debugPrint('FlutterMate: Typed "$text" via updateEditingValue');
@@ -1299,9 +1316,9 @@ class FlutterMate {
       final keyId = key.keyId;
 
       await _sendKeyEventWithLogicalKey(messenger, 'keydown', keyId, 0);
-      await Future.delayed(const Duration(milliseconds: 30));
+      await _delay(const Duration(milliseconds: 30));
       await _sendKeyEventWithLogicalKey(messenger, 'keyup', keyId, 0);
-      await Future.delayed(const Duration(milliseconds: 30));
+      await _delay(const Duration(milliseconds: 30));
 
       return true;
     } catch (e) {
@@ -1378,9 +1395,9 @@ class FlutterMate {
       final keyId = key.keyId;
 
       await _sendKeyEventWithLogicalKey(messenger, 'keydown', keyId, modifiers);
-      await Future.delayed(const Duration(milliseconds: 30));
+      await _delay(const Duration(milliseconds: 30));
       await _sendKeyEventWithLogicalKey(messenger, 'keyup', keyId, modifiers);
-      await Future.delayed(const Duration(milliseconds: 30));
+      await _delay(const Duration(milliseconds: 30));
 
       return true;
     } catch (e) {
@@ -1412,7 +1429,7 @@ class FlutterMate {
           return node.ref;
         }
       }
-      await Future.delayed(pollInterval);
+      await _delay(pollInterval);
     }
 
     return null;
@@ -1589,7 +1606,7 @@ class FlutterMate {
     }
 
     node.owner?.performAction(node.id, action);
-    await Future.delayed(const Duration(milliseconds: 100));
+    await _delay(const Duration(milliseconds: 100));
 
     return true;
   }

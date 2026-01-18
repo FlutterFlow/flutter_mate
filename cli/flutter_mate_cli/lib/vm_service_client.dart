@@ -257,12 +257,14 @@ class VmServiceClient {
     }
 
     final id = 'w${result.length}';
+    final textPreview = node['textPreview'] as String?;
     result.add({
       'id': id,
       'type': widgetType,
       'description': description,
       'depth': depth,
       'hasChildren': (node['children'] as List<dynamic>?)?.isNotEmpty ?? false,
+      if (textPreview != null && textPreview.isNotEmpty) 'text': textPreview,
     });
 
     final children = node['children'] as List<dynamic>? ?? [];
@@ -492,6 +494,11 @@ class VmServiceClient {
   /// Long press on an element by ref
   Future<Map<String, dynamic>> longPress(String ref) async {
     return callExtension('ext.flutter_mate.longPress', args: {'ref': ref});
+  }
+
+  /// Double tap on an element by ref
+  Future<Map<String, dynamic>> doubleTap(String ref) async {
+    return callExtension('ext.flutter_mate.doubleTap', args: {'ref': ref});
   }
 
   /// Get text from an element by ref

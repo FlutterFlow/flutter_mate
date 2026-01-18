@@ -167,9 +167,7 @@ Future<void> _executeCommand({
               .writeln('Error: doubleTap requires a ref (e.g., doubleTap w5)');
           exit(1);
         }
-        await client.tap(args[0]);
-        await Future.delayed(const Duration(milliseconds: 50));
-        final dtResult = await client.tap(args[0]);
+        final dtResult = await client.doubleTap(args[0]);
         _printResult('doubleTap', dtResult, jsonOutput);
         break;
       case 'longPress':
@@ -273,7 +271,8 @@ Future<void> _snapshot(VmServiceClient client, bool jsonOutput,
 
     if (mode == 'combined') {
       // Use pure VM method - works on ANY Flutter debug app!
-      final result = await client.getCombinedSnapshot(summaryOnly: true);
+      // summaryOnly: false to get text previews
+      final result = await client.getCombinedSnapshot(summaryOnly: false);
       if (result['success'] != true) {
         stderr.writeln('Error: ${result['error']}');
         exit(1);
@@ -585,9 +584,7 @@ Future<void> _interactiveMode(VmServiceClient client) async {
           if (args.isEmpty) {
             print('Usage: doubleTap <ref>');
           } else {
-            await client.tap(args[0]);
-            await Future.delayed(const Duration(milliseconds: 50));
-            final r = await client.tap(args[0]);
+            final r = await client.doubleTap(args[0]);
             _printResult('doubleTap', r, false);
           }
           break;

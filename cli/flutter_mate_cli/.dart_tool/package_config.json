@@ -2,6 +2,18 @@
   "configVersion": 2,
   "packages": [
     {
+      "name": "_fe_analyzer_shared",
+      "rootUri": "file:///Users/wenkaifan/.pub-cache/hosted/pub.dev/_fe_analyzer_shared-67.0.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    },
+    {
+      "name": "analyzer",
+      "rootUri": "file:///Users/wenkaifan/.pub-cache/hosted/pub.dev/analyzer-6.4.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    },
+    {
       "name": "args",
       "rootUri": "file:///Users/wenkaifan/.pub-cache/hosted/pub.dev/args-2.7.0",
       "packageUri": "lib/",
@@ -20,10 +32,34 @@
       "languageVersion": "3.4"
     },
     {
+      "name": "convert",
+      "rootUri": "file:///Users/wenkaifan/.pub-cache/hosted/pub.dev/convert-3.1.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
       "name": "crypto",
       "rootUri": "file:///Users/wenkaifan/.pub-cache/hosted/pub.dev/crypto-3.0.7",
       "packageUri": "lib/",
       "languageVersion": "3.4"
+    },
+    {
+      "name": "dart_mcp",
+      "rootUri": "file:///Users/wenkaifan/.pub-cache/hosted/pub.dev/dart_mcp-0.4.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.7"
+    },
+    {
+      "name": "file",
+      "rootUri": "file:///Users/wenkaifan/.pub-cache/hosted/pub.dev/file-7.0.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    },
+    {
+      "name": "glob",
+      "rootUri": "file:///Users/wenkaifan/.pub-cache/hosted/pub.dev/glob-2.1.3",
+      "packageUri": "lib/",
+      "languageVersion": "3.3"
     },
     {
       "name": "http",
@@ -34,6 +70,12 @@
     {
       "name": "http_parser",
       "rootUri": "file:///Users/wenkaifan/.pub-cache/hosted/pub.dev/http_parser-4.1.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "json_rpc_2",
+      "rootUri": "file:///Users/wenkaifan/.pub-cache/hosted/pub.dev/json_rpc_2-4.0.0",
       "packageUri": "lib/",
       "languageVersion": "3.4"
     },
@@ -50,8 +92,20 @@
       "languageVersion": "3.5"
     },
     {
+      "name": "package_config",
+      "rootUri": "file:///Users/wenkaifan/.pub-cache/hosted/pub.dev/package_config-2.2.0",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
       "name": "path",
       "rootUri": "file:///Users/wenkaifan/.pub-cache/hosted/pub.dev/path-1.9.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
+      "name": "pub_semver",
+      "rootUri": "file:///Users/wenkaifan/.pub-cache/hosted/pub.dev/pub_semver-2.2.0",
       "packageUri": "lib/",
       "languageVersion": "3.4"
     },
@@ -62,10 +116,22 @@
       "languageVersion": "3.1"
     },
     {
+      "name": "stack_trace",
+      "rootUri": "file:///Users/wenkaifan/.pub-cache/hosted/pub.dev/stack_trace-1.12.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
       "name": "stream_channel",
       "rootUri": "file:///Users/wenkaifan/.pub-cache/hosted/pub.dev/stream_channel-2.1.4",
       "packageUri": "lib/",
       "languageVersion": "3.3"
+    },
+    {
+      "name": "stream_transform",
+      "rootUri": "file:///Users/wenkaifan/.pub-cache/hosted/pub.dev/stream_transform-2.1.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.1"
     },
     {
       "name": "string_scanner",
@@ -92,6 +158,12 @@
       "languageVersion": "3.3"
     },
     {
+      "name": "watcher",
+      "rootUri": "file:///Users/wenkaifan/.pub-cache/hosted/pub.dev/watcher-1.2.1",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
       "name": "web",
       "rootUri": "file:///Users/wenkaifan/.pub-cache/hosted/pub.dev/web-1.1.1",
       "packageUri": "lib/",
@@ -104,10 +176,16 @@
       "languageVersion": "2.15"
     },
     {
+      "name": "yaml",
+      "rootUri": "file:///Users/wenkaifan/.pub-cache/hosted/pub.dev/yaml-3.1.3",
+      "packageUri": "lib/",
+      "languageVersion": "3.4"
+    },
+    {
       "name": "flutter_mate_cli",
       "rootUri": "../",
       "packageUri": "lib/",
-      "languageVersion": "3.0"
+      "languageVersion": "3.5"
     }
   ],
   "generator": "pub",

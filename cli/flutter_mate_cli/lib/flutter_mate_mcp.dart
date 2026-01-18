@@ -507,11 +507,8 @@ arrowUp, arrowDown, arrowLeft, arrowRight''',
     final ref = request.arguments?['ref'] as String?;
     if (ref == null) return _missingArg('ref');
 
-    // Double tap: two quick taps
-    await _callExtension('ext.flutter_mate.tap', args: {'ref': ref});
-    await Future.delayed(const Duration(milliseconds: 50));
     final result =
-        await _callExtension('ext.flutter_mate.tap', args: {'ref': ref});
+        await _callExtension('ext.flutter_mate.doubleTap', args: {'ref': ref});
 
     return _simpleResult(result, 'doubleTap');
   }

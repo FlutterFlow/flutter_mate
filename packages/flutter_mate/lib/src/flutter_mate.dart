@@ -279,6 +279,20 @@ class FlutterMate {
             jsonEncode({'success': success}));
       });
 
+      // ext.flutter_mate.doubleTap - Double tap element by ref
+      registerExtension('ext.flutter_mate.doubleTap', (method, params) async {
+        final ref = params['ref'];
+        if (ref == null) {
+          return ServiceExtensionResponse.error(
+            ServiceExtensionResponse.invalidParams,
+            'Missing ref parameter',
+          );
+        }
+        final success = await doubleTap(ref);
+        return ServiceExtensionResponse.result(
+            jsonEncode({'success': success}));
+      });
+
       // ext.flutter_mate.typeText - Type text into focused field
       registerExtension('ext.flutter_mate.typeText', (method, params) async {
         final text = params['text'];
@@ -655,9 +669,78 @@ class FlutterMate {
     return _performAction(ref, SemanticsAction.tap);
   }
 
+  /// Double tap on an element by ref
+  ///
+  /// Uses gesture simulation to trigger GestureDetector.onDoubleTap callbacks.
+  static Future<bool> doubleTap(String ref) async {
+    return doubleTapGesture(ref);
+  }
+
+  /// Double tap via gesture simulation
+  static Future<bool> doubleTapGesture(String ref) async {
+    _ensureInitialized();
+
+    final snap = await snapshot();
+    final nodeInfo = snap[ref];
+    if (nodeInfo == null) {
+      debugPrint('FlutterMate: Node not found: $ref');
+      return false;
+    }
+
+    final center = Offset(
+      nodeInfo.rect.x + nodeInfo.rect.width / 2,
+      nodeInfo.rect.y + nodeInfo.rect.height / 2,
+    );
+
+    await doubleTapAt(center);
+    return true;
+  }
+
+  /// Simulate a double tap at specific coordinates
+  static Future<void> doubleTapAt(Offset position) async {
+    _ensureInitialized();
+
+    debugPrint('FlutterMate: doubleTapAt $position');
+
+    // First tap
+    await tapAt(position);
+    // Short delay between taps (must be <300ms for double tap recognition)
+    await Future.delayed(const Duration(milliseconds: 100));
+    // Second tap
+    await tapAt(position);
+
+    await Future.delayed(const Duration(milliseconds: 50));
+  }
+
   /// Long press on an element by ref
+  ///
+  /// Uses gesture simulation to trigger GestureDetector.onLongPress callbacks.
+  /// Note: Semantic longPress action doesn't trigger widget callbacks reliably.
   static Future<bool> longPress(String ref) async {
-    return _performAction(ref, SemanticsAction.longPress);
+    // Always use gesture simulation for longPress
+    // Semantic performAction doesn't trigger GestureDetector callbacks
+    return longPressGesture(ref);
+  }
+
+  /// Long press via gesture simulation
+  static Future<bool> longPressGesture(String ref) async {
+    _ensureInitialized();
+
+    final snap = await snapshot();
+    final nodeInfo = snap[ref];
+    if (nodeInfo == null) {
+      debugPrint('FlutterMate: Node not found: $ref');
+      return false;
+    }
+
+    // Calculate center of element
+    final center = Offset(
+      nodeInfo.rect.x + nodeInfo.rect.width / 2,
+      nodeInfo.rect.y + nodeInfo.rect.height / 2,
+    );
+
+    await longPressAt(center);
+    return true;
   }
 
   /// Fill a text field by ref
@@ -1002,21 +1085,24 @@ class FlutterMate {
   /// Simulate a long press at screen coordinates
   static Future<void> longPressAt(
     Offset position, {
-    Duration pressDuration = const Duration(milliseconds: 500),
+    Duration pressDuration = const Duration(milliseconds: 600),
   }) async {
     _ensureInitialized();
+
+    debugPrint('FlutterMate: longPressAt $position');
 
     final pointerId = ++_pointerIdCounter;
     final now = Duration(milliseconds: DateTime.now().millisecondsSinceEpoch);
 
-    // Pointer down
+    // Pointer down - use touch for gesture recognition
     GestureBinding.instance.handlePointerEvent(PointerDownEvent(
       pointer: pointerId,
       position: position,
       timeStamp: now,
+      kind: PointerDeviceKind.touch,
     ));
 
-    // Hold for long press duration
+    // Hold for long press duration (must be >500ms for recognition)
     await Future.delayed(pressDuration);
 
     // Pointer up

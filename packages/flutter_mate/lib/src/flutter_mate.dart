@@ -1130,63 +1130,80 @@ class FlutterMate {
   //   await FlutterMate.typeText('...');  // Type like a real keyboard
   // ══════════════════════════════════════════════════════════════════════════
 
-  static int? _activeTextInputConnectionId;
-  static String _currentText = '';
-  static int _connectionIdCounter = 0;
+  // Note: Connection ID tracking removed - we now use FocusManager + EditableTextState directly
 
   /// Type text into the currently focused text field
   ///
-  /// Sends platform channel messages exactly like a real keyboard.
-  /// Call [nextConnection] after focusing a new field.
+  /// Finds the focused element and updates its text controller directly.
+  /// This is more reliable than platform message simulation.
   ///
   /// ```dart
-  /// FlutterMate.tapAt(fieldCenter);
-  /// await Future.delayed(Duration(milliseconds: 300));
-  /// FlutterMate.nextConnection();
+  /// await FlutterMate.focus('w5');
   /// await FlutterMate.typeText('hello@example.com');
   /// ```
   static Future<bool> typeText(String text) async {
     _ensureInitialized();
 
-    // Use tracked ID or try incrementing counter
-    // Connection IDs in Flutter start at 1 and increment with each focus
-    int connectionId =
-        _activeTextInputConnectionId ?? (_connectionIdCounter + 1);
-
-    debugPrint('FlutterMate: Typing "$text" to connection ID: $connectionId');
+    debugPrint('FlutterMate: typeText "$text"');
 
     try {
-      final binding = ServicesBinding.instance;
+      // Find the currently focused element
+      final focusNode = FocusManager.instance.primaryFocus;
+      if (focusNode == null) {
+        debugPrint('FlutterMate: No focused element');
+        return false;
+      }
 
-      // Type character by character to simulate real typing
+      // Find the EditableTextState from the focus node's context
+      final context = focusNode.context;
+      if (context == null) {
+        debugPrint('FlutterMate: Focus node has no context');
+        return false;
+      }
+
+      // Look for EditableTextState in the widget tree
+      EditableTextState? editableState;
+      
+      // Try to find it as an ancestor or in the subtree
+      void visitor(Element element) {
+        if (editableState != null) return;
+        if (element is StatefulElement && element.state is EditableTextState) {
+          editableState = element.state as EditableTextState;
+          return;
+        }
+        element.visitChildren(visitor);
+      }
+      
+      // Start from the focused element and search its subtree
+      (context as Element).visitChildren(visitor);
+      
+      // If not found in subtree, look for ancestor
+      if (editableState == null) {
+        context.visitAncestorElements((element) {
+          if (element is StatefulElement && element.state is EditableTextState) {
+            editableState = element.state as EditableTextState;
+            return false; // stop
+          }
+          return true; // continue
+        });
+      }
+
+      if (editableState == null) {
+        debugPrint('FlutterMate: No EditableTextState found');
+        return false;
+      }
+
+      // Get the controller and update text
+      final controller = editableState!.widget.controller;
+      final currentText = controller.text;
+      
+      // Type character by character for realism
       for (int i = 0; i < text.length; i++) {
-        _currentText += text[i];
-
-        // Create the message exactly as the platform would send it
-        final message = const JSONMethodCodec().encodeMethodCall(
-          MethodCall('TextInputClient.updateEditingState', <dynamic>[
-            connectionId,
-            <String, dynamic>{
-              'text': _currentText,
-              'selectionBase': _currentText.length,
-              'selectionExtent': _currentText.length,
-              'composingBase': -1,
-              'composingExtent': -1,
-            },
-          ]),
+        final newText = currentText + text.substring(0, i + 1);
+        controller.value = TextEditingValue(
+          text: newText,
+          selection: TextSelection.collapsed(offset: newText.length),
         );
-
-        // KEY FIX: Use handlePlatformMessage to dispatch AS IF from the platform
-        // messenger.send() sends TO platform, handlePlatformMessage receives FROM platform
-        final completer = Completer<void>();
-        binding.channelBuffers.push(
-          'flutter/textinput',
-          message,
-          (ByteData? response) {
-            completer.complete();
-          },
-        );
-        await completer.future;
         await Future.delayed(const Duration(milliseconds: 25));
       }
 
@@ -1198,61 +1215,65 @@ class FlutterMate {
     }
   }
 
-  /// Manually set the text input connection ID
-  /// Call this if automatic detection isn't working
-  static void setConnectionId(int id) {
-    _activeTextInputConnectionId = id;
-    _connectionIdCounter = id;
-    debugPrint('FlutterMate: Set connection ID to $id');
-  }
 
-  /// Increment connection ID (call when focusing a new field)
-  static void nextConnection() {
-    _connectionIdCounter++;
-    _activeTextInputConnectionId = _connectionIdCounter;
-    _currentText = '';
-    debugPrint('FlutterMate: Connection ID now $_connectionIdCounter');
-  }
-
-  /// Clear the current text field
+  /// Clear the currently focused text field
   static Future<bool> clearText() async {
     _ensureInitialized();
 
-    if (_activeTextInputConnectionId == null) {
-      debugPrint('FlutterMate: No active text input');
-      return false;
-    }
+    debugPrint('FlutterMate: clearText');
 
     try {
-      final messenger = WidgetsBinding.instance.defaultBinaryMessenger;
-      _currentText = '';
+      // Find the currently focused element
+      final focusNode = FocusManager.instance.primaryFocus;
+      if (focusNode == null) {
+        debugPrint('FlutterMate: No focused element');
+        return false;
+      }
 
-      final message = const JSONMethodCodec().encodeMethodCall(
-        MethodCall('TextInputClient.updateEditingState', [
-          _activeTextInputConnectionId,
-          const <String, dynamic>{
-            'text': '',
-            'selectionBase': 0,
-            'selectionExtent': 0,
-            'composingBase': -1,
-            'composingExtent': -1,
-          },
-        ]),
-      );
+      final context = focusNode.context;
+      if (context == null) {
+        debugPrint('FlutterMate: Focus node has no context');
+        return false;
+      }
 
-      await messenger.send('flutter/textinput', message);
+      // Find EditableTextState
+      EditableTextState? editableState;
+      
+      void visitor(Element element) {
+        if (editableState != null) return;
+        if (element is StatefulElement && element.state is EditableTextState) {
+          editableState = element.state as EditableTextState;
+          return;
+        }
+        element.visitChildren(visitor);
+      }
+      
+      (context as Element).visitChildren(visitor);
+      
+      if (editableState == null) {
+        context.visitAncestorElements((element) {
+          if (element is StatefulElement && element.state is EditableTextState) {
+            editableState = element.state as EditableTextState;
+            return false;
+          }
+          return true;
+        });
+      }
+
+      if (editableState == null) {
+        debugPrint('FlutterMate: No EditableTextState found');
+        return false;
+      }
+
+      // Clear the controller
+      editableState!.widget.controller.clear();
+      debugPrint('FlutterMate: Text cleared');
       return true;
     } catch (e) {
       debugPrint('FlutterMate: clearText error: $e');
       return false;
     }
   }
-
-  /// Get current active text input connection ID (for debugging)
-  static int? get activeTextInputConnectionId => _activeTextInputConnectionId;
-
-  /// Get current text in the active input (for debugging)
-  static String get currentInputText => _currentText;
 
   /// Simulate pressing a specific key
   ///

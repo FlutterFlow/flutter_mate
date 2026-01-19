@@ -179,6 +179,49 @@ class FlutterMate {
     WidgetsBinding.instance.handlePointerEvent(event);
   }
 
+  // Note: In debug builds, Flutter allows client ID -1 as a magic value
+  // that bypasses client ID verification. This lets us send text input
+  // without needing to intercept the channel to capture the real ID.
+  // See: TextInput._handleTextInputInvocation in Flutter SDK
+
+  /// Dispatch text input via platform message simulation
+  ///
+  /// Uses the same mechanism as Flutter's TestTextInput - injects a
+  /// platform message to simulate keyboard input.
+  ///
+  /// Uses client ID -1 which is a magic value in debug builds that
+  /// bypasses client ID verification.
+  static Future<void> _dispatchTextInput(String text) async {
+    final codec = const JSONMethodCodec();
+
+    // Use client ID -1 (magic value in debug builds that bypasses verification)
+    // See: TextInput._handleTextInputInvocation in Flutter SDK
+    const int magicClientId = -1;
+
+    // Use channelBuffers.push which is the modern approach
+    ServicesBinding.instance.channelBuffers.push(
+      'flutter/textinput',
+      codec.encodeMethodCall(MethodCall(
+        'TextInputClient.updateEditingState',
+        <dynamic>[
+          magicClientId,
+          <String, dynamic>{
+            'text': text,
+            'selectionBase': text.length,
+            'selectionExtent': text.length,
+            'composingBase': -1,
+            'composingExtent': -1,
+          },
+        ],
+      )),
+      (ByteData? response) {
+        // Response handling (usually empty)
+      },
+    );
+
+    await _delay(const Duration(milliseconds: 50));
+  }
+
   static bool _extensionsRegistered = false;
 
   /// Register VM Service extensions for external control via CLI
@@ -1259,7 +1302,8 @@ class FlutterMate {
   // How it works:
   // 1. typeText(ref, text) finds the widget from the inspector tree
   // 2. Taps to focus the TextField
-  // 3. Types character by character via EditableTextState
+  // 3. Sends platform messages with magic client ID -1 (debug builds only)
+  // 4. Falls back to EditableTextState in release builds
   //
   // Usage:
   //   await FlutterMate.snapshot();  // Cache elements
@@ -1268,10 +1312,8 @@ class FlutterMate {
 
   /// Type text into a text field by ref
   ///
-  /// This simulates typing by:
-  /// 1. Finding the TextField element from the inspector tree
-  /// 2. Tapping to focus it
-  /// 3. Typing character by character via EditableTextState
+  /// In debug builds, uses platform message simulation with magic client ID -1.
+  /// In release builds, falls back to EditableTextState.updateEditingValue().
   ///
   /// ```dart
   /// await FlutterMate.typeText('w10', 'hello@example.com');
@@ -1325,11 +1367,40 @@ class FlutterMate {
       debugPrint('FlutterMate: Tapping to focus at $center');
       await tapAt(center);
 
-      // Wait for focus to be established
+      // Wait for focus and text input connection to be established
       await _delay(const Duration(milliseconds: 150));
 
-      // Type via EditableTextState
-      return _typeTextViaEditableState(text);
+      // Get current text from the focused field
+      final focusNode = FocusManager.instance.primaryFocus;
+      String currentText = '';
+      if (focusNode != null) {
+        final editableState = _findEditableTextState(focusNode.context);
+        if (editableState != null) {
+          currentText = editableState.currentTextEditingValue.text;
+        }
+      }
+
+      // In debug builds, use platform messages with magic client ID -1
+      // In release builds, magic ID won't work - use EditableTextState fallback
+      bool isDebugMode = false;
+      assert(() {
+        isDebugMode = true;
+        return true;
+      }());
+
+      if (isDebugMode) {
+        // Type character by character using platform messages
+        for (int i = 0; i < text.length; i++) {
+          currentText += text[i];
+          await _dispatchTextInput(currentText);
+        }
+        debugPrint('FlutterMate: Typed "$text" via platform messages');
+        return true;
+      } else {
+        // Release mode: fall back to EditableTextState
+        debugPrint('FlutterMate: Release mode - using EditableTextState fallback');
+        return _typeTextViaEditableState(text);
+      }
     } catch (e, stack) {
       debugPrint('FlutterMate: typeText error: $e\n$stack');
       return false;

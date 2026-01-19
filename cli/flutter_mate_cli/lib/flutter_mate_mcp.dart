@@ -57,9 +57,8 @@ base mixin FlutterMateSupport on ToolsSupport {
 
   @override
   FutureOr<InitializeResult> initialize(InitializeRequest request) async {
-    final result = await super.initialize(request);
-
-    // Register all Flutter Mate tools
+    // Register all Flutter Mate tools BEFORE super.initialize()
+    // so they're included in the capabilities response
     registerTool(_connectTool, _handleConnect);
     registerTool(_snapshotTool, _handleSnapshot);
     registerTool(_tapTool, _handleTap);
@@ -73,7 +72,7 @@ base mixin FlutterMateSupport on ToolsSupport {
     registerTool(_longPressTool, _handleLongPress);
     registerTool(_waitForTool, _handleWaitFor);
 
-    return result;
+    return super.initialize(request);
   }
 
   @override

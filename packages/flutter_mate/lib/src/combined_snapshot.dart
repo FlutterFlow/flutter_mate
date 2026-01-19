@@ -7,7 +7,7 @@ import 'dart:ui' show Offset;
 /// the Semantics tree.
 ///
 /// ```dart
-/// final snapshot = await FlutterMate.snapshotCombined();
+/// final snapshot = await FlutterMate.snapshot();
 ///
 /// // Access by ref
 /// final node = snapshot['w5'];
@@ -40,8 +40,7 @@ class CombinedSnapshot {
       nodes.where((n) => n.semantics != null).toList();
 
   /// Get root nodes (nodes with no parent)
-  List<CombinedNode> get roots =>
-      nodes.where((n) => n.depth == 0).toList();
+  List<CombinedNode> get roots => nodes.where((n) => n.depth == 0).toList();
 
   /// Convert to JSON for LLM consumption
   Map<String, dynamic> toJson() => {
@@ -71,7 +70,7 @@ class CombinedSnapshot {
       final indent = '  ' * node.depth;
       final hasSemantics = node.semantics != null;
       final semanticsMarker = hasSemantics ? ' [s${node.semantics!.id}]' : '';
-      
+
       final parts = <String>[];
       if (node.semantics?.label != null) {
         parts.add('"${node.semantics!.label}"');
@@ -82,7 +81,7 @@ class CombinedSnapshot {
       if (node.semantics?.actions.isNotEmpty == true) {
         parts.add('[${node.semantics!.actions.join(', ')}]');
       }
-      
+
       final info = parts.isNotEmpty ? ' ${parts.join(' ')}' : '';
       buffer.writeln('$indent${node.ref}: ${node.widget}$semanticsMarker$info');
     }
@@ -117,6 +116,10 @@ class CombinedNode {
   /// Semantics information (null if widget has no semantics)
   final SemanticsInfo? semantics;
 
+  /// Text content for informative widgets (Text, Icon, tooltip labels, etc.)
+  /// Extracted from the widget's description or actual content.
+  final String? textContent;
+
   CombinedNode({
     required this.ref,
     required this.widget,
@@ -124,14 +127,14 @@ class CombinedNode {
     this.bounds,
     required this.children,
     this.semantics,
+    this.textContent,
   });
 
   /// Whether this node has semantics attached
   bool get hasSemantics => semantics != null;
 
   /// Whether this node can be interacted with
-  bool get isInteractive =>
-      semantics?.actions.isNotEmpty == true;
+  bool get isInteractive => semantics?.actions.isNotEmpty == true;
 
   /// Get center point for gesture interactions
   Offset? get center => bounds?.center;
@@ -143,6 +146,7 @@ class CombinedNode {
         if (bounds != null) 'bounds': bounds!.toJson(),
         'children': children,
         if (semantics != null) 'semantics': semantics!.toJson(),
+        if (textContent != null) 'textContent': textContent,
       };
 }
 
@@ -172,6 +176,23 @@ class SemanticsInfo {
   /// Available actions (e.g., 'tap', 'focus', 'setText')
   final Set<String> actions;
 
+  // ── Scroll properties ──
+
+  /// Total number of scrollable children (null if unknown/unbounded)
+  final int? scrollChildCount;
+
+  /// Index of first visible semantic child
+  final int? scrollIndex;
+
+  /// Current scroll position in logical pixels
+  final double? scrollPosition;
+
+  /// Maximum scroll extent (may be infinity if unbounded)
+  final double? scrollExtentMax;
+
+  /// Minimum scroll extent (usually 0)
+  final double? scrollExtentMin;
+
   SemanticsInfo({
     required this.id,
     this.label,
@@ -181,6 +202,11 @@ class SemanticsInfo {
     this.decreasedValue,
     required this.flags,
     required this.actions,
+    this.scrollChildCount,
+    this.scrollIndex,
+    this.scrollPosition,
+    this.scrollExtentMax,
+    this.scrollExtentMin,
   });
 
   /// Check if this has a specific action
@@ -188,6 +214,13 @@ class SemanticsInfo {
 
   /// Check if this has a specific flag
   bool hasFlag(String flag) => flags.contains(flag);
+
+  /// Check if this element is scrollable
+  bool get isScrollable =>
+      actions.contains('scrollUp') ||
+      actions.contains('scrollDown') ||
+      actions.contains('scrollLeft') ||
+      actions.contains('scrollRight');
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -198,6 +231,12 @@ class SemanticsInfo {
         if (decreasedValue != null) 'decreasedValue': decreasedValue,
         'flags': flags.toList(),
         'actions': actions.toList(),
+        if (scrollChildCount != null) 'scrollChildCount': scrollChildCount,
+        if (scrollIndex != null) 'scrollIndex': scrollIndex,
+        if (scrollPosition != null) 'scrollPosition': scrollPosition,
+        if (scrollExtentMax != null && scrollExtentMax!.isFinite)
+          'scrollExtentMax': scrollExtentMax,
+        if (scrollExtentMin != null) 'scrollExtentMin': scrollExtentMin,
       };
 }
 

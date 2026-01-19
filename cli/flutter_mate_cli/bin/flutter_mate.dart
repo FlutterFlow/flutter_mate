@@ -11,14 +11,7 @@ void main(List<String> arguments) async {
     ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help')
     ..addFlag('version', abbr: 'v', negatable: false, help: 'Show version')
     ..addOption('uri', abbr: 'u', help: 'VM Service WebSocket URI (ws://...)')
-    ..addFlag('json', abbr: 'j', negatable: false, help: 'Output as JSON')
-    ..addFlag('interactive',
-        abbr: 'i', negatable: false, help: 'Show only interactive elements')
-    ..addOption('mode',
-        abbr: 'm',
-        defaultsTo: 'semantics',
-        allowed: ['semantics', 'combined'],
-        help: 'Snapshot mode: semantics (flat) or combined (widget tree)');
+    ..addFlag('json', abbr: 'j', negatable: false, help: 'Output as JSON');
 
   // Add subcommands
   parser.addCommand('snapshot');
@@ -54,8 +47,6 @@ void main(List<String> arguments) async {
 
     final wsUri = results['uri'] as String?;
     final jsonOutput = results['json'] as bool;
-    final interactive = results['interactive'] as bool;
-    final mode = results['mode'] as String;
 
     if (wsUri == null) {
       stderr.writeln('Error: --uri is required');
@@ -100,8 +91,6 @@ void main(List<String> arguments) async {
       args: args,
       wsUri: uri,
       jsonOutput: jsonOutput,
-      interactive: interactive,
-      mode: mode,
     );
   } catch (e) {
     stderr.writeln('Error: $e');
@@ -114,8 +103,6 @@ Future<void> _executeCommand({
   required List<String> args,
   required String wsUri,
   required bool jsonOutput,
-  required bool interactive,
-  required String mode,
 }) async {
   final client = VmServiceClient(wsUri);
 
@@ -124,7 +111,10 @@ Future<void> _executeCommand({
 
     switch (command) {
       case 'snapshot':
-        await _snapshot(client, jsonOutput, interactive, mode);
+        await _snapshot(client, jsonOutput);
+        break;
+      case 'debug-trees':
+        await _debugTrees(client, jsonOutput);
         break;
       case 'tap':
         if (args.isEmpty) {
@@ -133,6 +123,15 @@ Future<void> _executeCommand({
         }
         final tapResult = await client.tap(args[0]);
         _printResult('tap', tapResult, jsonOutput);
+        break;
+      case 'tapGesture':
+        if (args.isEmpty) {
+          stderr.writeln(
+              'Error: tapGesture requires a ref (e.g., tapGesture w143)');
+          exit(1);
+        }
+        final tapGestureResult = await client.tapGesture(args[0]);
+        _printResult('tapGesture', tapGestureResult, jsonOutput);
         break;
       case 'fill':
         if (args.length < 2) {
@@ -199,13 +198,14 @@ Future<void> _executeCommand({
         _printResult('clear', clearResult, jsonOutput);
         break;
       case 'typeText':
-        if (args.isEmpty) {
+        if (args.length < 2) {
           stderr.writeln(
-              'Error: typeText requires text (e.g., typeText "hello")');
+              'Error: typeText requires ref and text (e.g., typeText w10 "hello")');
           exit(1);
         }
-        // Use pure VM typeText method
-        final typeResult = await client.typeText(args.join(' '));
+        // Use pure VM typeText method - first arg is ref, rest is text
+        final typeResult =
+            await client.typeText(args[0], args.sublist(1).join(' '));
         _printResult('typeText', typeResult, jsonOutput);
         break;
       case 'pressKey':
@@ -264,52 +264,25 @@ Future<void> _executeCommand({
   }
 }
 
-Future<void> _snapshot(VmServiceClient client, bool jsonOutput,
-    bool interactive, String mode) async {
+Future<void> _snapshot(VmServiceClient client, bool jsonOutput) async {
   try {
-    Map<String, dynamic> data;
-
-    if (mode == 'combined') {
-      // Use pure VM method - works on ANY Flutter debug app!
-      // summaryOnly: false to get text previews
-      final result = await client.getCombinedSnapshot(summaryOnly: false);
-      if (result['success'] != true) {
-        stderr.writeln('Error: ${result['error']}');
-        exit(1);
-      }
-      data = result;
-    } else {
-      // Pure VM semantics - no FlutterMate extension needed!
-      final semanticsResult = await client.getSemanticsTree();
-      if (semanticsResult['success'] != true) {
-        stderr.writeln('Error: ${semanticsResult['error']}');
-        exit(1);
-      }
-
-      final nodes = semanticsResult['nodes'] as List<dynamic>? ?? [];
-
-      // Filter to interactive only if requested
-      final filteredNodes = interactive
-          ? nodes.where((n) {
-              final node = n as Map<String, dynamic>;
-              final label = node['label'] as String?;
-              final actions = node['actions'] as List<dynamic>?;
-              return (label != null && label.isNotEmpty) ||
-                  (actions != null && actions.isNotEmpty);
-            }).toList()
-          : nodes;
-
-      data = {
-        'success': true,
-        'timestamp': DateTime.now().toIso8601String(),
-        'nodes': filteredNodes,
-      };
+    // Get snapshot via FlutterMate service extension
+    final result = await client.getSnapshot();
+    if (result['success'] != true) {
+      stderr.writeln('Error: ${result['error']}');
+      exit(1);
     }
+
+    final nodes = result['nodes'] as List<dynamic>? ?? [];
+
+    final data = {
+      'success': true,
+      'timestamp': DateTime.now().toIso8601String(),
+      'nodes': nodes,
+    };
 
     if (jsonOutput) {
       print(const JsonEncoder.withIndent('  ').convert(data));
-    } else if (mode == 'combined') {
-      _printCombinedSnapshotPure(data);
     } else {
       _printSnapshot(data);
     }
@@ -318,6 +291,100 @@ Future<void> _snapshot(VmServiceClient client, bool jsonOutput,
     stderr.writeln(stack);
     exit(1);
   }
+}
+
+/// Debug: Get both inspector tree and semantics tree for comparison
+Future<void> _debugTrees(VmServiceClient client, bool jsonOutput) async {
+  try {
+    final result = await client.callExtension(
+      'ext.flutter_mate.debugTrees',
+      args: {},
+    );
+
+    if (jsonOutput) {
+      print(const JsonEncoder.withIndent('  ').convert(result));
+      return;
+    }
+
+    // Print inspector tree
+    print('\n' + '=' * 60);
+    print('📱 INSPECTOR TREE (DevTools structure)');
+    print('=' * 60);
+
+    final inspectorTree = result['inspectorTree'] as Map<String, dynamic>?;
+    if (inspectorTree != null) {
+      void printInspectorNode(Map<String, dynamic> node, int depth) {
+        final indent = '  ' * depth;
+        final description = node['description'] as String? ?? '';
+        final valueId = node['valueId'] as String?;
+        final widgetRuntimeType = node['widgetRuntimeType'] as String?;
+
+        print('$indent• $description');
+        if (valueId != null) print('$indent  valueId: $valueId');
+        if (widgetRuntimeType != null)
+          print('$indent  widgetRuntimeType: $widgetRuntimeType');
+
+        final children = node['children'] as List<dynamic>? ?? [];
+        for (final child in children) {
+          if (child is Map<String, dynamic>) {
+            printInspectorNode(child, depth + 1);
+          }
+        }
+      }
+
+      printInspectorNode(inspectorTree, 0);
+    }
+
+    // Print semantics tree
+    print('\n' + '=' * 60);
+    print('🔤 SEMANTICS TREE (Interactive elements)');
+    print('=' * 60);
+
+    final semanticsNodes = result['semanticsNodes'] as List<dynamic>? ?? [];
+    for (final node in semanticsNodes) {
+      final nodeMap = node as Map<String, dynamic>;
+      final id = nodeMap['id'];
+      final depth = nodeMap['depth'] as int? ?? 0;
+      final label = nodeMap['label'] as String?;
+      final value = nodeMap['value'] as String?;
+      final rect = nodeMap['rect'] as Map<String, dynamic>?;
+      final actions =
+          (nodeMap['actions'] as List<dynamic>?)?.cast<String>() ?? [];
+      final flags = (nodeMap['flags'] as List<dynamic>?)?.cast<String>() ?? [];
+
+      final indent = '  ' * depth;
+      final displayLabel = label ?? value ?? '(no label)';
+      final actionsStr = actions.isNotEmpty ? ' [${actions.join(', ')}]' : '';
+      final flagsStr = flags.where((f) => f.startsWith('is')).join(', ');
+
+      print('$indent• s$id: $displayLabel$actionsStr');
+      if (rect != null) {
+        print(
+            '$indent  bounds: (${rect['x']?.toStringAsFixed(0)}, ${rect['y']?.toStringAsFixed(0)}) ${rect['width']?.toStringAsFixed(0)}x${rect['height']?.toStringAsFixed(0)}');
+      }
+      if (flagsStr.isNotEmpty) print('$indent  flags: $flagsStr');
+    }
+
+    print('\n' + '-' * 60);
+    print(
+        'Inspector nodes: ${_countInspectorNodes(inspectorTree)}, Semantics nodes: ${semanticsNodes.length}');
+  } catch (e, stack) {
+    stderr.writeln('Error getting debug trees: $e');
+    stderr.writeln(stack);
+    exit(1);
+  }
+}
+
+int _countInspectorNodes(Map<String, dynamic>? node) {
+  if (node == null) return 0;
+  int count = 1;
+  final children = node['children'] as List<dynamic>? ?? [];
+  for (final child in children) {
+    if (child is Map<String, dynamic>) {
+      count += _countInspectorNodes(child);
+    }
+  }
+  return count;
 }
 
 /// Print result from pure VM method call
@@ -339,7 +406,7 @@ void _printSnapshot(Map<String, dynamic> data) {
   }
 
   final nodes = data['nodes'] as List<dynamic>;
-  print('📱 Flutter Mate Snapshot (via VM Service)');
+  print('📱 Flutter Mate Snapshot');
   print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   print('Timestamp: ${data['timestamp']}');
   print('Total nodes: ${nodes.length}');
@@ -347,104 +414,65 @@ void _printSnapshot(Map<String, dynamic> data) {
 
   for (final node in nodes) {
     final ref = node['ref'] as String;
-    final label = node['label'] as String?;
-    final value = node['value'] as String?;
-    final actions = (node['actions'] as List<dynamic>?)?.cast<String>() ?? [];
-    final flags = (node['flags'] as List<dynamic>?)?.cast<String>() ?? [];
+    final widget = node['widget'] as String? ?? '?';
     final depth = node['depth'] as int? ?? 0;
-    final isInteractive = node['isInteractive'] as bool? ?? false;
 
-    if (!isInteractive && label == null && value == null) continue;
+    // Extract semantics (nested under 'semantics' key)
+    final semantics = node['semantics'] as Map<String, dynamic>?;
+    final label = semantics?['label'] as String?;
+    final value = semantics?['value'] as String?;
+    final textContent = node['textContent'] as String?;
+    final actions =
+        (semantics?['actions'] as List<dynamic>?)?.cast<String>() ?? [];
+    final flags = (semantics?['flags'] as List<dynamic>?)?.cast<String>() ?? [];
 
     final indent = '  ' * depth;
-    final typeIcon = _getTypeIcon(flags);
-    final displayText = label ?? value ?? '(no label)';
-    final actionsStr = actions.isNotEmpty ? ' [${actions.join(', ')}]' : '';
+    final typeIcon = '•';
+
+    // Scroll properties
+    final scrollPosition = semantics?['scrollPosition'] as num?;
+    final scrollExtentMax = semantics?['scrollExtentMax'] as num?;
+    final scrollChildCount = semantics?['scrollChildCount'] as int?;
+    final scrollIndex = semantics?['scrollIndex'] as int?;
+
+    // Build widget display with optional text content
+    String widgetDisplay = widget;
+    if (textContent != null && textContent.isNotEmpty) {
+      // Truncate long text content
+      final truncated = textContent.length > 30
+          ? '${textContent.substring(0, 30)}...'
+          : textContent;
+      widgetDisplay = '$widget "$truncated"';
+    }
+
+    // Build display parts (semantic info)
+    final parts = <String>[];
+    if (label != null && label.isNotEmpty) parts.add('"$label"');
+    if (value != null && value.isNotEmpty) parts.add('= "$value"');
+    if (actions.isNotEmpty) parts.add('[${actions.join(', ')}]');
+
     final flagsStr = flags
         .where((f) => f.startsWith('is'))
         .map((f) => f.substring(2))
         .join(', ');
+    if (flagsStr.isNotEmpty) parts.add('($flagsStr)');
 
-    print(
-        '$indent$typeIcon $ref: "$displayText"$actionsStr${flagsStr.isNotEmpty ? ' ($flagsStr)' : ''}');
-  }
-
-  print('');
-  print('💡 Use refs to interact: flutter_mate --uri <ws://...> tap w123');
-}
-
-/// Print combined snapshot from pure VM method
-void _printCombinedSnapshotPure(Map<String, dynamic> data) {
-  final nodes = data['nodes'] as List<dynamic>;
-  final widgetCount = data['widgetCount'] as int? ?? nodes.length;
-  final semanticsCount = data['semanticsCount'] as int? ?? 0;
-  final semanticsNodes = data['semanticsNodes'] as List<dynamic>? ?? [];
-
-  print('📱 Flutter Mate Combined Snapshot (Pure VM)');
-  print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  print('Timestamp: ${data['timestamp']}');
-  print('');
-
-  // Section 1: Widget Tree (structure)
-  print('📦 WIDGET TREE ($widgetCount widgets)');
-  print('─────────────────────────────────');
-
-  for (final node in nodes) {
-    final id = node['id'] as String;
-    final type = node['type'] as String;
-    final depth = node['depth'] as int? ?? 0;
-    final indent = '  ' * depth;
-    final icon = _getTypeIconForWidget(type);
-    print('$indent$icon $id: $type');
-  }
-
-  print('');
-
-  // Section 2: Interactive Elements (semantics)
-  print('🎯 INTERACTIVE ELEMENTS ($semanticsCount items)');
-  print('──────────────────────────────────────');
-
-  if (semanticsNodes.isNotEmpty) {
-    for (final sem in semanticsNodes) {
-      final ref = sem['ref'] as String? ?? '?';
-      final label = sem['label'] as String? ?? '';
-      final actions = (sem['actions'] as List<dynamic>?)?.cast<String>() ?? [];
-
-      if (label.isEmpty && actions.isEmpty) continue;
-
-      final actionsStr = actions.isNotEmpty ? ' [${actions.join(', ')}]' : '';
-      print('  $ref: "$label"$actionsStr');
+    // Add scroll info if scrollable
+    if (scrollPosition != null) {
+      final pos = scrollPosition.toStringAsFixed(0);
+      final max = scrollExtentMax?.toStringAsFixed(0) ?? '?';
+      parts.add('{scroll: $pos/$max}');
+      if (scrollChildCount != null && scrollIndex != null) {
+        parts.add('{visible: $scrollIndex-${scrollIndex + scrollChildCount}}');
+      }
     }
-  } else {
-    print('  (No semantics extracted - use regular snapshot for interactions)');
+
+    final info = parts.isNotEmpty ? ' ${parts.join(' ')}' : '';
+    print('$indent$typeIcon $ref: $widgetDisplay$info');
   }
 
   print('');
-  print('💡 For interactions, use: flutter_mate tap <ref>');
-}
-
-String _getTypeIconForWidget(String type) {
-  if (type.contains('Button')) return '🔘';
-  if (type.contains('TextField')) return '📝';
-  if (type.contains('Text')) return '📄';
-  if (type.contains('Icon')) return '🎨';
-  if (type.contains('Image')) return '🖼️';
-  if (type.contains('Scaffold')) return '📱';
-  if (type.contains('AppBar')) return '📲';
-  if (type.contains('Column') || type.contains('Row')) return '📐';
-  return '  ';
-}
-
-String _getTypeIcon(List<String> flags) {
-  if (flags.contains('isButton')) return '🔘';
-  if (flags.contains('isTextField')) return '📝';
-  if (flags.contains('isLink')) return '🔗';
-  if (flags.contains('isHeader')) return '📌';
-  if (flags.contains('isImage')) return '🖼️';
-  if (flags.contains('isSlider')) return '🎚️';
-  if (flags.contains('isChecked')) return '☑️';
-  if (flags.contains('isFocusable')) return '👆';
-  return '•';
+  print('💡 Use refs to interact: flutter_mate --uri <ws://...> tap w5');
 }
 
 Future<void> _listExtensions(VmServiceClient client) async {
@@ -535,14 +563,7 @@ Future<void> _interactiveMode(VmServiceClient client) async {
       switch (cmd) {
         case 'snapshot':
         case 's':
-          final mode = args.isNotEmpty && args[0] == 'combined'
-              ? 'combined'
-              : 'semantics';
-          await _snapshot(client, false, true, mode);
-          break;
-        case 'combined':
-        case 'c':
-          await _snapshot(client, false, true, 'combined');
+          await _snapshot(client, false);
           break;
         case 'tap':
         case 't':
@@ -551,6 +572,16 @@ Future<void> _interactiveMode(VmServiceClient client) async {
           } else {
             final r = await client.tap(args[0]);
             _printResult('tap', r, false);
+          }
+          break;
+        case 'tapGesture':
+        case 'tapgesture':
+        case 'tg':
+          if (args.isEmpty) {
+            print('Usage: tapGesture <ref>');
+          } else {
+            final r = await client.tapGesture(args[0]);
+            _printResult('tapGesture', r, false);
           }
           break;
         case 'fill':
@@ -615,11 +646,13 @@ Future<void> _interactiveMode(VmServiceClient client) async {
           }
           break;
         case 'type':
-          if (args.isEmpty) {
-            print('Usage: type <text>');
+        case 'typeText':
+        case 'typetext':
+          if (args.length < 2) {
+            print('Usage: typeText <ref> <text>');
           } else {
-            final r = await client.typeText(args.join(' '));
-            _printResult('type', r, false);
+            final r = await client.typeText(args[0], args.sublist(1).join(' '));
+            _printResult('typeText', r, false);
           }
           break;
         case 'key':
@@ -664,14 +697,14 @@ Future<void> _interactiveMode(VmServiceClient client) async {
         case 'help':
         case '?':
           print('Commands:');
-          print('  snapshot, s      - Get semantics snapshot');
-          print('  combined, c      - Get combined widget tree + semantics');
-          print('  tap, t <ref>     - Tap element');
+          print('  snapshot, s      - Get UI snapshot');
+          print('  tap, t <ref>     - Tap element (semantic action)');
+          print('  tapGesture, tg <ref> - Tap element (pointer events)');
           print('  doubleTap, dt <ref> - Double tap element');
           print('  longPress, lp <ref> - Long press element');
-          print('  fill, f <ref> <text> - Fill text field');
+          print('  fill, f <ref> <text> - Fill text field (semantic setText)');
+          print('  typeText <ref> <text> - Type text (keyboard simulation)');
           print('  clear <ref>      - Clear text field');
-          print('  type <text>      - Type text (to focused field)');
           print('  scroll <ref> [dir] - Scroll element');
           print('  swipe <dir>      - Swipe gesture');
           print('  focus <ref>      - Focus element');
@@ -708,15 +741,13 @@ Connection:
   Convert to WebSocket: ws://127.0.0.1:12345/abc=/ws
 
 Commands:
-  snapshot              Get UI tree snapshot
-                        -i: interactive elements only
-                        -m combined: widget tree + semantics
+  snapshot              Get UI snapshot (widget tree + semantics)
   tap <ref>             Tap on element (e.g., tap w123)
   doubleTap <ref>       Double tap element
   longPress <ref>       Long press element
-  fill <ref> <text>     Fill text field (e.g., fill w5 "hello@example.com")
+  fill <ref> <text>     Fill text field via semantic setText (e.g., fill w9 "text")
+  typeText <ref> <text> Type text via keyboard simulation (e.g., typeText w10 "text")
   clear <ref>           Clear text field
-  typeText <text>       Type text character by character
   pressKey <key>        Press keyboard key (enter, tab, escape, etc.)
   scroll <ref> [dir]    Scroll element (dir: up, down, left, right)
   swipe <dir>           Swipe gesture
@@ -734,11 +765,11 @@ ${parser.usage}
 Examples:
   # Get the VM Service URI from flutter run output, then:
   
-  # Semantics snapshot (flat, accessibility info)
-  flutter_mate --uri ws://127.0.0.1:12345/abc=/ws snapshot -i
+  # Get UI snapshot
+  flutter_mate --uri ws://127.0.0.1:12345/abc=/ws snapshot
   
-  # Combined snapshot (widget tree + semantics)
-  flutter_mate --uri ws://127.0.0.1:12345/abc=/ws snapshot -m combined
+  # Interactive elements only
+  flutter_mate --uri ws://127.0.0.1:12345/abc=/ws snapshot -i
   
   # Interact with elements
   flutter_mate --uri ws://127.0.0.1:12345/abc=/ws tap w10
@@ -750,8 +781,8 @@ Examples:
 Workflow:
   1. Run your Flutter app: flutter run
   2. Copy the VM Service URI from console
-  3. flutter_mate --uri <uri> snapshot -m combined  # See widget tree
-  4. flutter_mate --uri <uri> fill w5 "..."         # Fill fields
-  5. flutter_mate --uri <uri> tap w10               # Tap buttons
+  3. flutter_mate --uri <uri> snapshot  # See UI tree
+  4. flutter_mate --uri <uri> fill w5 "..."  # Fill fields
+  5. flutter_mate --uri <uri> tap w10  # Tap buttons
 ''');
 }

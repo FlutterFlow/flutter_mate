@@ -19,7 +19,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Take a snapshot
-      final snapshot = await FlutterMate.snapshot(interactiveOnly: true);
+      final snapshot = await FlutterMate.snapshot();
 
       // Verify we have some nodes
       expect(snapshot.nodes, isNotEmpty);
@@ -63,22 +63,24 @@ void main() {
 
       // Find login button
       final loginNode = snapshot.nodes.firstWhere(
-        (n) => n.label == 'Login' && n.flags.contains('isButton'),
+        (n) =>
+            n.semantics?.label == 'Login' &&
+            n.semantics!.flags.contains('isButton'),
         orElse: () => throw Exception('Login button not found'),
       );
 
-      expect(loginNode.flags, contains('isButton'));
-      expect(loginNode.actions, contains('tap'));
+      expect(loginNode.semantics!.flags, contains('isButton'));
+      expect(loginNode.semantics!.actions, contains('tap'));
 
       // Find email field
       final emailNode = snapshot.nodes.firstWhere(
         (n) =>
-            n.label?.contains('Email') == true &&
-            n.flags.contains('isTextField'),
+            n.semantics?.label?.contains('Email') == true &&
+            n.semantics!.flags.contains('isTextField'),
         orElse: () => throw Exception('Email field not found'),
       );
 
-      expect(emailNode.flags, contains('isTextField'));
+      expect(emailNode.semantics!.flags, contains('isTextField'));
 
       semanticsHandle.dispose();
     });
@@ -121,7 +123,7 @@ void main() {
       expect(loginNode, isNotNull);
 
       // Tap at the button's center coordinates
-      await FlutterMate.tapAt(loginNode!.rect.center);
+      await FlutterMate.tapAt(loginNode!.center!);
       await tester.pumpAndSettle(); // Settle all animations and timers
 
       // If we got here without crash, tap worked
@@ -159,13 +161,12 @@ void main() {
       await tester.pumpWidget(const DemoApp());
       await tester.pumpAndSettle();
 
-      // First tap to focus
+      // Find the email text field
       final emailRef = await FlutterMate.findByLabel('Email');
-      await FlutterMate.tapGesture(emailRef!);
-      await tester.pump();
+      expect(emailRef, isNotNull);
 
-      // Now type text
-      final typed = await FlutterMate.typeText('test@example.com');
+      // Type text into the text field using its ref
+      final typed = await FlutterMate.typeText(emailRef!, 'test@example.com');
       await tester.pumpAndSettle();
 
       expect(typed, isTrue);
@@ -194,8 +195,7 @@ void main() {
       var textField = tester.widget<TextField>(find.byType(TextField).first);
       expect(textField.controller?.text, 'hello@test.com');
 
-      // Clear using FlutterMate
-      final emailRef = await FlutterMate.findByLabel('Email');
+      // Clear using FlutterMate (clears currently focused field)
       final cleared = await FlutterMate.clearText();
       await tester.pump();
 
@@ -252,10 +252,8 @@ void main() {
       expect(passwordRef, isNotNull);
       expect(loginRef, isNotNull);
 
-      // Fill email
-      await FlutterMate.tapGesture(emailRef!);
-      await tester.pump();
-      await FlutterMate.typeText('user@example.com');
+      // Fill email using typeText
+      await FlutterMate.typeText(emailRef!, 'user@example.com');
       await tester.pump();
 
       // Fill password (use tester.enterText for reliability)

@@ -11,70 +11,11 @@ import 'package:flutter/widgets.dart';
 export 'package:flutter/widgets.dart' show TextEditingController;
 
 import 'combined_snapshot.dart';
-import 'snapshot.dart';
-
-// ══════════════════════════════════════════════════════════════════════════════
-// WIDGET CONSOLIDATION - Skip these wrapper widgets when they have single child
-// Based on Hologram's widget_tree_filter.dart
-// ══════════════════════════════════════════════════════════════════════════════
-
-const _skipWidgets = <String>{
-  // Layout wrappers
-  'Padding',
-  'Align',
-  'Center',
-  'Expanded',
-  'Flexible',
-  'Positioned',
-  'SizedBox',
-  'ConstrainedBox',
-  'UnconstrainedBox',
-  'LimitedBox',
-  'FittedBox',
-  'FractionallySizedBox',
-  'IntrinsicHeight',
-  'IntrinsicWidth',
-  'AspectRatio',
-  // Gesture wrappers
-  'GestureDetector',
-  'InkWell',
-  'MouseRegion',
-  'AbsorbPointer',
-  'IgnorePointer',
-  // Visual wrappers
-  'Opacity',
-  'Visibility',
-  'ClipRect',
-  'ClipRRect',
-  'ClipOval',
-  'ClipPath',
-  'Transform',
-  'RotatedBox',
-  'AnimatedOpacity',
-  'AnimatedAlign',
-  'AnimatedPadding',
-  'AnimatedPositioned',
-  'AnimatedSize',
-  // Semantics wrappers
-  'Semantics',
-  'MergeSemantics',
-  'ExcludeSemantics',
-  // Framework internals
-  'Material',
-  'SafeArea',
-  'Builder',
-  'RepaintBoundary',
-  'KeyedSubtree',
-  'Offstage',
-  'WillPopScope',
-  'AnimatedBuilder',
-  // Private/internal widgets (start with _)
-};
 
 /// Flutter Mate SDK — Automate Flutter apps
 ///
 /// Use this class for:
-/// - **In-app AI agents** that navigate and interact with your UI
+/// - **AI agents** that navigate and interact with your UI
 /// - **Automated testing** without widget keys
 /// - **Accessibility automation** using the semantics tree
 ///
@@ -85,42 +26,40 @@ const _skipWidgets = <String>{
 /// await FlutterMate.initialize();
 ///
 /// // 2. Get UI snapshot with element refs
-/// final snapshot = await FlutterMate.snapshot(interactiveOnly: true);
+/// final snapshot = await FlutterMate.snapshot();
 /// print(snapshot);
 ///
 /// // 3. Interact with elements
-/// await FlutterMate.fill('w5', 'hello@example.com');
-/// await FlutterMate.tap('w10');
+/// await FlutterMate.fill('w9', 'hello@example.com');  // Semantic action
+/// await FlutterMate.typeText('w10', 'hello@example.com');  // Keyboard simulation
+/// await FlutterMate.tap('w18');
 /// ```
 ///
 /// ## Two-Tier Action System
 ///
-/// ### Tier 1: Semantic Actions (High-Level)
+/// ### Tier 1: Semantic Actions (on Semantics widgets)
 /// Uses Flutter's accessibility system via `SemanticsOwner.performAction()`.
-/// - `tap()`, `focus()`, `scroll()` — work with semantic nodes
-/// - Best for standard widgets with proper semantics
-/// - Platform-native behavior
+/// - `fill(ref, text)` — uses semantic setText (best for Semantics widgets)
+/// - `tap(ref)`, `focus(ref)`, `scroll(ref)` — work with semantic nodes
 ///
-/// ### Tier 2: Gesture/Input Simulation (Low-Level)
+/// ### Tier 2: Gesture/Keyboard Simulation (on actual widgets)
 /// Mimics actual user input at the gesture/keyboard level.
-/// - `tapGesture()`, `longPressGesture()`, `doubleTap()` — inject PointerEvents
-/// - `typeText()` — uses `EditableTextState.updateEditingValue()` (same as platform)
-/// - `pressKey()` — simulates keyboard events
-/// - Works with custom widgets that don't have standard semantics
-/// - Triggers all GestureDetector callbacks
+/// - `typeText(ref, text)` — keyboard simulation via platform messages
+/// - `tapGesture(ref)`, `longPressGesture(ref)` — inject PointerEvents
+/// - `pressKey(key)` — simulates keyboard events
 ///
-/// Most actions try Tier 1 first, then fall back to Tier 2 if needed.
+/// ## Snapshot Structure
 ///
-/// ## Legacy API (Still Supported)
+/// The snapshot shows the inspector tree (like DevTools) with semantics
+/// only attached to explicit `Semantics` widgets:
 ///
-/// 1. **Semantics Actions** — `tap()`, `fill()`, `scroll()`, `focus()`
-///    Uses Flutter's accessibility system. Most reliable.
+/// ```
+/// • w9: Semantics "Email" [tap, focus, setText] (TextField)
+///   • w10: TextField (bounds)
+/// ```
 ///
-/// 2. **Gesture Simulation** — `tapAt()`, `tapGesture()`, `drag()`
-///    Injects raw pointer events. For complex gestures.
-///
-/// 3. **Keyboard Simulation** — `typeText()`, `pressKey()`, `pressEnter()`
-///    Sends platform channel messages like a real keyboard.
+/// - Use `w9` (Semantics) for semantic actions like `fill`
+/// - Use `w10` (TextField) for keyboard actions like `typeText`
 ///
 /// ## External Control via VM Service
 ///
@@ -129,11 +68,21 @@ const _skipWidgets = <String>{
 ///
 /// ```bash
 /// flutter_mate --uri ws://127.0.0.1:12345/abc=/ws snapshot
-/// flutter_mate --uri ws://127.0.0.1:12345/abc=/ws tap w10
+/// flutter_mate --uri ws://127.0.0.1:12345/abc=/ws fill w9 "text"
+/// flutter_mate --uri ws://127.0.0.1:12345/abc=/ws typeText w10 "text"
 /// ```
 class FlutterMate {
   static SemanticsHandle? _semanticsHandle;
   static bool _initialized = false;
+
+  // Cached snapshot for ref -> semantics ID translation
+  static CombinedSnapshot? _lastSnapshot;
+
+  // Cached Elements from inspector tree for ref -> Element lookup
+  static final Map<String, Element> _cachedElements = {};
+
+  // Text input client ID for platform message simulation
+  static int? _lastTextInputClientId;
 
   // Registry for text controllers (for in-app agent usage)
   static final Map<String, TextEditingController> _textControllers = {};
@@ -185,6 +134,9 @@ class FlutterMate {
     // Register service extensions for VM Service access (CLI)
     _registerServiceExtensions();
 
+    // Set up text input channel interceptor to capture client IDs
+    _setupTextInputInterceptor();
+
     _initialized = true;
     debugPrint('FlutterMate: Initialized (semantics enabled)');
   }
@@ -231,15 +183,51 @@ class FlutterMate {
     WidgetsBinding.instance.handlePointerEvent(event);
   }
 
+  static bool _textInputInterceptorSetup = false;
+
+  /// Set up interceptor to capture text input client IDs
+  ///
+  /// When a TextField is focused, Flutter sends TextInput.setClient with a client ID.
+  /// We intercept this to capture the ID for use with _dispatchTextInput.
+  static void _setupTextInputInterceptor() {
+    if (_textInputInterceptorSetup) return;
+
+    // Listen to platform messages on the text input channel
+    ServicesBinding.instance.defaultBinaryMessenger.setMessageHandler(
+      'flutter/textinput',
+      (ByteData? message) async {
+        if (message != null) {
+          try {
+            final methodCall =
+                const JSONMethodCodec().decodeMethodCall(message);
+            if (methodCall.method == 'TextInput.setClient') {
+              final args = methodCall.arguments as List<dynamic>;
+              _lastTextInputClientId = args[0] as int;
+              debugPrint(
+                  'FlutterMate: Captured text input client ID: $_lastTextInputClientId');
+            }
+          } catch (_) {
+            // Ignore decode errors
+          }
+        }
+        // Return null to let the default handler process the message
+        return null;
+      },
+    );
+
+    _textInputInterceptorSetup = true;
+    debugPrint('FlutterMate: Text input interceptor set up');
+  }
+
   /// Dispatch text input via platform message simulation
   ///
   /// Uses the same mechanism as Flutter's TestTextInput - injects a
   /// platform message to simulate keyboard input.
   static Future<void> _dispatchTextInput(int clientId, String text) async {
-    final messenger = WidgetsBinding.instance.defaultBinaryMessenger;
     final codec = const JSONMethodCodec();
 
-    await messenger.handlePlatformMessage(
+    // Use channelBuffers.push which is the modern approach
+    ServicesBinding.instance.channelBuffers.push(
       'flutter/textinput',
       codec.encodeMethodCall(MethodCall(
         'TextInputClient.updateEditingState',
@@ -254,8 +242,12 @@ class FlutterMate {
           },
         ],
       )),
-      (_) {},
+      (ByteData? response) {
+        // Response handling (usually empty)
+      },
     );
+
+    await _delay(const Duration(milliseconds: 50));
   }
 
   static bool _extensionsRegistered = false;
@@ -267,13 +259,6 @@ class FlutterMate {
 
     // Only register in debug/profile mode
     assert(() {
-      // ext.flutter_mate.snapshot - Get UI snapshot
-      registerExtension('ext.flutter_mate.snapshot', (method, params) async {
-        final interactiveOnly = params['interactiveOnly'] == 'true';
-        final snap = await snapshot(interactiveOnly: interactiveOnly);
-        return ServiceExtensionResponse.result(jsonEncode(snap.toJson()));
-      });
-
       // ext.flutter_mate.tap - Tap element by ref
       registerExtension('ext.flutter_mate.tap', (method, params) async {
         final ref = params['ref'];
@@ -284,8 +269,13 @@ class FlutterMate {
           );
         }
         final success = await tap(ref);
-        return ServiceExtensionResponse.result(
-            jsonEncode({'success': success}));
+        if (!success) {
+          return ServiceExtensionResponse.result(jsonEncode({
+            'success': false,
+            'error': 'tap failed: element may not support tap action',
+          }));
+        }
+        return ServiceExtensionResponse.result(jsonEncode({'success': true}));
       });
 
       // ext.flutter_mate.fill - Fill text field
@@ -299,8 +289,13 @@ class FlutterMate {
           );
         }
         final success = await fill(ref, text);
-        return ServiceExtensionResponse.result(
-            jsonEncode({'success': success}));
+        if (!success) {
+          return ServiceExtensionResponse.result(jsonEncode({
+            'success': false,
+            'error': 'fill failed: element may not support setText action',
+          }));
+        }
+        return ServiceExtensionResponse.result(jsonEncode({'success': true}));
       });
 
       // ext.flutter_mate.scroll - Scroll element
@@ -323,8 +318,13 @@ class FlutterMate {
           _ => ScrollDirection.down,
         };
         final success = await scroll(ref, direction, distance: distance);
-        return ServiceExtensionResponse.result(
-            jsonEncode({'success': success}));
+        if (!success) {
+          return ServiceExtensionResponse.result(jsonEncode({
+            'success': false,
+            'error': 'scroll failed: element may not support scroll action',
+          }));
+        }
+        return ServiceExtensionResponse.result(jsonEncode({'success': true}));
       });
 
       // ext.flutter_mate.focus - Focus element
@@ -337,24 +337,19 @@ class FlutterMate {
           );
         }
         final success = await focus(ref);
-        return ServiceExtensionResponse.result(
-            jsonEncode({'success': success}));
+        if (!success) {
+          return ServiceExtensionResponse.result(jsonEncode({
+            'success': false,
+            'error': 'focus failed: element may not support focus action',
+          }));
+        }
+        return ServiceExtensionResponse.result(jsonEncode({'success': true}));
       });
 
-      // ext.flutter_mate.snapshotCombined - Get combined widget tree + semantics
-      registerExtension('ext.flutter_mate.snapshotCombined',
-          (method, params) async {
-        final consolidate = params['consolidate'] != 'false';
-        final snap = await snapshotCombined(consolidate: consolidate);
+      // ext.flutter_mate.snapshot - Get UI snapshot (widget tree + semantics)
+      registerExtension('ext.flutter_mate.snapshot', (method, params) async {
+        final snap = await snapshot();
         return ServiceExtensionResponse.result(jsonEncode(snap.toJson()));
-      });
-
-      // ext.flutter_mate.getSemanticsNodes - Get structured semantics tree
-      registerExtension('ext.flutter_mate.getSemanticsNodes',
-          (method, params) async {
-        final interactiveOnly = params['interactiveOnly'] != 'false';
-        final nodes = getSemanticsNodes(interactiveOnly: interactiveOnly);
-        return ServiceExtensionResponse.result(jsonEncode(nodes));
       });
 
       // ext.flutter_mate.longPress - Long press element by ref
@@ -367,8 +362,13 @@ class FlutterMate {
           );
         }
         final success = await longPress(ref);
-        return ServiceExtensionResponse.result(
-            jsonEncode({'success': success}));
+        if (!success) {
+          return ServiceExtensionResponse.result(jsonEncode({
+            'success': false,
+            'error': 'longPress failed: element not found or no bounds',
+          }));
+        }
+        return ServiceExtensionResponse.result(jsonEncode({'success': true}));
       });
 
       // ext.flutter_mate.doubleTap - Double tap element by ref
@@ -381,22 +381,52 @@ class FlutterMate {
           );
         }
         final success = await doubleTap(ref);
-        return ServiceExtensionResponse.result(
-            jsonEncode({'success': success}));
+        if (!success) {
+          return ServiceExtensionResponse.result(jsonEncode({
+            'success': false,
+            'error': 'doubleTap failed: element not found or no bounds',
+          }));
+        }
+        return ServiceExtensionResponse.result(jsonEncode({'success': true}));
       });
 
-      // ext.flutter_mate.typeText - Type text into focused field
-      registerExtension('ext.flutter_mate.typeText', (method, params) async {
-        final text = params['text'];
-        if (text == null) {
+      // ext.flutter_mate.tapGesture - Tap element by ref using pointer events
+      registerExtension('ext.flutter_mate.tapGesture', (method, params) async {
+        final ref = params['ref'];
+        if (ref == null) {
           return ServiceExtensionResponse.error(
             ServiceExtensionResponse.invalidParams,
-            'Missing text parameter',
+            'Missing ref parameter',
           );
         }
-        final success = await typeText(text);
-        return ServiceExtensionResponse.result(
-            jsonEncode({'success': success}));
+        final success = await tapGesture(ref);
+        if (!success) {
+          return ServiceExtensionResponse.result(jsonEncode({
+            'success': false,
+            'error': 'tapGesture failed: element not found or no bounds',
+          }));
+        }
+        return ServiceExtensionResponse.result(jsonEncode({'success': true}));
+      });
+
+      // ext.flutter_mate.typeText - Type text into a text field by ref
+      registerExtension('ext.flutter_mate.typeText', (method, params) async {
+        final ref = params['ref'];
+        final text = params['text'];
+        if (ref == null || text == null) {
+          return ServiceExtensionResponse.error(
+            ServiceExtensionResponse.invalidParams,
+            'Missing ref or text parameter',
+          );
+        }
+        final success = await typeText(ref, text);
+        if (!success) {
+          return ServiceExtensionResponse.result(jsonEncode({
+            'success': false,
+            'error': 'typeText failed: element not found or not a text field',
+          }));
+        }
+        return ServiceExtensionResponse.result(jsonEncode({'success': true}));
       });
 
       // ext.flutter_mate.clearText - Clear focused text field
@@ -427,10 +457,78 @@ class FlutterMate {
             jsonEncode({'success': success}));
       });
 
+      // ext.flutter_mate.debugTrees - Get both trees for debugging
+      registerExtension('ext.flutter_mate.debugTrees', (method, params) async {
+        final result = await _getDebugTrees();
+        return ServiceExtensionResponse.result(jsonEncode(result));
+      });
+
       _extensionsRegistered = true;
       debugPrint('FlutterMate: Service extensions registered');
       return true;
     }());
+  }
+
+  /// Get both inspector tree and semantics tree for debugging/matching
+  static Future<Map<String, dynamic>> _getDebugTrees() async {
+    _ensureInitialized();
+
+    // Get inspector summary tree
+    final service = WidgetInspectorService.instance;
+    final inspectorJson =
+        service.getRootWidgetSummaryTree('flutter_mate_debug');
+    final inspectorTree = jsonDecode(inspectorJson) as Map<String, dynamic>?;
+
+    // Get semantics tree
+    final semanticsNodes = <Map<String, dynamic>>[];
+    SemanticsNode? rootNode;
+    for (final view in RendererBinding.instance.renderViews) {
+      if (view.owner?.semanticsOwner?.rootSemanticsNode != null) {
+        rootNode = view.owner!.semanticsOwner!.rootSemanticsNode;
+        break;
+      }
+    }
+
+    if (rootNode != null) {
+      void walkSemantics(SemanticsNode node, int depth) {
+        final data = node.getSemanticsData();
+        final rect = node.rect;
+        final transform = node.transform;
+
+        Offset? globalTopLeft;
+        if (transform != null) {
+          globalTopLeft = MatrixUtils.transformPoint(transform, rect.topLeft);
+        }
+
+        semanticsNodes.add({
+          'id': node.id,
+          'depth': depth,
+          'label': data.label.isNotEmpty ? data.label : null,
+          'value': data.value.isNotEmpty ? data.value : null,
+          'hint': data.hint.isNotEmpty ? data.hint : null,
+          'rect': {
+            'x': globalTopLeft?.dx ?? rect.left,
+            'y': globalTopLeft?.dy ?? rect.top,
+            'width': rect.width,
+            'height': rect.height,
+          },
+          'actions': _getActions(data),
+          'flags': _getFlags(data),
+        });
+
+        node.visitChildren((child) {
+          walkSemantics(child, depth + 1);
+          return true;
+        });
+      }
+
+      walkSemantics(rootNode, 0);
+    }
+
+    return {
+      'inspectorTree': inspectorTree,
+      'semanticsNodes': semanticsNodes,
+    };
   }
 
   /// Wait for the UI to be ready (call after runApp if needed)
@@ -455,66 +553,25 @@ class FlutterMate {
     _initialized = false;
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // SNAPSHOT
+  // Uses Flutter's WidgetInspectorService for the summary tree (same as DevTools)
+  // then attaches semantics info for AI/automation interactions.
+  // ══════════════════════════════════════════════════════════════════════════
+
   /// Get a snapshot of the current UI
   ///
-  /// Returns a [Snapshot] containing all semantics nodes.
-  /// Use [interactiveOnly] to filter to only interactive elements.
-  static Future<Snapshot> snapshot({bool interactiveOnly = false}) async {
-    _ensureInitialized();
-
-    // Find the semantics owner from render views
-    SemanticsNode? rootNode = _findRootSemanticsNode();
-
-    // If not found, wait for first frame and try again
-    if (rootNode == null) {
-      await _waitForFirstFrame();
-      rootNode = _findRootSemanticsNode();
-    }
-
-    if (rootNode == null) {
-      return Snapshot(
-        success: false,
-        error: 'No root semantics node found. Is the UI rendered?',
-        timestamp: DateTime.now(),
-        nodes: [],
-        refs: {},
-      );
-    }
-
-    final nodes = <SnapshotNode>[];
-    final refs = <String, SnapshotNode>{};
-
-    _extractNode(rootNode, nodes, refs, interactiveOnly: interactiveOnly);
-
-    return Snapshot(
-      success: true,
-      timestamp: DateTime.now(),
-      nodes: nodes,
-      refs: refs,
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // COMBINED SNAPSHOT
-  // Walks the Element tree (widget tree) and attaches semantics info.
-  // Provides both widget structure and interaction capabilities.
-  // ══════════════════════════════════════════════════════════════════════════
-
-  /// Get a combined snapshot of the widget tree with semantics
+  /// Returns a [CombinedSnapshot] containing the widget tree with semantics.
+  /// Each node has a ref (w0, w1, w2...) that can be used for interactions.
   ///
-  /// This provides both structural context (widget types, hierarchy) and
-  /// interaction capabilities (actions, labels, values).
-  ///
-  /// Set [consolidate] to true (default) to skip wrapper widgets like
-  /// Padding, Align, GestureDetector when they have a single child.
+  /// Uses Flutter's WidgetInspectorService to get the same tree that DevTools
+  /// shows - only user-created widgets, not framework internals.
   ///
   /// ```dart
-  /// final snapshot = await FlutterMate.snapshotCombined();
+  /// final snapshot = await FlutterMate.snapshot();
   /// print(snapshot);
   /// ```
-  static Future<CombinedSnapshot> snapshotCombined({
-    bool consolidate = true,
-  }) async {
+  static Future<CombinedSnapshot> snapshot() async {
     _ensureInitialized();
 
     // Wait for first frame if needed
@@ -523,8 +580,7 @@ class FlutterMate {
       await _waitForFirstFrame();
     }
 
-    final root = WidgetsBinding.instance.rootElement;
-    if (root == null) {
+    if (WidgetsBinding.instance.rootElement == null) {
       return CombinedSnapshot(
         success: false,
         error: 'No root element found. Is the UI rendered?',
@@ -533,123 +589,232 @@ class FlutterMate {
       );
     }
 
-    final nodes = <CombinedNode>[];
-    int refCounter = 0;
+    try {
+      // Use Flutter's WidgetInspectorService to get the summary tree
+      // This is the same tree that DevTools shows - only user widgets
+      final service = WidgetInspectorService.instance;
+      const groupName = 'flutter_mate_snapshot';
 
-    void walkElement(Element element, int depth) {
-      final widget = element.widget;
-      final widgetType = widget.runtimeType.toString();
+      final jsonStr = service.getRootWidgetSummaryTree(groupName);
 
-      // Consolidation: skip wrapper widgets with single child
-      if (consolidate && _shouldSkipWidget(widgetType)) {
-        int childCount = 0;
-        Element? singleChild;
-        element.visitChildren((child) {
-          childCount++;
-          singleChild = child;
-        });
-        if (childCount == 1 && singleChild != null) {
-          walkElement(singleChild!, depth);
-          return;
-        }
+      final treeJson = jsonDecode(jsonStr) as Map<String, dynamic>?;
+      if (treeJson == null) {
+        return CombinedSnapshot(
+          success: false,
+          error: 'Failed to get widget tree from inspector',
+          timestamp: DateTime.now(),
+          nodes: [],
+        );
       }
 
-      // Skip private/internal widgets (start with _)
-      if (widgetType.startsWith('_') && consolidate) {
-        element.visitChildren((child) {
-          walkElement(child, depth);
-        });
-        return;
-      }
+      // Clear cached elements for fresh snapshot
+      _cachedElements.clear();
 
-      final ref = 'w${refCounter++}';
+      // Parse the inspector tree and attach semantics using toObject
+      final nodes = <CombinedNode>[];
+      int refCounter = 0;
 
-      // Get bounds and semantics from RenderObject
-      CombinedRect? bounds;
-      SemanticsInfo? semantics;
+      void walkInspectorNode(Map<String, dynamic> node, int depth) {
+        final description = node['description'] as String? ?? '';
+        final widgetType = _extractWidgetType(description);
+        final valueId = node['valueId'] as String?;
+        final childrenJson = node['children'] as List<dynamic>? ?? [];
 
-      if (element is RenderObjectElement) {
-        final ro = element.renderObject;
+        final ref = 'w${refCounter++}';
 
-        // Get bounds
-        if (ro is RenderBox && ro.hasSize) {
+        CombinedRect? bounds;
+        SemanticsInfo? semantics;
+        String? textContent;
+
+        // Use toObject to get the actual Element from valueId
+        if (valueId != null) {
           try {
-            final topLeft = ro.localToGlobal(Offset.zero);
-            bounds = CombinedRect(
-              x: topLeft.dx,
-              y: topLeft.dy,
-              width: ro.size.width,
-              height: ro.size.height,
-            );
-          } catch (_) {
-            // localToGlobal can fail if not attached
+            // ignore: invalid_use_of_protected_member
+            final obj = service.toObject(valueId, groupName);
+            if (obj is Element) {
+              // Cache the Element for ref lookup (used by typeText, etc.)
+              _cachedElements[ref] = obj;
+
+              // Extract text content from widget
+              textContent = _extractWidgetContent(obj.widget);
+              // Find the RenderObject
+              RenderObject? ro;
+              if (obj is RenderObjectElement) {
+                ro = obj.renderObject;
+              } else {
+                // Walk down to find first RenderObjectElement
+                void findRenderObject(Element el) {
+                  if (ro != null) return;
+                  if (el is RenderObjectElement) {
+                    ro = el.renderObject;
+                    return;
+                  }
+                  el.visitChildren(findRenderObject);
+                }
+
+                findRenderObject(obj);
+              }
+
+              if (ro != null) {
+                // Get bounds if it's a RenderBox
+                if (ro is RenderBox) {
+                  final box = ro as RenderBox;
+                  if (box.hasSize) {
+                    try {
+                      final topLeft = box.localToGlobal(Offset.zero);
+                      bounds = CombinedRect(
+                        x: topLeft.dx,
+                        y: topLeft.dy,
+                        width: box.size.width,
+                        height: box.size.height,
+                      );
+                    } catch (_) {
+                      // localToGlobal can fail if not attached
+                    }
+                  }
+                }
+
+                // Only attach semantics to Semantics widgets
+                // Other widgets just get bounds - actions figure out semantics at runtime
+                if (widgetType == 'Semantics') {
+                  SemanticsNode? sn = ro!.debugSemantics;
+                  if (sn != null) {
+                    // For Semantics widget, find the child semantics with actions
+                    // The Semantics widget annotates its child, so walk down to find actionable node
+                    SemanticsNode nodeWithActions = sn;
+
+                    void findActionableNode(SemanticsNode node) {
+                      final data = node.getSemanticsData();
+                      if (data.actions != 0) {
+                        nodeWithActions = node;
+                        return;
+                      }
+                      node.visitChildren((child) {
+                        findActionableNode(child);
+                        return true;
+                      });
+                    }
+
+                    if (sn.getSemanticsData().actions == 0) {
+                      findActionableNode(sn);
+                    }
+
+                    semantics = _extractSemanticsInfo(nodeWithActions);
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            // toObject can fail for some elements, continue without semantics
+            debugPrint('FlutterMate: toObject failed for $valueId: $e');
           }
         }
 
-        // Get semantics from RenderObject
-        final sn = ro.debugSemantics;
-        if (sn != null) {
-          semantics = _extractSemanticsInfo(sn);
+        // Collect children refs
+        final childRefs = <String>[];
+        final childStartRef = refCounter;
+
+        for (final childJson in childrenJson) {
+          if (childJson is Map<String, dynamic>) {
+            final beforeCount = refCounter;
+            walkInspectorNode(childJson, depth + 1);
+            if (refCounter > beforeCount) {
+              childRefs.add('w$beforeCount');
+            }
+          }
         }
+
+        // Insert this node at the correct position (before its children)
+        final nodeIndex = nodes.length - (refCounter - childStartRef);
+        nodes.insert(
+          nodeIndex < 0 ? 0 : nodeIndex,
+          CombinedNode(
+            ref: ref,
+            widget: widgetType,
+            depth: depth,
+            bounds: bounds,
+            children: childRefs,
+            semantics: semantics,
+            textContent: textContent,
+          ),
+        );
       }
 
-      // Collect children refs by walking first
-      final childRefs = <String>[];
-      final childStartRef = refCounter;
+      walkInspectorNode(treeJson, 0);
 
-      element.visitChildren((child) {
-        final beforeCount = refCounter;
-        walkElement(child, depth + 1);
-        // If refCounter advanced, a child was added
-        if (refCounter > beforeCount) {
-          childRefs.add('w$beforeCount');
-        }
+      // Reorder nodes to be in depth-first order (parents before children)
+      nodes.sort((a, b) {
+        final refA = int.parse(a.ref.substring(1));
+        final refB = int.parse(b.ref.substring(1));
+        return refA.compareTo(refB);
       });
 
-      // Insert this node at the correct position (before its children)
-      final nodeIndex = nodes.length - (refCounter - childStartRef);
-      nodes.insert(
-        nodeIndex < 0 ? 0 : nodeIndex,
-        CombinedNode(
-          ref: ref,
-          widget: widgetType,
-          depth: depth,
-          bounds: bounds,
-          children: childRefs,
-          semantics: semantics,
-        ),
+      final snapshot = CombinedSnapshot(
+        success: true,
+        timestamp: DateTime.now(),
+        nodes: nodes,
+      );
+
+      // Cache for ref -> semantics ID translation in actions
+      _lastSnapshot = snapshot;
+
+      return snapshot;
+    } catch (e, stack) {
+      debugPrint('FlutterMate: snapshot error: $e\n$stack');
+      return CombinedSnapshot(
+        success: false,
+        error: 'Failed to get snapshot: $e',
+        timestamp: DateTime.now(),
+        nodes: [],
       );
     }
-
-    walkElement(root, 0);
-
-    // Reorder nodes to be in depth-first order (parents before children)
-    nodes.sort((a, b) {
-      final refA = int.parse(a.ref.substring(1));
-      final refB = int.parse(b.ref.substring(1));
-      return refA.compareTo(refB);
-    });
-
-    return CombinedSnapshot(
-      success: true,
-      timestamp: DateTime.now(),
-      nodes: nodes,
-    );
   }
 
-  /// Check if a widget type should be skipped during consolidation
-  static bool _shouldSkipWidget(String widgetType) {
-    // Check exact match
-    if (_skipWidgets.contains(widgetType)) return true;
-
-    // Check for private widgets that wrap public ones (e.g., _InkWell)
-    final withoutUnderscore =
-        widgetType.startsWith('_') ? widgetType.substring(1) : null;
-    if (withoutUnderscore != null && _skipWidgets.contains(withoutUnderscore)) {
-      return true;
+  /// Extract widget type from inspector description
+  static String _extractWidgetType(String description) {
+    // Description can be like "Text" or "Padding(padding: EdgeInsets...)"
+    final parenIndex = description.indexOf('(');
+    if (parenIndex > 0) {
+      return description.substring(0, parenIndex);
     }
+    return description;
+  }
 
-    return false;
+  /// Extract content from widget using its diagnostic description
+  /// This is a general solution that works for any widget type.
+  static String? _extractWidgetContent(Widget widget) {
+    try {
+      // Use toStringShort() which includes key properties for most widgets
+      // e.g., Text("Hello") returns 'Text("Hello")'
+      // e.g., Icon(IconData(U+E88A)) returns 'Icon'
+      final shortString = widget.toStringShort();
+
+      // Extract content between quotes if present
+      final quoteMatch = RegExp(r'"([^"]*)"').firstMatch(shortString);
+      if (quoteMatch != null) {
+        return quoteMatch.group(1);
+      }
+
+      // For widgets without quoted content, try toDiagnosticsNode
+      final diagNode = widget.toDiagnosticsNode();
+      final props = diagNode.getProperties();
+      for (final prop in props) {
+        // Look for 'data', 'label', 'text', 'title' properties
+        final name = prop.name?.toLowerCase();
+        if (name == 'data' ||
+            name == 'label' ||
+            name == 'text' ||
+            name == 'title') {
+          final value = prop.value;
+          if (value is String && value.isNotEmpty) {
+            return value;
+          }
+        }
+      }
+    } catch (_) {
+      // Diagnostics can fail for some widgets
+    }
+    return null;
   }
 
   /// Extract semantics info from a SemanticsNode
@@ -667,84 +832,13 @@ class FlutterMate {
           data.decreasedValue.isNotEmpty ? data.decreasedValue : null,
       flags: _getFlags(data).toSet(),
       actions: _getActions(data).toSet(),
+      // Scroll properties
+      scrollChildCount: data.scrollChildCount,
+      scrollIndex: data.scrollIndex,
+      scrollPosition: data.scrollPosition,
+      scrollExtentMax: data.scrollExtentMax,
+      scrollExtentMin: data.scrollExtentMin,
     );
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // SEMANTICS TREE EXTRACTION
-  // ══════════════════════════════════════════════════════════════════════════
-
-  /// Get semantics nodes as a structured list
-  ///
-  /// Returns all semantics nodes with their actions, flags, labels, and bounds.
-  /// Used by CLI via ext.flutter_mate.getSemanticsNodes service extension.
-  ///
-  /// ```dart
-  /// final nodes = FlutterMate.getSemanticsNodes();
-  /// print(nodes); // [{ref: "s0", id: 1, label: "Login", ...}, ...]
-  /// ```
-  static List<Map<String, dynamic>> getSemanticsNodes({
-    bool interactiveOnly = true,
-  }) {
-    final binding = WidgetsBinding.instance;
-    final owner = binding.pipelineOwner.semanticsOwner;
-    if (owner == null) return [];
-    final root = owner.rootSemanticsNode;
-    if (root == null) return [];
-
-    final results = <Map<String, dynamic>>[];
-    var idx = 0;
-
-    void visit(SemanticsNode node) {
-      final data = node.getSemanticsData();
-      final label = data.label;
-      final actions = _getActions(data);
-      final flags = _getFlags(data);
-
-      // Get rect with transform
-      final rect = node.rect;
-      final transform = node.transform;
-      var left = rect.left;
-      var top = rect.top;
-      var right = rect.right;
-      var bottom = rect.bottom;
-      if (transform != null) {
-        final tl = MatrixUtils.transformPoint(transform, rect.topLeft);
-        final br = MatrixUtils.transformPoint(transform, rect.bottomRight);
-        left = tl.dx;
-        top = tl.dy;
-        right = br.dx;
-        bottom = br.dy;
-      }
-
-      // Filter to interactive only
-      final isInteractive = label.isNotEmpty || actions.isNotEmpty;
-      if (!interactiveOnly || isInteractive) {
-        results.add({
-          'ref': 's$idx',
-          'id': node.id,
-          'label': label,
-          'value': data.value,
-          'actions': actions,
-          'flags': flags,
-          'rect': {
-            'left': left,
-            'top': top,
-            'right': right,
-            'bottom': bottom,
-          },
-        });
-        idx++;
-      }
-
-      node.visitChildren((child) {
-        visit(child);
-        return true;
-      });
-    }
-
-    visit(root);
-    return results;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -780,10 +874,11 @@ class FlutterMate {
       return false;
     }
 
-    final center = Offset(
-      nodeInfo.rect.x + nodeInfo.rect.width / 2,
-      nodeInfo.rect.y + nodeInfo.rect.height / 2,
-    );
+    final center = nodeInfo.center;
+    if (center == null) {
+      debugPrint('FlutterMate: Node has no bounds: $ref');
+      return false;
+    }
 
     await doubleTapAt(center);
     return true;
@@ -827,10 +922,11 @@ class FlutterMate {
     }
 
     // Calculate center of element
-    final center = Offset(
-      nodeInfo.rect.x + nodeInfo.rect.width / 2,
-      nodeInfo.rect.y + nodeInfo.rect.height / 2,
-    );
+    final center = nodeInfo.center;
+    if (center == null) {
+      debugPrint('FlutterMate: Node has no bounds: $ref');
+      return false;
+    }
 
     await longPressAt(center);
     return true;
@@ -1042,10 +1138,11 @@ class FlutterMate {
     }
 
     // Calculate center of element
-    final center = Offset(
-      node.rect.x + node.rect.width / 2,
-      node.rect.y + node.rect.height / 2,
-    );
+    final center = node.center;
+    if (center == null) {
+      debugPrint('FlutterMate: Node has no bounds: $ref');
+      return false;
+    }
 
     await tapAt(center);
     return true;
@@ -1143,10 +1240,11 @@ class FlutterMate {
       return false;
     }
 
-    final center = Offset(
-      node.rect.x + node.rect.width / 2,
-      node.rect.y + node.rect.height / 2,
-    );
+    final center = node.center;
+    if (center == null) {
+      debugPrint('FlutterMate: scrollGesture - Node has no bounds: $ref');
+      return false;
+    }
 
     debugPrint(
         'FlutterMate: scrollGesture from $center delta $delta (to ${center + delta})');
@@ -1198,81 +1296,141 @@ class FlutterMate {
 
   // ══════════════════════════════════════════════════════════════════════════
   // KEYBOARD / TEXT INPUT SIMULATION
-  // Sends platform channel messages exactly like a real keyboard would.
+  // Uses platform messages to simulate keyboard input, just like a real keyboard.
   //
   // How it works:
-  // 1. When a TextField is focused, Flutter assigns a connection ID
-  // 2. Platform sends 'TextInputClient.updateEditingState' with that ID
-  // 3. We simulate this by calling channelBuffers.push() with the message
+  // 1. typeText(ref, text) finds the widget from the inspector tree
+  // 2. Taps to focus the TextField
+  // 3. Captures the text input client ID via channel interceptor
+  // 4. Sends platform messages to simulate typing character by character
   //
   // Usage:
-  //   FlutterMate.tapAt(fieldCenter);   // Focus the field
-  //   FlutterMate.nextConnection();      // Track the new connection
-  //   await FlutterMate.typeText('...');  // Type like a real keyboard
+  //   await FlutterMate.snapshot();  // Cache elements
+  //   await FlutterMate.typeText('w10', 'hello@example.com');
   // ══════════════════════════════════════════════════════════════════════════
 
-  // Note: Connection ID tracking removed - we now use FocusManager + EditableTextState directly
-
-  /// Type text into the currently focused text field
+  /// Type text into a text field by ref
   ///
-  /// Uses `EditableTextState.updateEditingValue()` - the same method called
-  /// when the platform sends keyboard input. This ensures:
-  /// - Input formatters are applied
-  /// - onChanged callbacks fire correctly
-  /// - Same code path as real keyboard input
+  /// This uses platform message simulation - the same mechanism as real keyboard input.
+  /// It finds the TextField element from the inspector tree, focuses it via gesture,
+  /// then sends platform messages to simulate typing.
   ///
   /// ```dart
-  /// await FlutterMate.focus('w5');
-  /// await FlutterMate.typeText('hello@example.com');
+  /// await FlutterMate.typeText('w10', 'hello@example.com');
   /// ```
-  static Future<bool> typeText(String text) async {
+  static Future<bool> typeText(String ref, String text) async {
     _ensureInitialized();
 
-    debugPrint('FlutterMate: typeText "$text"');
+    debugPrint('FlutterMate: typeText "$text" into $ref');
 
     try {
-      // Find the currently focused element
-      final focusNode = FocusManager.instance.primaryFocus;
-      if (focusNode == null) {
+      // Find the Element from cached inspector tree
+      final element = _cachedElements[ref];
+      if (element == null) {
         debugPrint(
-            'FlutterMate: No focused element - is a text field focused?');
+            'FlutterMate: Element not found for $ref. Did you call snapshot() first?');
         return false;
       }
 
-      // Find the EditableTextState (implements TextInputClient)
-      final editableState = _findEditableTextState(focusNode.context);
-      if (editableState == null) {
-        debugPrint('FlutterMate: No EditableTextState found in focus tree');
+      // Find the center of the element for tapping
+      RenderObject? ro;
+      if (element is RenderObjectElement) {
+        ro = element.renderObject;
+      } else {
+        // Walk down to find RenderObject
+        void findRenderObject(Element el) {
+          if (ro != null) return;
+          if (el is RenderObjectElement) {
+            ro = el.renderObject;
+            return;
+          }
+          el.visitChildren(findRenderObject);
+        }
+
+        findRenderObject(element);
+      }
+
+      if (ro == null || ro is! RenderBox) {
+        debugPrint('FlutterMate: No RenderBox found for $ref');
         return false;
       }
 
-      // Get current text value
-      final currentValue = editableState.currentTextEditingValue;
-      String currentText = currentValue.text;
+      final box = ro as RenderBox;
+      if (!box.hasSize) {
+        debugPrint('FlutterMate: RenderBox has no size for $ref');
+        return false;
+      }
 
-      // Type character by character, using updateEditingValue
-      // This is the exact method the platform calls for keyboard input
-      for (int i = 0; i < text.length; i++) {
-        currentText += text[i];
+      // Calculate center and tap to focus
+      final center = box.localToGlobal(Offset.zero) +
+          Offset(box.size.width / 2, box.size.height / 2);
+      debugPrint('FlutterMate: Tapping to focus at $center');
+      await tapAt(center);
 
-        // Call updateEditingValue - same as platform keyboard input
-        editableState.updateEditingValue(TextEditingValue(
-          text: currentText,
-          selection: TextSelection.collapsed(offset: currentText.length),
-        ));
+      // Wait for focus and text input connection to be established
+      await _delay(const Duration(milliseconds: 150));
 
-        // Small delay between characters for realism (skip in test mode - FakeAsync incompatible)
-        if (!_testMode) {
-          await Future.delayed(const Duration(milliseconds: 20));
+      // Check if we captured a client ID
+      if (_lastTextInputClientId == null) {
+        debugPrint(
+            'FlutterMate: No text input client ID captured. Falling back to EditableTextState.');
+        return _typeTextViaEditableState(text);
+      }
+
+      // Get current text from the focused field
+      final focusNode = FocusManager.instance.primaryFocus;
+      String currentText = '';
+      if (focusNode != null) {
+        final editableState = _findEditableTextState(focusNode.context);
+        if (editableState != null) {
+          currentText = editableState.currentTextEditingValue.text;
         }
       }
 
-      debugPrint('FlutterMate: Typed "$text" via updateEditingValue');
+      // Type character by character using platform messages
+      for (int i = 0; i < text.length; i++) {
+        currentText += text[i];
+        await _dispatchTextInput(_lastTextInputClientId!, currentText);
+      }
+
+      debugPrint(
+          'FlutterMate: Typed "$text" via platform messages (client ID: $_lastTextInputClientId)');
       return true;
     } catch (e, stack) {
       debugPrint('FlutterMate: typeText error: $e\n$stack');
       return false;
     }
+  }
+
+  /// Type text into the currently focused field (fallback method)
+  static Future<bool> _typeTextViaEditableState(String text) async {
+    final focusNode = FocusManager.instance.primaryFocus;
+    if (focusNode == null) {
+      debugPrint('FlutterMate: No focused element');
+      return false;
+    }
+
+    final editableState = _findEditableTextState(focusNode.context);
+    if (editableState == null) {
+      debugPrint('FlutterMate: No EditableTextState found');
+      return false;
+    }
+
+    String currentText = editableState.currentTextEditingValue.text;
+
+    for (int i = 0; i < text.length; i++) {
+      currentText += text[i];
+      editableState.updateEditingValue(TextEditingValue(
+        text: currentText,
+        selection: TextSelection.collapsed(offset: currentText.length),
+      ));
+      if (!_testMode) {
+        await Future.delayed(const Duration(milliseconds: 20));
+      }
+    }
+
+    debugPrint('FlutterMate: Typed "$text" via EditableTextState (fallback)');
+    return true;
   }
 
   /// Find EditableTextState from a BuildContext
@@ -1459,10 +1617,12 @@ class FlutterMate {
     while (DateTime.now().isBefore(deadline)) {
       final snap = await snapshot();
       for (final node in snap.nodes) {
-        if (node.label != null && pattern.hasMatch(node.label!)) {
+        final label = node.semantics?.label;
+        final value = node.semantics?.value;
+        if (label != null && pattern.hasMatch(label)) {
           return node.ref;
         }
-        if (node.value != null && pattern.hasMatch(node.value!)) {
+        if (value != null && pattern.hasMatch(value)) {
           return node.ref;
         }
       }
@@ -1494,14 +1654,14 @@ class FlutterMate {
     final lowerLabel = label.toLowerCase();
 
     for (final node in snap.nodes) {
+      final label = node.semantics?.label;
+      final value = node.semantics?.value;
       // Check label
-      if (node.label != null &&
-          node.label!.toLowerCase().contains(lowerLabel)) {
+      if (label != null && label.toLowerCase().contains(lowerLabel)) {
         return node.ref;
       }
       // Check value
-      if (node.value != null &&
-          node.value!.toLowerCase().contains(lowerLabel)) {
+      if (value != null && value.toLowerCase().contains(lowerLabel)) {
         return node.ref;
       }
     }
@@ -1527,9 +1687,11 @@ class FlutterMate {
     final refs = <String>[];
 
     for (final node in snap.nodes) {
-      if (node.label != null && pattern.hasMatch(node.label!)) {
+      final label = node.semantics?.label;
+      final value = node.semantics?.value;
+      if (label != null && pattern.hasMatch(label)) {
         refs.add(node.ref);
-      } else if (node.value != null && pattern.hasMatch(node.value!)) {
+      } else if (value != null && pattern.hasMatch(value)) {
         refs.add(node.ref);
       }
     }
@@ -1616,17 +1778,6 @@ class FlutterMate {
     }
   }
 
-  static SemanticsNode? _findRootSemanticsNode() {
-    final renderViews = RendererBinding.instance.renderViews;
-    for (final view in renderViews) {
-      final owner = view.owner;
-      if (owner?.semanticsOwner?.rootSemanticsNode != null) {
-        return owner!.semanticsOwner!.rootSemanticsNode;
-      }
-    }
-    return null;
-  }
-
   static Future<bool> _performAction(String ref, SemanticsAction action) async {
     _ensureInitialized();
 
@@ -1649,13 +1800,26 @@ class FlutterMate {
   }
 
   static SemanticsNode? _findNode(String ref) {
-    // Clean ref: '@w5' -> 'w5' -> 5
+    // Clean ref: '@w5' -> 'w5'
     final cleanRef = ref.startsWith('@') ? ref.substring(1) : ref;
     if (!cleanRef.startsWith('w')) return null;
+
+    // Look up semantics ID from cached snapshot
+    if (_lastSnapshot != null) {
+      final node = _lastSnapshot![cleanRef];
+      if (node?.semantics != null) {
+        final semanticsId = node!.semantics!.id;
+        return _searchNodeById(semanticsId);
+      }
+    }
+
+    // Fallback: try parsing ref as semantics ID directly (backwards compat)
     final nodeId = int.tryParse(cleanRef.substring(1));
     if (nodeId == null) return null;
+    return _searchNodeById(nodeId);
+  }
 
-    // Find root
+  static SemanticsNode? _searchNodeById(int nodeId) {
     SemanticsNode? rootNode;
     for (final view in RendererBinding.instance.renderViews) {
       if (view.owner?.semanticsOwner?.rootSemanticsNode != null) {
@@ -1664,7 +1828,6 @@ class FlutterMate {
       }
     }
     if (rootNode == null) return null;
-
     return _searchNode(rootNode, nodeId);
   }
 
@@ -1681,71 +1844,6 @@ class FlutterMate {
       return true;
     });
     return found;
-  }
-
-  static void _extractNode(
-    SemanticsNode node,
-    List<SnapshotNode> nodes,
-    Map<String, SnapshotNode> refs, {
-    bool interactiveOnly = false,
-    int depth = 0,
-  }) {
-    final data = node.getSemanticsData();
-    final actions = _getActions(data);
-    final flags = _getFlags(data);
-
-    final isInteractive = actions.isNotEmpty ||
-        flags.contains('isButton') ||
-        flags.contains('isTextField') ||
-        flags.contains('isLink') ||
-        flags.contains('isFocusable');
-
-    // Skip non-interactive nodes if filter is on
-    if (interactiveOnly && !isInteractive && depth > 0) {
-      node.visitChildren((child) {
-        _extractNode(child, nodes, refs,
-            interactiveOnly: interactiveOnly, depth: depth + 1);
-        return true;
-      });
-      return;
-    }
-
-    final ref = 'w${node.id}';
-    final rect = node.rect;
-    final transform = node.transform;
-
-    // Calculate global position
-    Offset globalTopLeft = rect.topLeft;
-    if (transform != null) {
-      globalTopLeft = MatrixUtils.transformPoint(transform, rect.topLeft);
-    }
-
-    final snapshotNode = SnapshotNode(
-      ref: ref,
-      id: node.id,
-      depth: depth,
-      label: data.label.isNotEmpty ? data.label : null,
-      value: data.value.isNotEmpty ? data.value : null,
-      hint: data.hint.isNotEmpty ? data.hint : null,
-      actions: actions,
-      flags: flags,
-      rect: Rect(
-        x: globalTopLeft.dx.round(),
-        y: globalTopLeft.dy.round(),
-        width: rect.width.round(),
-        height: rect.height.round(),
-      ),
-      isInteractive: isInteractive,
-    );
-
-    nodes.add(snapshotNode);
-    refs[ref] = snapshotNode;
-
-    node.visitChildren((child) {
-      _extractNode(child, nodes, refs,
-          interactiveOnly: interactiveOnly, depth: depth + 1);
-      return true;
-    });
   }
 
   /// Parse a key name string to LogicalKeyboardKey

@@ -236,23 +236,15 @@ class SnapshotCommand extends Command {
   @override
   CommandAction get action => CommandAction.snapshot;
 
-  /// Only return interactive elements (with actions).
-  final bool interactive;
-
-  /// Maximum depth of tree to return.
+  /// Maximum depth of tree to return (optional).
   final int? maxDepth;
 
-  /// Use compact output format.
-  final bool compact;
-
-  /// Scope snapshot to elements under this ref.
+  /// Scope snapshot to elements under this ref (optional).
   final String? selector;
 
   const SnapshotCommand({
     super.id,
-    this.interactive = true,
     this.maxDepth,
-    this.compact = false,
     this.selector,
   });
 
@@ -260,18 +252,14 @@ class SnapshotCommand extends Command {
   Map<String, dynamic> toJson() => {
         if (id != null) 'id': id,
         'action': 'snapshot',
-        'interactive': interactive,
         if (maxDepth != null) 'maxDepth': maxDepth,
-        'compact': compact,
         if (selector != null) 'selector': selector,
       };
 
   static SnapshotCommand fromJson(Map<String, dynamic> json, String? id) =>
       SnapshotCommand(
         id: id,
-        interactive: json['interactive'] as bool? ?? true,
         maxDepth: json['maxDepth'] as int?,
-        compact: json['compact'] as bool? ?? false,
         selector: json['selector'] as String?,
       );
 
@@ -279,35 +267,23 @@ class SnapshotCommand extends Command {
         'name': 'snapshot',
         'description': '''Capture the current UI state of the Flutter app.
 
-Returns a tree of elements with refs (w0, w1, w2...) that can be used
+Returns a tree of user widgets with refs (w0, w1, w2...) that can be used
 for subsequent interactions. Each element includes:
 - ref: Stable identifier for this snapshot session
-- widget: Widget type name
+- widget: Widget type name  
+- textContent: Text content for Text/Icon widgets
 - bounds: Position {x, y, width, height}
-- semantics: Label, value, actions, flags
-
-Use interactive=true (default) to only get actionable elements.
-Use maxDepth to limit tree depth for large UIs.
-Use compact=true to minimize output size.''',
+- semantics: Label, value, actions, flags (on Semantics widgets)''',
         'inputSchema': {
           'type': 'object',
           'properties': {
-            'interactive': {
-              'type': 'boolean',
-              'description':
-                  'Only return elements with actions. Default: true.',
-            },
             'maxDepth': {
               'type': 'integer',
-              'description': 'Maximum tree depth to return.',
-            },
-            'compact': {
-              'type': 'boolean',
-              'description': 'Use compact output format. Default: false.',
+              'description': 'Maximum tree depth to return (optional).',
             },
             'selector': {
               'type': 'string',
-              'description': 'Scope to subtree under this ref.',
+              'description': 'Scope to subtree under this ref (optional).',
             },
           },
         },
@@ -505,20 +481,30 @@ class FillCommand extends Command {
       };
 }
 
-/// TypeText command - type character by character.
+/// TypeText command - type text into a widget using keyboard simulation.
+///
+/// Unlike `fill` which uses semantic setText, this uses platform message
+/// simulation to type character by character like a real keyboard.
 class TypeTextCommand extends Command {
   @override
   CommandAction get action => CommandAction.typeText;
 
+  final String ref;
   final String text;
   final int? delayMs;
 
-  const TypeTextCommand({super.id, required this.text, this.delayMs});
+  const TypeTextCommand({
+    super.id,
+    required this.ref,
+    required this.text,
+    this.delayMs,
+  });
 
   @override
   Map<String, dynamic> toJson() => {
         if (id != null) 'id': id,
         'action': 'typeText',
+        'ref': ref,
         'text': text,
         if (delayMs != null) 'delayMs': delayMs,
       };
@@ -526,24 +512,30 @@ class TypeTextCommand extends Command {
   static TypeTextCommand fromJson(Map<String, dynamic> json, String? id) =>
       TypeTextCommand(
         id: id,
+        ref: json['ref'] as String,
         text: json['text'] as String,
         delayMs: json['delayMs'] as int?,
       );
 
   static Map<String, dynamic> get toolDefinition => {
         'name': 'typeText',
-        'description':
-            'Type text character by character. More realistic than fill.',
+        'description': 'Type text into a widget using keyboard simulation. '
+            'Use this for TextField widgets (e.g., w10). '
+            'For Semantics widgets, use fill instead.',
         'inputSchema': {
           'type': 'object',
           'properties': {
+            'ref': {
+              'type': 'string',
+              'description': 'Widget ref (e.g., w10 for TextField).',
+            },
             'text': {'type': 'string', 'description': 'Text to type.'},
             'delayMs': {
               'type': 'integer',
               'description': 'Delay between characters in ms.',
             },
           },
-          'required': ['text'],
+          'required': ['ref', 'text'],
         },
       };
 }
@@ -812,7 +804,8 @@ class ToggleCommand extends Command {
             'ref': {'type': 'string', 'description': 'Element ref.'},
             'value': {
               'type': 'boolean',
-              'description': 'Set to specific value, or toggle if not provided.',
+              'description':
+                  'Set to specific value, or toggle if not provided.',
             },
           },
           'required': ['ref'],

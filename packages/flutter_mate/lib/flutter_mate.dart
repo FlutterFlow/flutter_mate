@@ -10,13 +10,9 @@
 /// // Initialize at app startup
 /// await FlutterMate.initialize();
 ///
-/// // Get UI snapshot (semantics only)
-/// final snapshot = await FlutterMate.snapshot(interactiveOnly: true);
+/// // Get UI snapshot (widget tree + semantics)
+/// final snapshot = await FlutterMate.snapshot();
 /// print(snapshot);
-///
-/// // Get combined snapshot (widget tree + semantics)
-/// final combined = await FlutterMate.snapshotCombined();
-/// print(combined);
 ///
 /// // Interact with elements using refs
 /// await FlutterMate.fill('w5', 'hello@example.com');
@@ -41,8 +37,7 @@
 /// ## External Control via CLI
 ///
 /// ```bash
-/// flutter_mate --uri ws://127.0.0.1:12345/abc=/ws snapshot -i
-/// flutter_mate --uri ws://127.0.0.1:12345/abc=/ws snapshot --mode combined
+/// flutter_mate --uri ws://127.0.0.1:12345/abc=/ws snapshot
 /// flutter_mate --uri ws://127.0.0.1:12345/abc=/ws tap w10
 /// ```
 ///
@@ -78,4 +73,3 @@ export 'src/protocol.dart'
         GetTextCommand,
         IsVisibleCommand,
         ScreenshotCommand;
-export 'src/snapshot.dart' show Snapshot, SnapshotNode, Rect;

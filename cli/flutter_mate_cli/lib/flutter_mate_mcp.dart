@@ -6,16 +6,29 @@
 ///
 /// - `connect` - Connect to a running Flutter app
 /// - `snapshot` - Get UI tree with element refs
-/// - `tap` - Tap element by ref
-/// - `fill` - Fill text field
+/// - `tap` - Tap element by ref (semantic action)
+/// - `fill` - Fill text field via semantic setText (use on Semantics widgets)
+/// - `typeText` - Type text via keyboard simulation (use on TextField widgets)
 /// - `scroll` - Scroll element
 /// - `focus` - Focus element
 /// - `pressKey` - Press keyboard key
-/// - `typeText` - Type text character by character
 /// - `clear` - Clear text field
 /// - `doubleTap` - Double tap element
 /// - `longPress` - Long press element
 /// - `waitFor` - Wait for element with matching label to appear
+///
+/// ## Snapshot Structure
+///
+/// Semantics widgets show full semantic data (label, actions, flags).
+/// Child widgets (TextField, etc.) only show type and bounds.
+///
+/// ```
+/// • w9: Semantics "Email" [tap, focus, setText] (TextField)
+///   • w10: TextField (bounds)
+/// ```
+///
+/// - Use `fill w9 "text"` for semantic setText
+/// - Use `typeText w10 "text"` for keyboard simulation
 ///
 /// ## Usage with Cursor
 ///
@@ -141,22 +154,14 @@ Convert to WebSocket: ws://127.0.0.1:12345/abc=/ws''',
     name: 'snapshot',
     description: '''Capture the current UI state of the Flutter app.
 
-Returns a tree of elements with refs (w0, w1, w2...) that can be used
+Returns a tree of user widgets with refs (w0, w1, w2...) that can be used
 for subsequent interactions. Each element includes:
 - ref: Stable identifier for this snapshot session
 - widget: Widget type name
 - bounds: Position {x, y, width, height}
-- semantics: Label, value, actions, flags
-
-Use interactive=true (default) to only get actionable elements.''',
+- semantics: Label, value, actions, flags (on Semantics widgets)''',
     annotations: ToolAnnotations(title: 'UI Snapshot', readOnlyHint: true),
-    inputSchema: Schema.object(
-      properties: {
-        'interactive': Schema.bool(
-          description: 'Only return elements with actions. Default: true.',
-        ),
-      },
-    ),
+    inputSchema: Schema.object(properties: {}),
   );
 
   static final _tapTool = Tool(
@@ -225,12 +230,15 @@ arrowUp, arrowDown, arrowLeft, arrowRight''',
 
   static final _typeTextTool = Tool(
     name: 'typeText',
-    description: 'Type text character by character. More realistic than fill.',
+    description: 'Type text into a widget using keyboard simulation. '
+        'Use this for TextField widgets (e.g., w10). '
+        'For Semantics widgets, use fill instead.',
     inputSchema: Schema.object(
       properties: {
+        'ref': Schema.string(description: 'Widget ref (e.g., w10).'),
         'text': Schema.string(description: 'Text to type.'),
       },
-      required: ['text'],
+      required: ['ref', 'text'],
     ),
   );
 
@@ -330,12 +338,7 @@ Returns the ref of the found element.''',
   }
 
   Future<CallToolResult> _handleSnapshot(CallToolRequest request) async {
-    final interactive = (request.arguments?['interactive'] as bool?) ?? true;
-
-    final result = await _callExtension(
-      'ext.flutter_mate.snapshotCombined',
-      args: {'consolidate': 'true'},
-    );
+    final result = await _callExtension('ext.flutter_mate.snapshot');
 
     if (result['success'] != true) {
       return CallToolResult(
@@ -356,15 +359,7 @@ Returns the ref of the found element.''',
       );
     }
 
-    // Filter to interactive if requested
-    var nodes = data['nodes'] as List<dynamic>? ?? [];
-    if (interactive) {
-      nodes = nodes.where((n) {
-        final semantics = n['semantics'] as Map<String, dynamic>?;
-        final actions = semantics?['actions'] as List<dynamic>?;
-        return actions != null && actions.isNotEmpty;
-      }).toList();
-    }
+    final nodes = data['nodes'] as List<dynamic>? ?? [];
 
     final output = StringBuffer();
     output.writeln('📱 Flutter UI Snapshot');
@@ -375,18 +370,39 @@ Returns the ref of the found element.''',
     for (final node in nodes) {
       final ref = node['ref'] as String;
       final widget = node['widget'] as String;
+      final textContent = node['textContent'] as String?;
       final semantics = node['semantics'] as Map<String, dynamic>?;
       final label = semantics?['label'] as String?;
       final value = semantics?['value'] as String?;
       final actions =
           (semantics?['actions'] as List<dynamic>?)?.cast<String>() ?? [];
 
+      // Scroll properties
+      final scrollPosition = semantics?['scrollPosition'] as num?;
+      final scrollExtentMax = semantics?['scrollExtentMax'] as num?;
+
+      // Build widget display with optional text content
+      String widgetDisplay = widget;
+      if (textContent != null && textContent.isNotEmpty) {
+        final truncated = textContent.length > 30
+            ? '${textContent.substring(0, 30)}...'
+            : textContent;
+        widgetDisplay = '$widget "$truncated"';
+      }
+
       final parts = <String>[];
       if (label != null) parts.add('"$label"');
       if (value != null && value.isNotEmpty) parts.add('= "$value"');
       if (actions.isNotEmpty) parts.add('[${actions.join(", ")}]');
 
-      output.writeln('$ref: $widget ${parts.join(" ")}');
+      // Add scroll info if scrollable
+      if (scrollPosition != null) {
+        final pos = scrollPosition.toStringAsFixed(0);
+        final max = scrollExtentMax?.toStringAsFixed(0) ?? '?';
+        parts.add('{scroll: $pos/$max}');
+      }
+
+      output.writeln('$ref: $widgetDisplay ${parts.join(" ")}');
     }
 
     output.writeln('');
@@ -464,12 +480,14 @@ Returns the ref of the found element.''',
   }
 
   Future<CallToolResult> _handleTypeText(CallToolRequest request) async {
+    final ref = request.arguments?['ref'] as String?;
     final text = request.arguments?['text'] as String?;
+    if (ref == null) return _missingArg('ref');
     if (text == null) return _missingArg('text');
 
     final result = await _callExtension(
       'ext.flutter_mate.typeText',
-      args: {'text': text},
+      args: {'ref': ref, 'text': text},
     );
 
     return _simpleResult(result, 'typeText');

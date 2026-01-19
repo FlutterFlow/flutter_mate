@@ -146,18 +146,7 @@ Example output:
 ```''',
         'inputSchema': {
           'type': 'object',
-          'properties': {
-            'interactiveOnly': {
-              'type': 'boolean',
-              'description':
-                  'If true, only return elements with actions (tappable, fillable, etc.). Default: true.',
-            },
-            'consolidate': {
-              'type': 'boolean',
-              'description':
-                  'If true, skip wrapper widgets for cleaner output. Default: true.',
-            },
-          },
+          'properties': {},
         },
       };
 
@@ -306,21 +295,26 @@ Gives keyboard focus to the element. Useful for text fields before typing.''',
   /// TypeText tool - type text character by character.
   static Map<String, dynamic> get typeTextTool => {
         'name': 'typeText',
-        'description': '''Type text character by character.
+        'description': '''Type text into a widget using keyboard simulation.
 
-Simulates keyboard input, typing each character sequentially.
-Use after focusing on a text field.
+Unlike fill() which uses semantic setText, this uses platform message
+simulation to type character by character like a real keyboard.
 
-This is more realistic than fill() as it triggers per-character callbacks.''',
+Use this for TextField widgets (e.g., w10). For Semantics widgets, use fill instead.''',
         'inputSchema': {
           'type': 'object',
           'properties': {
+            'ref': {
+              'type': 'string',
+              'description':
+                  'Widget ref to type into (e.g., w10 for TextField).',
+            },
             'text': {
               'type': 'string',
               'description': 'The text to type.',
             },
           },
-          'required': ['text'],
+          'required': ['ref', 'text'],
         },
       };
 
@@ -341,7 +335,8 @@ arrowUp, arrowDown, arrowLeft, arrowRight''',
           'properties': {
             'key': {
               'type': 'string',
-              'description': 'The key to press (e.g., "enter", "tab", "escape").',
+              'description':
+                  'The key to press (e.g., "enter", "tab", "escape").',
             },
           },
           'required': ['key'],
@@ -518,29 +513,15 @@ class ActionExecutor {
 
   static Future<ActionResult> _executeSnapshot(
       Map<String, dynamic> command) async {
-    final interactiveOnly = command['interactiveOnly'] as bool? ?? true;
-    final consolidate = command['consolidate'] as bool? ?? true;
-
-    final snapshot = await FlutterMate.snapshotCombined(
-      consolidate: consolidate,
-    );
+    final snapshot = await FlutterMate.snapshot();
 
     if (!snapshot.success) {
       return ActionResult.fail(snapshot.error ?? 'Snapshot failed');
     }
 
-    // Filter to interactive only if requested
-    var nodes = snapshot.nodes;
-    if (interactiveOnly) {
-      nodes = nodes.where((n) {
-        final actions = n.semantics?.actions;
-        return actions != null && actions.isNotEmpty;
-      }).toList();
-    }
-
     return ActionResult.ok({
-      'nodeCount': nodes.length,
-      'nodes': nodes.map((n) => n.toJson()).toList(),
+      'nodeCount': snapshot.nodes.length,
+      'nodes': snapshot.nodes.map((n) => n.toJson()).toList(),
     });
   }
 
@@ -571,8 +552,7 @@ class ActionExecutor {
     return ActionResult.ok();
   }
 
-  static Future<ActionResult> _executeFill(
-      Map<String, dynamic> command) async {
+  static Future<ActionResult> _executeFill(Map<String, dynamic> command) async {
     final ref = command['ref'] as String?;
     final text = command['text'] as String?;
 
@@ -663,12 +643,19 @@ class ActionExecutor {
 
   static Future<ActionResult> _executeTypeText(
       Map<String, dynamic> command) async {
+    final ref = command['ref'] as String?;
     final text = command['text'] as String?;
+    if (ref == null) {
+      return ActionResult.fail('Missing required field: ref');
+    }
     if (text == null) {
       return ActionResult.fail('Missing required field: text');
     }
 
-    await FlutterMate.typeText(text);
+    final success = await FlutterMate.typeText(ref, text);
+    if (!success) {
+      return ActionResult.fail('Failed to type text into $ref');
+    }
     return ActionResult.ok();
   }
 
@@ -704,8 +691,7 @@ class ActionExecutor {
     return ActionResult.ok();
   }
 
-  static Future<ActionResult> _executeWait(
-      Map<String, dynamic> command) async {
+  static Future<ActionResult> _executeWait(Map<String, dynamic> command) async {
     final ms = command['milliseconds'] as int?;
     if (ms == null) {
       return ActionResult.fail('Missing required field: milliseconds');

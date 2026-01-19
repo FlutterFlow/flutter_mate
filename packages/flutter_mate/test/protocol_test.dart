@@ -67,8 +67,6 @@ void main() {
 
       expect(result.isValid, isTrue);
       final cmd = result.command as SnapshotCommand;
-      expect(cmd.interactive, isTrue);
-      expect(cmd.compact, isFalse);
       expect(cmd.maxDepth, isNull);
       expect(cmd.selector, isNull);
     });
@@ -76,16 +74,12 @@ void main() {
     test('parses with all options', () {
       final result = Command.parse({
         'action': 'snapshot',
-        'interactive': false,
-        'compact': true,
         'maxDepth': 5,
         'selector': 'w3',
       });
 
       expect(result.isValid, isTrue);
       final cmd = result.command as SnapshotCommand;
-      expect(cmd.interactive, isFalse);
-      expect(cmd.compact, isTrue);
       expect(cmd.maxDepth, 5);
       expect(cmd.selector, 'w3');
     });
@@ -93,9 +87,7 @@ void main() {
     test('toJson roundtrips correctly', () {
       final cmd = SnapshotCommand(
         id: 'test-1',
-        interactive: false,
         maxDepth: 3,
-        compact: true,
         selector: 'w1',
       );
 
@@ -104,9 +96,7 @@ void main() {
 
       expect(parsed.isValid, isTrue);
       final restored = parsed.command as SnapshotCommand;
-      expect(restored.interactive, cmd.interactive);
       expect(restored.maxDepth, cmd.maxDepth);
-      expect(restored.compact, cmd.compact);
       expect(restored.selector, cmd.selector);
     });
   });

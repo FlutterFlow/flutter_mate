@@ -16,8 +16,8 @@ import 'package:flutter_mate/flutter_mate.dart';
 // Initialize once at startup
 await FlutterMate.initialize();
 
-// Get UI snapshot
-final snapshot = await FlutterMate.snapshot(interactiveOnly: true);
+// Get UI snapshot (widget tree + semantics)
+final snapshot = await FlutterMate.snapshot();
 print(snapshot);  // Pretty-printed UI tree with refs
 
 // Interact with elements by ref
@@ -184,8 +184,7 @@ Most actions try Tier 1 first, then fall back to Tier 2:
 |--------|-------------|
 | `initialize()` | Initialize FlutterMate (call once at startup) |
 | `dispose()` | Clean up resources |
-| `snapshot({interactiveOnly})` | Get UI tree with refs, labels, actions |
-| `snapshotCombined({consolidate})` | Get widget tree merged with semantics |
+| `snapshot()` | Get UI tree with refs, labels, actions |
 | `waitFor(pattern, {timeout})` | Wait for element matching pattern |
 
 ### Actions (Automatic Tier Selection)
@@ -252,8 +251,6 @@ Commands:
 Options:
   --uri, -u             VM Service WebSocket URI (required)
   --json, -j            Output as JSON
-  --interactive, -i     Show only interactive elements
-  --mode, -m            Snapshot mode: semantics (default) or combined
   --help, -h            Show help
 ```
 
@@ -286,7 +283,7 @@ When using the MCP server, the following tools are available:
 class LoginAgent {
   Future<void> login(String email, String password) async {
     // Get UI snapshot
-    final snapshot = await FlutterMate.snapshot(interactiveOnly: true);
+    final snapshot = await FlutterMate.snapshot();
     
     // Find and fill fields by label
     for (final node in snapshot.nodes) {
@@ -342,7 +339,7 @@ class LLMAgent {
   
   Future<void> executeGoal(String goal) async {
     while (true) {
-      final snapshot = await FlutterMate.snapshot(interactiveOnly: true);
+      final snapshot = await FlutterMate.snapshot();
       
       final response = await llm.complete('''
         Goal: $goal
@@ -437,9 +434,8 @@ flutter_mate/
 │       ├── lib/
 │       │   ├── flutter_mate.dart
 │       │   └── src/
-│       │       ├── flutter_mate.dart     # Main API
-│       │       ├── snapshot.dart         # Semantics snapshot
-│       │       ├── combined_snapshot.dart # Widget + semantics tree
+│       │       ├── flutter_mate.dart     # Main API & service extensions
+│       │       ├── combined_snapshot.dart # Snapshot data structures
 │       │       ├── protocol.dart         # Command definitions
 │       │       ├── command_executor.dart # Execute commands
 │       │       └── actions.dart          # Action types

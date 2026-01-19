@@ -70,9 +70,28 @@ class VmServiceClient {
         isolateId: _mainIsolateId,
         args: args,
       );
+
+      // Parse the inner result from the service extension
+      final innerResult = result.json?['result'] ?? result.json;
+      Map<String, dynamic> parsed;
+
+      if (innerResult is String) {
+        try {
+          parsed = jsonDecode(innerResult) as Map<String, dynamic>;
+        } catch (_) {
+          parsed = {'success': true, 'result': innerResult};
+        }
+      } else if (innerResult is Map) {
+        parsed = Map<String, dynamic>.from(innerResult);
+      } else {
+        parsed = {'success': true, 'result': innerResult};
+      }
+
+      // Propagate the inner success status
       return {
-        'success': true,
-        'result': result.json?['result'] ?? result.json,
+        'success': parsed['success'] ?? true,
+        if (parsed['error'] != null) 'error': parsed['error'],
+        'result': parsed,
       };
     } catch (e) {
       return {
@@ -104,45 +123,13 @@ class VmServiceClient {
     }
   }
 
-  /// Get widget tree using built-in Flutter inspector extension.
+  /// Get UI snapshot via FlutterMate service extension
   ///
-  /// This works on ANY Flutter debug app - no code changes needed!
-  Future<Map<String, dynamic>> getWidgetTree({bool summaryOnly = true}) async {
+  /// Returns widget tree with semantics. Requires FlutterMate.initialize() in the app.
+  Future<Map<String, dynamic>> getSnapshot() async {
     _ensureConnected();
 
-    try {
-      final result = await _service!.callServiceExtension(
-        'ext.flutter.inspector.getRootWidgetTree',
-        isolateId: _mainIsolateId,
-        args: {
-          'groupName': 'flutter-mate-cli',
-          'isSummaryTree': summaryOnly ? 'true' : 'false',
-          'withPreviews': 'true',
-          'fullDetails': 'false',
-        },
-      );
-
-      final tree = result.json?['result'];
-      if (tree == null) {
-        return {'success': false, 'error': 'No widget tree returned'};
-      }
-      return {'success': true, 'tree': tree};
-    } catch (e) {
-      return {'success': false, 'error': e.toString()};
-    }
-  }
-
-  /// Get semantics tree via FlutterMate service extension
-  ///
-  /// Requires FlutterMate.initialize() in the app
-  Future<Map<String, dynamic>> getSemanticsTree() async {
-    _ensureConnected();
-
-    // Use ext.flutter_mate.snapshot which is async and works reliably
-    final result = await callExtension(
-      'ext.flutter_mate.snapshot',
-      args: {'interactiveOnly': 'true'},
-    );
+    final result = await callExtension('ext.flutter_mate.snapshot');
 
     if (result['success'] == true) {
       final data = result['result'];
@@ -157,9 +144,9 @@ class VmServiceClient {
 
       // Extract nodes from snapshot
       final nodes = snapshotData['nodes'] as List<dynamic>? ?? [];
-      _cachedSemanticsNodes =
+      _cachedNodes =
           nodes.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      return {'success': true, 'nodes': _cachedSemanticsNodes};
+      return {'success': true, 'nodes': _cachedNodes};
     }
 
     return {
@@ -168,169 +155,13 @@ class VmServiceClient {
     };
   }
 
-  /// Get combined snapshot: widget tree + semantics merged.
+  /// Type text into a widget using keyboard simulation.
   ///
-  /// Uses built-in Flutter extensions + FlutterMate if available.
-  Future<Map<String, dynamic>> getCombinedSnapshot(
-      {bool summaryOnly = true}) async {
-    // Get widget tree
-    final widgetResult = await getWidgetTree(summaryOnly: summaryOnly);
-    if (widgetResult['success'] != true) {
-      return widgetResult;
-    }
-
-    // Get semantics
-    final semanticsResult = await getSemanticsTree();
-
-    // Build combined result
-    final widgetTree = widgetResult['tree'] as Map<String, dynamic>;
-
-    // Flatten widget tree
-    final nodes = <Map<String, dynamic>>[];
-    _flattenWidgetTree(widgetTree, nodes, 0);
-
-    int semanticsCount = 0;
-
-    // Merge semantics into widget tree (PURE VM - no FlutterMate needed!)
-    if (semanticsResult['success'] == true) {
-      final semNodes = semanticsResult['nodes'] as List<dynamic>? ?? [];
-      semanticsCount = semNodes.length;
-
-      // Merge semantics into widget tree by matching types
-      for (final sem in semNodes) {
-        final semMap = sem as Map<String, dynamic>;
-        final label = semMap['label'] as String?;
-        final actions =
-            (semMap['actions'] as List<dynamic>?)?.cast<String>() ?? [];
-        final flags = (semMap['flags'] as List<dynamic>?)?.cast<String>() ?? [];
-        final ref = semMap['ref'] as String?;
-
-        if (label == null && actions.isEmpty) continue;
-
-        // Find matching widget
-        for (final widget in nodes) {
-          if (widget['semantics'] != null) continue;
-
-          final type = widget['type'] as String;
-          if (_semanticsMatchesWidget(semMap, type)) {
-            widget['semantics'] = {
-              'ref': ref,
-              'label': label,
-              'actions': actions,
-              'flags': flags,
-            };
-            break;
-          }
-        }
-      }
-    }
-
-    // Get raw semantics nodes for display
-    final rawSemanticsNodes = semanticsResult['success'] == true
-        ? semanticsResult['nodes'] as List<dynamic>? ?? []
-        : <dynamic>[];
-
-    return {
-      'success': true,
-      'timestamp': DateTime.now().toIso8601String(),
-      'nodes': nodes,
-      'widgetCount': nodes.length,
-      'semanticsCount': semanticsCount,
-      'semanticsSource': semanticsResult['source'] ?? 'unknown',
-      'semanticsNodes': rawSemanticsNodes,
-    };
-  }
-
-  void _flattenWidgetTree(
-      Map<String, dynamic> node, List<Map<String, dynamic>> result, int depth) {
-    final description = node['description'] as String? ?? '';
-    final widgetType = _extractWidgetType(description);
-
-    // Skip internal/noise widgets in summary
-    if (_isNoiseWidget(widgetType)) {
-      // Still process children
-      final children = node['children'] as List<dynamic>? ?? [];
-      for (final child in children) {
-        _flattenWidgetTree(child as Map<String, dynamic>, result, depth);
-      }
-      return;
-    }
-
-    final id = 'w${result.length}';
-    final textPreview = node['textPreview'] as String?;
-    result.add({
-      'id': id,
-      'type': widgetType,
-      'description': description,
-      'depth': depth,
-      'hasChildren': (node['children'] as List<dynamic>?)?.isNotEmpty ?? false,
-      if (textPreview != null && textPreview.isNotEmpty) 'text': textPreview,
-    });
-
-    final children = node['children'] as List<dynamic>? ?? [];
-    for (final child in children) {
-      _flattenWidgetTree(child as Map<String, dynamic>, result, depth + 1);
-    }
-  }
-
-  bool _semanticsMatchesWidget(Map<String, dynamic> sem, String widgetType) {
-    final flags = sem['flags'] as List<dynamic>? ?? [];
-    final actions = sem['actions'] as List<dynamic>? ?? [];
-    final label = sem['label'] as String? ?? '';
-
-    // Button widgets - match by type OR by tap action
-    if (widgetType.contains('Button') &&
-        actions.any((a) => a.toString().contains('tap'))) {
-      return true;
-    }
-
-    // ElevatedButton, TextButton, IconButton
-    if (widgetType.contains('Button') && label.isNotEmpty) {
-      return true;
-    }
-
-    // Text fields - match by type OR by focus action
-    if (widgetType.contains('TextField') &&
-        (flags.any((f) => f.toString().contains('isTextField')) ||
-            actions.any((a) => a.toString().contains('focus')))) {
-      return true;
-    }
-
-    return false;
-  }
-
-  String _extractWidgetType(String description) {
-    // Description is usually like "Text" or "Container(...)"
-    final match = RegExp(r'^(\w+)').firstMatch(description);
-    return match?.group(1) ?? description;
-  }
-
-  bool _isNoiseWidget(String type) {
-    const noise = {
-      'KeyedSubtree',
-      'Semantics',
-      'MergeSemantics',
-      'ExcludeSemantics',
-      'BlockSemantics',
-      'IndexedSemantics',
-      'RepaintBoundary',
-      'Builder',
-      'StatefulBuilder',
-      'LayoutBuilder',
-      'OrientationBuilder',
-      'StreamBuilder',
-      'FutureBuilder',
-      'ValueListenableBuilder',
-      'AnimatedBuilder',
-      'ListenableBuilder',
-      'TweenAnimationBuilder',
-    };
-    return noise.contains(type);
-  }
-
-  /// Type text by sending platform channel message.
-  Future<Map<String, dynamic>> typeText(String text) async {
-    return callExtension('ext.flutter_mate.typeText', args: {'text': text});
+  /// [ref] - Widget ref (e.g., w10 for TextField)
+  /// [text] - Text to type
+  Future<Map<String, dynamic>> typeText(String ref, String text) async {
+    return callExtension('ext.flutter_mate.typeText',
+        args: {'ref': ref, 'text': text});
   }
 
   /// Clear the focused text field
@@ -433,27 +264,27 @@ class VmServiceClient {
   // ══════════════════════════════════════════════════════════════════════════
 
   /// Cache of semantics nodes for ref lookup
-  List<Map<String, dynamic>>? _cachedSemanticsNodes;
+  List<Map<String, dynamic>>? _cachedNodes;
 
-  /// Refresh semantics cache
-  Future<void> _refreshSemantics() async {
-    final result = await getSemanticsTree();
+  /// Refresh snapshot cache
+  Future<void> _refreshSnapshot() async {
+    final result = await getSnapshot();
     if (result['success'] == true) {
-      _cachedSemanticsNodes =
+      _cachedNodes =
           (result['nodes'] as List<dynamic>?)?.cast<Map<String, dynamic>>();
     }
   }
 
   /// Find a semantics node by ref
   Future<Map<String, dynamic>?> _findNodeByRef(String ref) async {
-    if (_cachedSemanticsNodes == null) {
-      await _refreshSemantics();
+    if (_cachedNodes == null) {
+      await _refreshSnapshot();
     }
 
     // Clean ref: "s5" -> look for ref "s5" or id 5
     final cleanRef = ref.startsWith('@') ? ref.substring(1) : ref;
 
-    for (final node in _cachedSemanticsNodes ?? []) {
+    for (final node in _cachedNodes ?? []) {
       if (node['ref'] == cleanRef) return node;
       // Also try matching by id
       final id = node['id'];
@@ -461,17 +292,23 @@ class VmServiceClient {
     }
 
     // Refresh and try again
-    await _refreshSemantics();
-    for (final node in _cachedSemanticsNodes ?? []) {
+    await _refreshSnapshot();
+    for (final node in _cachedNodes ?? []) {
       if (node['ref'] == cleanRef) return node;
     }
 
     return null;
   }
 
-  /// Tap on an element by ref
+  /// Tap on an element by ref (semantic action)
   Future<Map<String, dynamic>> tap(String ref) async {
     return callExtension('ext.flutter_mate.tap', args: {'ref': ref});
+  }
+
+  /// Tap on an element by ref using pointer events (gesture-based)
+  /// Use this for widgets without semantic tap support (e.g., NavigationDestination)
+  Future<Map<String, dynamic>> tapGesture(String ref) async {
+    return callExtension('ext.flutter_mate.tapGesture', args: {'ref': ref});
   }
 
   /// Fill text in a field by ref
@@ -542,10 +379,10 @@ class VmServiceClient {
 
     while (DateTime.now().isBefore(deadline)) {
       // Refresh semantics cache
-      await _refreshSemantics();
+      await _refreshSnapshot();
 
       // Search for matching node
-      for (final node in _cachedSemanticsNodes ?? []) {
+      for (final node in _cachedNodes ?? []) {
         final label = node['label'] as String?;
         final value = node['value'] as String?;
 

@@ -83,9 +83,6 @@ class FlutterMate {
   // Cached Elements from inspector tree for ref -> Element lookup
   static final Map<String, Element> _cachedElements = {};
 
-  // Text input client ID for platform message simulation
-  static int? _lastTextInputClientId;
-
   // Registry for text controllers (for in-app agent usage)
   static final Map<String, TextEditingController> _textControllers = {};
 
@@ -136,9 +133,6 @@ class FlutterMate {
     // Register service extensions for VM Service access (CLI)
     _registerServiceExtensions();
 
-    // Set up text input channel interceptor to capture client IDs
-    _setupTextInputInterceptor();
-
     _initialized = true;
     debugPrint('FlutterMate: Initialized (semantics enabled)');
   }
@@ -183,73 +177,6 @@ class FlutterMate {
     // Use WidgetsBinding if available (works in both test and runtime)
     // This properly integrates with the test binding's event queue
     WidgetsBinding.instance.handlePointerEvent(event);
-  }
-
-  static bool _textInputInterceptorSetup = false;
-
-  /// Set up interceptor to capture text input client IDs
-  ///
-  /// When a TextField is focused, Flutter sends TextInput.setClient with a client ID.
-  /// We intercept this to capture the ID for use with _dispatchTextInput.
-  static void _setupTextInputInterceptor() {
-    if (_textInputInterceptorSetup) return;
-
-    // Listen to platform messages on the text input channel
-    ServicesBinding.instance.defaultBinaryMessenger.setMessageHandler(
-      'flutter/textinput',
-      (ByteData? message) async {
-        if (message != null) {
-          try {
-            final methodCall =
-                const JSONMethodCodec().decodeMethodCall(message);
-            if (methodCall.method == 'TextInput.setClient') {
-              final args = methodCall.arguments as List<dynamic>;
-              _lastTextInputClientId = args[0] as int;
-              debugPrint(
-                  'FlutterMate: Captured text input client ID: $_lastTextInputClientId');
-            }
-          } catch (_) {
-            // Ignore decode errors
-          }
-        }
-        // Return null to let the default handler process the message
-        return null;
-      },
-    );
-
-    _textInputInterceptorSetup = true;
-    debugPrint('FlutterMate: Text input interceptor set up');
-  }
-
-  /// Dispatch text input via platform message simulation
-  ///
-  /// Uses the same mechanism as Flutter's TestTextInput - injects a
-  /// platform message to simulate keyboard input.
-  static Future<void> _dispatchTextInput(int clientId, String text) async {
-    final codec = const JSONMethodCodec();
-
-    // Use channelBuffers.push which is the modern approach
-    ServicesBinding.instance.channelBuffers.push(
-      'flutter/textinput',
-      codec.encodeMethodCall(MethodCall(
-        'TextInputClient.updateEditingState',
-        <dynamic>[
-          clientId,
-          <String, dynamic>{
-            'text': text,
-            'selectionBase': text.length,
-            'selectionExtent': text.length,
-            'composingBase': -1,
-            'composingExtent': -1,
-          },
-        ],
-      )),
-      (ByteData? response) {
-        // Response handling (usually empty)
-      },
-    );
-
-    await _delay(const Duration(milliseconds: 50));
   }
 
   static bool _extensionsRegistered = false;
@@ -1332,8 +1259,7 @@ class FlutterMate {
   // How it works:
   // 1. typeText(ref, text) finds the widget from the inspector tree
   // 2. Taps to focus the TextField
-  // 3. Captures the text input client ID via channel interceptor
-  // 4. Sends platform messages to simulate typing character by character
+  // 3. Types character by character via EditableTextState
   //
   // Usage:
   //   await FlutterMate.snapshot();  // Cache elements
@@ -1342,9 +1268,10 @@ class FlutterMate {
 
   /// Type text into a text field by ref
   ///
-  /// This uses platform message simulation - the same mechanism as real keyboard input.
-  /// It finds the TextField element from the inspector tree, focuses it via gesture,
-  /// then sends platform messages to simulate typing.
+  /// This simulates typing by:
+  /// 1. Finding the TextField element from the inspector tree
+  /// 2. Tapping to focus it
+  /// 3. Typing character by character via EditableTextState
   ///
   /// ```dart
   /// await FlutterMate.typeText('w10', 'hello@example.com');
@@ -1398,35 +1325,11 @@ class FlutterMate {
       debugPrint('FlutterMate: Tapping to focus at $center');
       await tapAt(center);
 
-      // Wait for focus and text input connection to be established
+      // Wait for focus to be established
       await _delay(const Duration(milliseconds: 150));
 
-      // Check if we captured a client ID
-      if (_lastTextInputClientId == null) {
-        debugPrint(
-            'FlutterMate: No text input client ID captured. Falling back to EditableTextState.');
-        return _typeTextViaEditableState(text);
-      }
-
-      // Get current text from the focused field
-      final focusNode = FocusManager.instance.primaryFocus;
-      String currentText = '';
-      if (focusNode != null) {
-        final editableState = _findEditableTextState(focusNode.context);
-        if (editableState != null) {
-          currentText = editableState.currentTextEditingValue.text;
-        }
-      }
-
-      // Type character by character using platform messages
-      for (int i = 0; i < text.length; i++) {
-        currentText += text[i];
-        await _dispatchTextInput(_lastTextInputClientId!, currentText);
-      }
-
-      debugPrint(
-          'FlutterMate: Typed "$text" via platform messages (client ID: $_lastTextInputClientId)');
-      return true;
+      // Type via EditableTextState
+      return _typeTextViaEditableState(text);
     } catch (e, stack) {
       debugPrint('FlutterMate: typeText error: $e\n$stack');
       return false;

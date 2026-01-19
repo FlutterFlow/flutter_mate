@@ -112,7 +112,7 @@ class MateAction {
         snapshotTool,
         tapTool,
         tapAtTool,
-        fillTool,
+        setTextTool,
         clearTool,
         scrollTool,
         focusTool,
@@ -198,17 +198,15 @@ Coordinates are in logical pixels from top-left of screen.''',
         },
       };
 
-  /// Fill tool - fill a text field.
-  static Map<String, dynamic> get fillTool => {
-        'name': 'fill',
-        'description': '''Fill a text field with the specified text.
+  /// SetText tool - set text via semantic action.
+  static Map<String, dynamic> get setTextTool => {
+        'name': 'setText',
+        'description': '''Set text on a field via semantic action.
 
-Replaces any existing text in the field. The element must be a TextField
-or similar text input widget.
+Use on Semantics widgets (look for semantics.actions containing "setText").
+For keyboard simulation on TextField widgets, use typeText instead.
 
-Use snapshot to find text fields (look for semantics.actions containing "setText").
-
-Example: fill(ref: "w15", text: "user@example.com")''',
+Example: setText(ref: "w9", text: "user@example.com")''',
         'inputSchema': {
           'type': 'object',
           'properties': {
@@ -297,7 +295,7 @@ Gives keyboard focus to the element. Useful for text fields before typing.''',
         'name': 'typeText',
         'description': '''Type text into a widget using keyboard simulation.
 
-Unlike fill() which uses semantic setText, this uses platform message
+Unlike setText() which uses semantic action, this uses platform message
 simulation to type character by character like a real keyboard.
 
 Use this for TextField widgets (e.g., w10). For Semantics widgets, use fill instead.''',
@@ -462,8 +460,8 @@ class ActionExecutor {
           return await _executeTap(command);
         case 'tapAt':
           return await _executeTapAt(command);
-        case 'fill':
-          return await _executeFill(command);
+        case 'setText':
+          return await _executeSetText(command);
         case 'clear':
           return await _executeClear(command);
         case 'scroll':
@@ -552,7 +550,8 @@ class ActionExecutor {
     return ActionResult.ok();
   }
 
-  static Future<ActionResult> _executeFill(Map<String, dynamic> command) async {
+  static Future<ActionResult> _executeSetText(
+      Map<String, dynamic> command) async {
     final ref = command['ref'] as String?;
     final text = command['text'] as String?;
 
@@ -563,11 +562,11 @@ class ActionExecutor {
       return ActionResult.fail('Missing required field: text');
     }
 
-    final success = await FlutterMate.fill(ref, text);
+    final success = await FlutterMate.setText(ref, text);
     if (success) {
       return ActionResult.ok();
     } else {
-      return ActionResult.fail('Failed to fill element: $ref');
+      return ActionResult.fail('Failed to setText on element: $ref');
     }
   }
 

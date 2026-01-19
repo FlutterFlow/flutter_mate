@@ -110,10 +110,10 @@ enum CommandAction {
   // ─────────────────────────────────────────────────────────────────────────
   // Interaction - Text Input
   // ─────────────────────────────────────────────────────────────────────────
-  /// Fill a text field (replaces content).
-  fill,
+  /// Set text on a field via semantic action.
+  setText,
 
-  /// Type text character by character.
+  /// Type text character by character via keyboard simulation.
   typeText,
 
   /// Clear a text field.
@@ -209,7 +209,7 @@ abstract class Command {
         TapAtCommand.toolDefinition,
         DoubleTapCommand.toolDefinition,
         LongPressCommand.toolDefinition,
-        FillCommand.toolDefinition,
+        SetTextCommand.toolDefinition,
         TypeTextCommand.toolDefinition,
         ClearCommand.toolDefinition,
         ScrollCommand.toolDefinition,
@@ -441,40 +441,40 @@ class LongPressCommand extends Command {
       };
 }
 
-/// Fill command - fill a text field.
-class FillCommand extends Command {
+/// SetText command - set text via semantic action.
+class SetTextCommand extends Command {
   @override
-  CommandAction get action => CommandAction.fill;
+  CommandAction get action => CommandAction.setText;
 
   final String ref;
   final String text;
 
-  const FillCommand({super.id, required this.ref, required this.text});
+  const SetTextCommand({super.id, required this.ref, required this.text});
 
   @override
   Map<String, dynamic> toJson() => {
         if (id != null) 'id': id,
-        'action': 'fill',
+        'action': 'setText',
         'ref': ref,
         'text': text,
       };
 
-  static FillCommand fromJson(Map<String, dynamic> json, String? id) =>
-      FillCommand(
+  static SetTextCommand fromJson(Map<String, dynamic> json, String? id) =>
+      SetTextCommand(
         id: id,
         ref: json['ref'] as String,
         text: json['text'] as String,
       );
 
   static Map<String, dynamic> get toolDefinition => {
-        'name': 'fill',
-        'description':
-            'Fill a text field with text. Replaces existing content.',
+        'name': 'setText',
+        'description': 'Set text on a field via semantic action. '
+            'Use on Semantics widgets. For keyboard simulation, use typeText.',
         'inputSchema': {
           'type': 'object',
           'properties': {
-            'ref': {'type': 'string', 'description': 'Text field ref.'},
-            'text': {'type': 'string', 'description': 'Text to enter.'},
+            'ref': {'type': 'string', 'description': 'Semantics widget ref.'},
+            'text': {'type': 'string', 'description': 'Text to set.'},
           },
           'required': ['ref', 'text'],
         },
@@ -483,7 +483,7 @@ class FillCommand extends Command {
 
 /// TypeText command - type text into a widget using keyboard simulation.
 ///
-/// Unlike `fill` which uses semantic setText, this uses platform message
+/// Unlike `setText` which uses semantic action, this uses platform message
 /// simulation to type character by character like a real keyboard.
 class TypeTextCommand extends Command {
   @override
@@ -1180,7 +1180,7 @@ ParseResult _parseCommand(
       CommandAction.tapAt => TapAtCommand.fromJson(json, id),
       CommandAction.doubleTap => DoubleTapCommand.fromJson(json, id),
       CommandAction.longPress => LongPressCommand.fromJson(json, id),
-      CommandAction.fill => FillCommand.fromJson(json, id),
+      CommandAction.setText => SetTextCommand.fromJson(json, id),
       CommandAction.typeText => TypeTextCommand.fromJson(json, id),
       CommandAction.clear => ClearCommand.fromJson(json, id),
       CommandAction.scroll => ScrollCommand.fromJson(json, id),

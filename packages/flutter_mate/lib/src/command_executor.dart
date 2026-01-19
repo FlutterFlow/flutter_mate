@@ -40,7 +40,7 @@ class CommandExecutor {
         TapAtCommand cmd => _executeTapAt(cmd),
         DoubleTapCommand cmd => _executeDoubleTap(cmd),
         LongPressCommand cmd => _executeLongPress(cmd),
-        FillCommand cmd => _executeFill(cmd),
+        SetTextCommand cmd => _executeSetText(cmd),
         TypeTextCommand cmd => _executeTypeText(cmd),
         ClearCommand cmd => _executeClear(cmd),
         ScrollCommand cmd => _executeScroll(cmd),
@@ -174,12 +174,13 @@ class CommandExecutor {
         cmd.id, 'Failed to long press element: ${cmd.ref}');
   }
 
-  static Future<CommandResponse> _executeFill(FillCommand cmd) async {
-    final success = await FlutterMate.fill(cmd.ref, cmd.text);
+  static Future<CommandResponse> _executeSetText(SetTextCommand cmd) async {
+    final success = await FlutterMate.setText(cmd.ref, cmd.text);
     if (success) {
       return CommandResponse.ok(cmd.id);
     }
-    return CommandResponse.fail(cmd.id, 'Failed to fill element: ${cmd.ref}');
+    return CommandResponse.fail(
+        cmd.id, 'Failed to setText on element: ${cmd.ref}');
   }
 
   static Future<CommandResponse> _executeTypeText(TypeTextCommand cmd) async {

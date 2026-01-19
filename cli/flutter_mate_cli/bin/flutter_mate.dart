@@ -124,23 +124,15 @@ Future<void> _executeCommand({
         final tapResult = await client.tap(args[0]);
         _printResult('tap', tapResult, jsonOutput);
         break;
-      case 'tapGesture':
-        if (args.isEmpty) {
-          stderr.writeln(
-              'Error: tapGesture requires a ref (e.g., tapGesture w143)');
-          exit(1);
-        }
-        final tapGestureResult = await client.tapGesture(args[0]);
-        _printResult('tapGesture', tapGestureResult, jsonOutput);
-        break;
-      case 'fill':
+      case 'setText':
+      case 'fill': // deprecated alias
         if (args.length < 2) {
           stderr.writeln(
-              'Error: fill requires ref and text (e.g., fill w5 "hello")');
+              'Error: setText requires ref and text (e.g., setText w5 "hello")');
           exit(1);
         }
-        final fillResult = await client.fill(args[0], args[1]);
-        _printResult('fill', fillResult, jsonOutput);
+        final setTextResult = await client.setText(args[0], args[1]);
+        _printResult('setText', setTextResult, jsonOutput);
         break;
       case 'scroll':
         if (args.isEmpty) {
@@ -574,23 +566,15 @@ Future<void> _interactiveMode(VmServiceClient client) async {
             _printResult('tap', r, false);
           }
           break;
-        case 'tapGesture':
-        case 'tapgesture':
-        case 'tg':
-          if (args.isEmpty) {
-            print('Usage: tapGesture <ref>');
-          } else {
-            final r = await client.tapGesture(args[0]);
-            _printResult('tapGesture', r, false);
-          }
-          break;
-        case 'fill':
+        case 'setText':
+        case 'settext':
+        case 'fill': // deprecated alias
         case 'f':
           if (args.length < 2) {
-            print('Usage: fill <ref> <text>');
+            print('Usage: setText <ref> <text>');
           } else {
-            final r = await client.fill(args[0], args.skip(1).join(' '));
-            _printResult('fill', r, false);
+            final r = await client.setText(args[0], args.skip(1).join(' '));
+            _printResult('setText', r, false);
           }
           break;
         case 'scroll':
@@ -698,11 +682,10 @@ Future<void> _interactiveMode(VmServiceClient client) async {
         case '?':
           print('Commands:');
           print('  snapshot, s      - Get UI snapshot');
-          print('  tap, t <ref>     - Tap element (semantic action)');
-          print('  tapGesture, tg <ref> - Tap element (pointer events)');
+          print('  tap, t <ref>     - Tap element (auto: semantic or gesture)');
           print('  doubleTap, dt <ref> - Double tap element');
           print('  longPress, lp <ref> - Long press element');
-          print('  fill, f <ref> <text> - Fill text field (semantic setText)');
+          print('  setText, f <ref> <text> - Set text (semantic action)');
           print('  typeText <ref> <text> - Type text (keyboard simulation)');
           print('  clear <ref>      - Clear text field');
           print('  scroll <ref> [dir] - Scroll element');

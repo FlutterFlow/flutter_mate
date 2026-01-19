@@ -307,15 +307,23 @@ class VmServiceClient {
 
   /// Tap on an element by ref using pointer events (gesture-based)
   /// Use this for widgets without semantic tap support (e.g., NavigationDestination)
+  /// @deprecated Use tap() instead - it now auto-falls back to gesture
+  @Deprecated('Use tap() instead')
   Future<Map<String, dynamic>> tapGesture(String ref) async {
-    return callExtension('ext.flutter_mate.tapGesture', args: {'ref': ref});
+    // Just call tap - it handles both semantic and gesture
+    return tap(ref);
   }
 
-  /// Fill text in a field by ref
-  Future<Map<String, dynamic>> fill(String ref, String text) async {
-    return callExtension('ext.flutter_mate.fill',
+  /// Set text on a field by ref (semantic action)
+  Future<Map<String, dynamic>> setText(String ref, String text) async {
+    return callExtension('ext.flutter_mate.setText',
         args: {'ref': ref, 'text': text});
   }
+
+  /// @deprecated Use setText() instead
+  @Deprecated('Use setText() instead')
+  Future<Map<String, dynamic>> fill(String ref, String text) =>
+      setText(ref, text);
 
   /// Focus on an element by ref
   Future<Map<String, dynamic>> focus(String ref) async {

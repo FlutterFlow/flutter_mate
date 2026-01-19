@@ -15,7 +15,7 @@
 /// print(snapshot);
 ///
 /// // Interact with elements using refs
-/// await FlutterMate.fill('w5', 'hello@example.com');
+/// await FlutterMate.setText('w9', 'hello@example.com');
 /// await FlutterMate.tap('w10');
 /// ```
 ///
@@ -58,7 +58,7 @@ export 'src/protocol.dart'
         TapAtCommand,
         DoubleTapCommand,
         LongPressCommand,
-        FillCommand,
+        SetTextCommand,
         TypeTextCommand,
         ClearCommand,
         ScrollCommand,

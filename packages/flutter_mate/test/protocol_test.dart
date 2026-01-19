@@ -172,16 +172,16 @@ void main() {
     });
   });
 
-  group('FillCommand', () {
+  group('SetTextCommand', () {
     test('parses correctly', () {
       final result = Command.parse({
-        'action': 'fill',
+        'action': 'setText',
         'ref': 'w5',
         'text': 'hello@test.com',
       });
 
       expect(result.isValid, isTrue);
-      final cmd = result.command as FillCommand;
+      final cmd = result.command as SetTextCommand;
       expect(cmd.ref, 'w5');
       expect(cmd.text, 'hello@test.com');
     });
@@ -503,7 +503,7 @@ void main() {
 
       expect(names, contains('snapshot'));
       expect(names, contains('tap'));
-      expect(names, contains('fill'));
+      expect(names, contains('setText'));
       expect(names, contains('scroll'));
       expect(names, contains('typeText'));
       expect(names, contains('longPress'));

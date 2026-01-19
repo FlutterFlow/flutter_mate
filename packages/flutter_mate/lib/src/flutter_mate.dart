@@ -30,22 +30,23 @@ import 'combined_snapshot.dart';
 /// print(snapshot);
 ///
 /// // 3. Interact with elements
-/// await FlutterMate.fill('w9', 'hello@example.com');  // Semantic action
-/// await FlutterMate.typeText('w10', 'hello@example.com');  // Keyboard simulation
-/// await FlutterMate.tap('w18');
+/// await FlutterMate.tap('w18');  // auto: semantic or gesture
+/// await FlutterMate.setText('w9', 'hello@example.com');  // semantic action
+/// await FlutterMate.typeText('w10', 'hello@example.com');  // keyboard sim
 /// ```
 ///
-/// ## Two-Tier Action System
+/// ## Smart Action System
 ///
-/// ### Tier 1: Semantic Actions (on Semantics widgets)
-/// Uses Flutter's accessibility system via `SemanticsOwner.performAction()`.
-/// - `fill(ref, text)` — uses semantic setText (best for Semantics widgets)
-/// - `tap(ref)`, `focus(ref)`, `scroll(ref)` — work with semantic nodes
+/// Actions like `tap`, `longPress`, and `scroll` are **smart**:
+/// - Try semantic action first (if the node has the action)
+/// - Fall back to gesture-based action automatically
 ///
-/// ### Tier 2: Gesture/Keyboard Simulation (on actual widgets)
-/// Mimics actual user input at the gesture/keyboard level.
-/// - `typeText(ref, text)` — keyboard simulation via platform messages
-/// - `tapGesture(ref)`, `longPressGesture(ref)` — inject PointerEvents
+/// ### Semantic Actions (on Semantics widgets)
+/// - `setText(ref, text)` — uses `SemanticsAction.setText`
+/// - `focus(ref)` — uses `SemanticsAction.focus`
+///
+/// ### Keyboard Simulation (on actual widgets)
+/// - `typeText(ref, text)` — platform messages (like real typing)
 /// - `pressKey(key)` — simulates keyboard events
 ///
 /// ## Snapshot Structure
@@ -58,8 +59,9 @@ import 'combined_snapshot.dart';
 ///   • w10: TextField (bounds)
 /// ```
 ///
-/// - Use `w9` (Semantics) for semantic actions like `fill`
+/// - Use `w9` (Semantics) for semantic actions like `setText`
 /// - Use `w10` (TextField) for keyboard actions like `typeText`
+/// - Use either for `tap` (it auto-detects the best approach)
 ///
 /// ## External Control via VM Service
 ///
@@ -68,7 +70,7 @@ import 'combined_snapshot.dart';
 ///
 /// ```bash
 /// flutter_mate --uri ws://127.0.0.1:12345/abc=/ws snapshot
-/// flutter_mate --uri ws://127.0.0.1:12345/abc=/ws fill w9 "text"
+/// flutter_mate --uri ws://127.0.0.1:12345/abc=/ws setText w9 "text"
 /// flutter_mate --uri ws://127.0.0.1:12345/abc=/ws typeText w10 "text"
 /// ```
 class FlutterMate {
@@ -278,8 +280,8 @@ class FlutterMate {
         return ServiceExtensionResponse.result(jsonEncode({'success': true}));
       });
 
-      // ext.flutter_mate.fill - Fill text field
-      registerExtension('ext.flutter_mate.fill', (method, params) async {
+      // ext.flutter_mate.setText - Set text on element (semantic action)
+      registerExtension('ext.flutter_mate.setText', (method, params) async {
         final ref = params['ref'];
         final text = params['text'];
         if (ref == null || text == null) {
@@ -288,11 +290,11 @@ class FlutterMate {
             'Missing ref or text parameter',
           );
         }
-        final success = await fill(ref, text);
+        final success = await setText(ref, text);
         if (!success) {
           return ServiceExtensionResponse.result(jsonEncode({
             'success': false,
-            'error': 'fill failed: element may not support setText action',
+            'error': 'setText failed: element may not support setText action',
           }));
         }
         return ServiceExtensionResponse.result(jsonEncode({'success': true}));
@@ -385,25 +387,6 @@ class FlutterMate {
           return ServiceExtensionResponse.result(jsonEncode({
             'success': false,
             'error': 'doubleTap failed: element not found or no bounds',
-          }));
-        }
-        return ServiceExtensionResponse.result(jsonEncode({'success': true}));
-      });
-
-      // ext.flutter_mate.tapGesture - Tap element by ref using pointer events
-      registerExtension('ext.flutter_mate.tapGesture', (method, params) async {
-        final ref = params['ref'];
-        if (ref == null) {
-          return ServiceExtensionResponse.error(
-            ServiceExtensionResponse.invalidParams,
-            'Missing ref parameter',
-          );
-        }
-        final success = await tapGesture(ref);
-        if (!success) {
-          return ServiceExtensionResponse.result(jsonEncode({
-            'success': false,
-            'error': 'tapGesture failed: element not found or no bounds',
           }));
         }
         return ServiceExtensionResponse.result(jsonEncode({'success': true}));
@@ -849,11 +832,55 @@ class FlutterMate {
 
   /// Tap on an element by ref
   ///
+  /// Tries semantic tap action first (for Semantics widgets).
+  /// Falls back to gesture-based tap if semantic action not available.
+  ///
   /// ```dart
   /// await FlutterMate.tap('w5');
   /// ```
   static Future<bool> tap(String ref) async {
-    return _performAction(ref, SemanticsAction.tap);
+    _ensureInitialized();
+
+    // Check if this ref has semantic tap action
+    if (_lastSnapshot != null) {
+      final node = _lastSnapshot![ref];
+      if (node?.semantics?.hasAction('tap') == true) {
+        debugPrint('FlutterMate: tap via semantic action on $ref');
+        return _performAction(ref, SemanticsAction.tap);
+      }
+    }
+
+    // Fallback to gesture-based tap
+    debugPrint('FlutterMate: tap via gesture on $ref');
+    return _tapGesture(ref);
+  }
+
+  /// Internal gesture-based tap
+  static Future<bool> _tapGesture(String ref) async {
+    final element = _cachedElements[ref];
+    if (element == null) {
+      debugPrint('FlutterMate: _tapGesture - Element not found: $ref');
+      return false;
+    }
+
+    RenderObject? ro = element.renderObject;
+    while (ro != null && ro is! RenderBox) {
+      if (ro is RenderObjectElement) {
+        ro = (ro as RenderObjectElement).renderObject;
+      } else {
+        break;
+      }
+    }
+
+    if (ro == null || ro is! RenderBox || !ro.hasSize) {
+      debugPrint('FlutterMate: _tapGesture - No RenderBox for: $ref');
+      return false;
+    }
+
+    final box = ro;
+    final center = box.localToGlobal(box.size.center(Offset.zero));
+    await tapAt(center);
+    return true;
   }
 
   /// Double tap on an element by ref
@@ -902,11 +929,26 @@ class FlutterMate {
 
   /// Long press on an element by ref
   ///
-  /// Uses gesture simulation to trigger GestureDetector.onLongPress callbacks.
-  /// Note: Semantic longPress action doesn't trigger widget callbacks reliably.
+  /// Tries semantic longPress action first (for Semantics widgets).
+  /// Falls back to gesture-based long press if semantic action not available.
+  ///
+  /// ```dart
+  /// await FlutterMate.longPress('w5');
+  /// ```
   static Future<bool> longPress(String ref) async {
-    // Always use gesture simulation for longPress
-    // Semantic performAction doesn't trigger GestureDetector callbacks
+    _ensureInitialized();
+
+    // Check if this ref has semantic longPress action
+    if (_lastSnapshot != null) {
+      final node = _lastSnapshot![ref];
+      if (node?.semantics?.hasAction('longPress') == true) {
+        debugPrint('FlutterMate: longPress via semantic action on $ref');
+        return _performAction(ref, SemanticsAction.longPress);
+      }
+    }
+
+    // Fallback to gesture-based long press
+    debugPrint('FlutterMate: longPress via gesture on $ref');
     return longPressGesture(ref);
   }
 
@@ -932,17 +974,20 @@ class FlutterMate {
     return true;
   }
 
-  /// Fill a text field by ref
+  /// Set text on an element using semantic setText action
+  ///
+  /// This is the semantic way to set text fields. For keyboard simulation,
+  /// use [typeText] instead.
   ///
   /// ```dart
-  /// await FlutterMate.fill('w3', 'hello@example.com');
+  /// await FlutterMate.setText('w9', 'hello@example.com');
   /// ```
-  static Future<bool> fill(String ref, String text) async {
+  static Future<bool> setText(String ref, String text) async {
     _ensureInitialized();
 
     final node = _findNode(ref);
     if (node == null) {
-      debugPrint('FlutterMate: Node not found: $ref');
+      debugPrint('FlutterMate: setText - Node not found: $ref');
       return false;
     }
 
@@ -961,6 +1006,10 @@ class FlutterMate {
 
     return true;
   }
+
+  /// Alias for [setText] for backwards compatibility
+  @Deprecated('Use setText instead')
+  static Future<bool> fill(String ref, String text) => setText(ref, text);
 
   /// Scroll an element
   ///
@@ -1126,27 +1175,9 @@ class FlutterMate {
 
   /// Simulate a tap on an element using its bounding box
   ///
-  /// This uses real pointer events at the element's center.
-  static Future<bool> tapGesture(String ref) async {
-    _ensureInitialized();
-
-    final snap = await snapshot();
-    final node = snap[ref];
-    if (node == null) {
-      debugPrint('FlutterMate: Node not found: $ref');
-      return false;
-    }
-
-    // Calculate center of element
-    final center = node.center;
-    if (center == null) {
-      debugPrint('FlutterMate: Node has no bounds: $ref');
-      return false;
-    }
-
-    await tapAt(center);
-    return true;
-  }
+  /// @deprecated Use [tap] instead, which automatically falls back to gesture.
+  @Deprecated('Use tap() instead - it now auto-falls back to gesture')
+  static Future<bool> tapGesture(String ref) => _tapGesture(ref);
 
   /// Simulate a drag/swipe gesture
   ///
@@ -1644,7 +1675,7 @@ class FlutterMate {
   /// ```dart
   /// final ref = await FlutterMate.findByLabel('Email');
   /// if (ref != null) {
-  ///   await FlutterMate.fill(ref, 'test@example.com');
+  ///   await FlutterMate.setText(ref, 'test@example.com');
   /// }
   /// ```
   static Future<String?> findByLabel(String label) async {
@@ -1732,7 +1763,7 @@ class FlutterMate {
           'FlutterMate: fillByLabel - No element found with label: $label');
       return false;
     }
-    return fill(ref, text);
+    return setText(ref, text);
   }
 
   /// Long press element by label (convenience method)

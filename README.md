@@ -21,8 +21,9 @@ final snapshot = await FlutterMate.snapshot();
 print(snapshot);  // Pretty-printed UI tree with refs
 
 // Interact with elements by ref
-await FlutterMate.fill('w5', 'hello@example.com');
-await FlutterMate.tap('w10');
+await FlutterMate.tap('w10');  // auto: semantic or gesture
+await FlutterMate.setText('w9', 'hello@example.com');  // semantic action
+await FlutterMate.typeText('w10', 'hello@example.com'); // keyboard simulation
 await FlutterMate.scroll('w15', ScrollDirection.down);
 
 // Wait for element to appear
@@ -42,14 +43,14 @@ flutter run
 #    A Dart VM Service on macOS is available at: http://127.0.0.1:12345/abc=/
 
 # 3. Use the CLI (convert http:// to ws:// and add /ws)
-flutter_mate --uri ws://127.0.0.1:12345/abc=/ws snapshot -i
-flutter_mate --uri ws://127.0.0.1:12345/abc=/ws fill w5 "hello@example.com"  
+flutter_mate --uri ws://127.0.0.1:12345/abc=/ws snapshot
+flutter_mate --uri ws://127.0.0.1:12345/abc=/ws setText w9 "hello@example.com"  
 flutter_mate --uri ws://127.0.0.1:12345/abc=/ws tap w10
 
 # 4. Interactive mode (REPL)
 flutter_mate --uri ws://127.0.0.1:12345/abc=/ws attach
 flutter_mate> snapshot
-flutter_mate> fill w5 test@example.com
+flutter_mate> setText w9 test@example.com
 flutter_mate> tap w10
 ```
 
@@ -143,7 +144,7 @@ Uses Flutter's accessibility system via `SemanticsOwner.performAction()`.
 | `tap(ref)` | `SemanticsAction.tap` | Tap element |
 | `focus(ref)` | `SemanticsAction.focus` | Focus element |
 | `scroll(ref, dir)` | `SemanticsAction.scrollUp/Down` | Scroll container |
-| `fill(ref, text)` | Focus + typeText | Fill text field |
+| `setText(ref, text)` | `SemanticsAction.setText` | Set text field |
 
 **Best for**: Standard Flutter widgets with proper semantics labels.
 
@@ -153,9 +154,9 @@ Mimics actual user input by injecting pointer events and using platform APIs.
 
 | Method | Simulation | Description |
 |--------|------------|-------------|
-| `tapGesture(ref)` | `PointerDown` → `PointerUp` | Tap via gesture |
-| `longPressGesture(ref)` | `PointerDown` → delay → `PointerUp` | Long press |
-| `doubleTap(ref)` | Two quick tap sequences | Double tap |
+| `tap(ref)` | Auto: semantic then gesture | Tap (smart fallback) |
+| `longPress(ref)` | Auto: semantic then gesture | Long press (smart fallback) |
+| `doubleTap(ref)` | Two quick tap sequences | Double tap (gesture only) |
 | `drag(from, to)` | `PointerDown` → `Move` → `Up` | Drag gesture |
 | `typeText(text)` | `updateEditingValue()` | Type like real keyboard |
 | `pressKey(key)` | `KeyDownEvent` + `KeyUpEvent` | Keyboard input |
@@ -192,10 +193,10 @@ Most actions try Tier 1 first, then fall back to Tier 2:
 | Method | Description |
 |--------|-------------|
 | `tap(ref)` | Tap element (semantic → gesture fallback) |
-| `longPress(ref)` | Long press element (gesture) |
+| `longPress(ref)` | Long press (semantic → gesture) |
 | `doubleTap(ref)` | Double tap element (gesture) |
-| `fill(ref, text)` | Focus + type into text field |
-| `scroll(ref, direction)` | Scroll (semantic → gesture fallback) |
+| `setText(ref, text)` | Set text via semantic action |
+| `scroll(ref, direction)` | Scroll (semantic → gesture) |
 | `focus(ref)` | Focus element (semantic) |
 
 ### Gesture Simulation (Tier 2 Only)
@@ -203,8 +204,7 @@ Most actions try Tier 1 first, then fall back to Tier 2:
 | Method | Description |
 |--------|-------------|
 | `tapAt(Offset)` | Tap at screen position |
-| `tapGesture(ref)` | Tap element center via gesture |
-| `longPressGesture(ref)` | Long press via gesture |
+| `longPressAt(Offset)` | Long press at position |
 | `drag({from, to, duration})` | Drag gesture |
 | `scrollGestureByDirection(ref, dir)` | Scroll via gesture |
 
@@ -224,7 +224,7 @@ Most actions try Tier 1 first, then fall back to Tier 2:
 |--------|-------------|
 | `registerTextField(name, controller)` | Register controller by name |
 | `unregisterTextField(name)` | Unregister |
-| `fillByName(name, text)` | Fill by registered name |
+| `fillByName(name, text)` | Fill by registered controller name |
 
 ---
 
@@ -237,10 +237,10 @@ Commands:
   snapshot              Get UI tree (-i for interactive only, -m combined for widget tree)
   tap <ref>             Tap element (semantic → gesture fallback)
   doubleTap <ref>       Double tap element (gesture)
-  longPress <ref>       Long press element (gesture)
-  fill <ref> <text>     Focus + type into text field
+  longPress <ref>       Long press (semantic → gesture)
+  setText <ref> <text>  Set text (semantic action)
   clear <ref>           Clear text field
-  typeText <text>       Type text (uses updateEditingValue)
+  typeText <ref> <text> Type text (keyboard simulation)
   pressKey <key>        Press keyboard key (enter, tab, escape, etc.)
   scroll <ref> [dir]    Scroll (semantic → gesture fallback)
   focus <ref>           Focus element (semantic)
@@ -266,10 +266,10 @@ When using the MCP server, the following tools are available:
 | `snapshot` | Get UI tree with element refs |
 | `tap` | Tap element by ref |
 | `doubleTap` | Double tap element |
-| `longPress` | Long press element |
-| `fill` | Fill text field |
+| `longPress` | Long press (semantic → gesture) |
+| `setText` | Set text (semantic action) |
 | `clear` | Clear text field |
-| `typeText` | Type text character by character |
+| `typeText` | Type text (keyboard simulation) |
 | `pressKey` | Press keyboard key |
 | `scroll` | Scroll element |
 | `focus` | Focus element |
@@ -285,13 +285,13 @@ class LoginAgent {
     // Get UI snapshot
     final snapshot = await FlutterMate.snapshot();
     
-    // Find and fill fields by label
+    // Find and fill fields by label (using Semantics widget refs)
     for (final node in snapshot.nodes) {
       if (node.label?.toLowerCase().contains('email') == true) {
-        await FlutterMate.fill(node.ref, email);
+        await FlutterMate.setText(node.ref, email);
       }
       if (node.label?.toLowerCase().contains('password') == true) {
-        await FlutterMate.fill(node.ref, password);
+        await FlutterMate.setText(node.ref, password);
       }
     }
     
@@ -347,7 +347,7 @@ class LLMAgent {
         Current UI:
         ${jsonEncode(snapshot.toJson())}
         
-        Reply with JSON: {"action": "tap|fill|scroll|done", "ref": "wX", "text": "..."}
+        Reply with JSON: {"action": "tap|setText|scroll|done", "ref": "wX", "text": "..."}
       ''');
       
       final action = jsonDecode(response);
@@ -355,7 +355,7 @@ class LLMAgent {
       
       switch (action['action']) {
         case 'tap': await FlutterMate.tap(action['ref']);
-        case 'fill': await FlutterMate.fill(action['ref'], action['text']);
+        case 'setText': await FlutterMate.setText(action['ref'], action['text']);
         case 'scroll': await FlutterMate.scroll(action['ref'], ScrollDirection.down);
       }
       
@@ -390,7 +390,7 @@ class LLMAgent {
 ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐
 │  CLI Tool    │  │  MCP Server  │  │  Custom Client   │
 │  snapshot    │  │  (Cursor,    │  │  (Your Code)     │
-│  tap, fill   │  │  Claude...)  │  │                  │
+│  tap, setText│  │  Claude...)  │  │                  │
 └──────────────┘  └──────────────┘  └──────────────────┘
 ```
 

@@ -98,8 +98,8 @@ void main() {
       final emailRef = await FlutterMate.findByLabel('Email');
       expect(emailRef, isNotNull);
 
-      // Tap it using FlutterMate gesture
-      final success = await FlutterMate.tapGesture(emailRef!);
+      // Tap it using FlutterMate (auto: semantic or gesture)
+      final success = await FlutterMate.tap(emailRef!);
       await tester.pump();
 
       expect(success, isTrue);
@@ -263,8 +263,8 @@ void main() {
       );
       await tester.pump();
 
-      // Tap login
-      await FlutterMate.tapGesture(loginRef!);
+      // Tap login (auto: semantic or gesture)
+      await FlutterMate.tap(loginRef!);
       await tester.pumpAndSettle();
 
       // Login was attempted (even if validation fails)

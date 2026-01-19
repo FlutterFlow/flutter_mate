@@ -101,9 +101,9 @@ base class FlutterMateServer extends MCPServer
 
 ## Example
 
-snapshot() → see w5 is a text field, w10 is Submit button
-fill(ref: "w5", text: "hello@example.com")
-tap(ref: "w10")
+snapshot() → see w9 is Semantics for text field, w10 is TextField, w18 is Submit
+setText(ref: "w9", text: "hello@example.com")  // semantic action
+tap(ref: "w18")  // auto: semantic or gesture
 snapshot() → verify navigation occurred
 ''',
         ) {

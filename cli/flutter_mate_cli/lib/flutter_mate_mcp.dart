@@ -6,15 +6,15 @@
 ///
 /// - `connect` - Connect to a running Flutter app
 /// - `snapshot` - Get UI tree with element refs
-/// - `tap` - Tap element by ref (semantic action)
-/// - `fill` - Fill text field via semantic setText (use on Semantics widgets)
-/// - `typeText` - Type text via keyboard simulation (use on TextField widgets)
-/// - `scroll` - Scroll element
+/// - `tap` - Tap element (auto: semantic first, then gesture fallback)
+/// - `setText` - Set text via semantic action (on Semantics widgets)
+/// - `typeText` - Type text via keyboard simulation (on TextField widgets)
+/// - `scroll` - Scroll element (auto: semantic first, then gesture fallback)
 /// - `focus` - Focus element
 /// - `pressKey` - Press keyboard key
 /// - `clear` - Clear text field
 /// - `doubleTap` - Double tap element
-/// - `longPress` - Long press element
+/// - `longPress` - Long press (auto: semantic first, then gesture fallback)
 /// - `waitFor` - Wait for element with matching label to appear
 ///
 /// ## Snapshot Structure
@@ -27,7 +27,7 @@
 ///   • w10: TextField (bounds)
 /// ```
 ///
-/// - Use `fill w9 "text"` for semantic setText
+/// - Use `setText w9 "text"` for semantic setText
 /// - Use `typeText w10 "text"` for keyboard simulation
 ///
 /// ## Usage with Cursor
@@ -75,7 +75,7 @@ base mixin FlutterMateSupport on ToolsSupport {
     registerTool(_connectTool, _handleConnect);
     registerTool(_snapshotTool, _handleSnapshot);
     registerTool(_tapTool, _handleTap);
-    registerTool(_fillTool, _handleFill);
+    registerTool(_setTextTool, _handleSetText);
     registerTool(_scrollTool, _handleScroll);
     registerTool(_focusTool, _handleFocus);
     registerTool(_pressKeyTool, _handlePressKey);
@@ -166,7 +166,8 @@ for subsequent interactions. Each element includes:
 
   static final _tapTool = Tool(
     name: 'tap',
-    description: 'Tap on an element by ref. Use snapshot first to get refs.',
+    description: 'Tap on an element by ref. '
+        'Automatically tries semantic action first, falls back to gesture.',
     inputSchema: Schema.object(
       properties: {
         'ref': Schema.string(
@@ -177,13 +178,14 @@ for subsequent interactions. Each element includes:
     ),
   );
 
-  static final _fillTool = Tool(
-    name: 'fill',
-    description: 'Fill a text field with text. Replaces existing content.',
+  static final _setTextTool = Tool(
+    name: 'setText',
+    description: 'Set text on a field using semantic action. '
+        'Use on Semantics widgets (e.g., w9). For keyboard simulation, use typeText.',
     inputSchema: Schema.object(
       properties: {
-        'ref': Schema.string(description: 'Text field ref.'),
-        'text': Schema.string(description: 'Text to enter.'),
+        'ref': Schema.string(description: 'Semantics widget ref.'),
+        'text': Schema.string(description: 'Text to set.'),
       },
       required: ['ref', 'text'],
     ),
@@ -191,7 +193,8 @@ for subsequent interactions. Each element includes:
 
   static final _scrollTool = Tool(
     name: 'scroll',
-    description: 'Scroll a scrollable element.',
+    description: 'Scroll a scrollable element. '
+        'Tries semantic action first, falls back to gesture.',
     inputSchema: Schema.object(
       properties: {
         'ref': Schema.string(description: 'Scrollable element ref.'),
@@ -266,7 +269,8 @@ arrowUp, arrowDown, arrowLeft, arrowRight''',
 
   static final _longPressTool = Tool(
     name: 'longPress',
-    description: 'Long press on an element.',
+    description: 'Long press on an element. '
+        'Tries semantic action first, falls back to gesture.',
     inputSchema: Schema.object(
       properties: {
         'ref': Schema.string(description: 'Element ref.'),
@@ -427,18 +431,18 @@ Returns the ref of the found element.''',
     return _simpleResult(result, 'tap');
   }
 
-  Future<CallToolResult> _handleFill(CallToolRequest request) async {
+  Future<CallToolResult> _handleSetText(CallToolRequest request) async {
     final ref = request.arguments?['ref'] as String?;
     final text = request.arguments?['text'] as String?;
     if (ref == null) return _missingArg('ref');
     if (text == null) return _missingArg('text');
 
     final result = await _callExtension(
-      'ext.flutter_mate.fill',
+      'ext.flutter_mate.setText',
       args: {'ref': ref, 'text': text},
     );
 
-    return _simpleResult(result, 'fill');
+    return _simpleResult(result, 'setText');
   }
 
   Future<CallToolResult> _handleScroll(CallToolRequest request) async {

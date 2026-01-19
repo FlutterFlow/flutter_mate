@@ -15,9 +15,7 @@
 /// - `clear` - Clear text field
 /// - `doubleTap` - Double tap element
 /// - `longPress` - Long press element
-/// - `toggle` - Toggle switch/checkbox
-/// - `select` - Select dropdown option
-/// - `wait` - Wait for duration
+/// - `waitFor` - Wait for element with matching label to appear
 ///
 /// ## Usage with Cursor
 ///
@@ -73,9 +71,7 @@ base mixin FlutterMateSupport on ToolsSupport {
     registerTool(_clearTool, _handleClear);
     registerTool(_doubleTapTool, _handleDoubleTap);
     registerTool(_longPressTool, _handleLongPress);
-    registerTool(_toggleTool, _handleToggle);
-    registerTool(_selectTool, _handleSelect);
-    registerTool(_waitTool, _handleWait);
+    registerTool(_waitForTool, _handleWaitFor);
 
     return result;
   }
@@ -272,37 +268,25 @@ arrowUp, arrowDown, arrowLeft, arrowRight''',
     ),
   );
 
-  static final _toggleTool = Tool(
-    name: 'toggle',
-    description: 'Toggle a switch or checkbox.',
-    inputSchema: Schema.object(
-      properties: {
-        'ref': Schema.string(description: 'Element ref.'),
-      },
-      required: ['ref'],
-    ),
-  );
+  static final _waitForTool = Tool(
+    name: 'waitFor',
+    description: '''Wait for an element with matching label to appear.
 
-  static final _selectTool = Tool(
-    name: 'select',
-    description: 'Select an option from a dropdown menu.',
-    inputSchema: Schema.object(
-      properties: {
-        'ref': Schema.string(description: 'Dropdown ref.'),
-        'value': Schema.string(description: 'Value/label to select.'),
-      },
-      required: ['ref', 'value'],
-    ),
-  );
+Polls the UI until an element with a label or value matching the pattern
+is found, or timeout is reached. Useful for waiting after navigation
+or async operations.
 
-  static final _waitTool = Tool(
-    name: 'wait',
-    description: 'Wait for a duration in milliseconds.',
+Returns the ref of the found element.''',
     inputSchema: Schema.object(
       properties: {
-        'milliseconds': Schema.int(description: 'Wait duration.'),
+        'labelPattern': Schema.string(
+          description: 'Regex pattern to match against element labels/values.',
+        ),
+        'timeout': Schema.int(
+          description: 'Timeout in milliseconds (default: 5000).',
+        ),
       },
-      required: ['milliseconds'],
+      required: ['labelPattern'],
     ),
   );
 
@@ -525,47 +509,41 @@ arrowUp, arrowDown, arrowLeft, arrowRight''',
     return _simpleResult(result, 'longPress');
   }
 
-  Future<CallToolResult> _handleToggle(CallToolRequest request) async {
-    final ref = request.arguments?['ref'] as String?;
-    if (ref == null) return _missingArg('ref');
+  Future<CallToolResult> _handleWaitFor(CallToolRequest request) async {
+    final labelPattern = request.arguments?['labelPattern'] as String?;
+    if (labelPattern == null) return _missingArg('labelPattern');
 
-    // Toggle is just a tap
-    final result = await _callExtension(
-      'ext.flutter_mate.tap',
-      args: {'ref': ref},
+    final timeoutMs = (request.arguments?['timeout'] as int?) ?? 5000;
+
+    if (!await _ensureConnected()) {
+      return CallToolResult(
+        content: [
+          TextContent(
+            text: 'Not connected. Set FLUTTER_MATE_URI or use connect tool.',
+          ),
+        ],
+        isError: true,
+      );
+    }
+
+    final result = await _client!.waitFor(
+      labelPattern,
+      timeout: Duration(milliseconds: timeoutMs),
     );
 
-    return _simpleResult(result, 'toggle');
-  }
-
-  Future<CallToolResult> _handleSelect(CallToolRequest request) async {
-    final ref = request.arguments?['ref'] as String?;
-    final value = request.arguments?['value'] as String?;
-    if (ref == null) return _missingArg('ref');
-    if (value == null) return _missingArg('value');
-
-    // Open dropdown
-    await _callExtension('ext.flutter_mate.tap', args: {'ref': ref});
-    await Future.delayed(const Duration(milliseconds: 200));
-
-    // Find and tap the option (simplified - would need snapshot + find)
-    return CallToolResult(
-      content: [
-        TextContent(
-          text: 'Select opened dropdown. Use snapshot to find and tap option.',
-        ),
-      ],
-    );
-  }
-
-  Future<CallToolResult> _handleWait(CallToolRequest request) async {
-    final ms = request.arguments?['milliseconds'] as int?;
-    if (ms == null) return _missingArg('milliseconds');
-
-    await Future.delayed(Duration(milliseconds: ms));
+    if (result['success'] == true) {
+      final ref = result['ref'];
+      final label = result['label'] ?? result['value'];
+      return CallToolResult(
+        content: [
+          TextContent(text: 'Found element: $ref (matched: "$label")'),
+        ],
+      );
+    }
 
     return CallToolResult(
-      content: [TextContent(text: 'Waited ${ms}ms')],
+      content: [TextContent(text: result['error'] ?? 'Element not found')],
+      isError: true,
     );
   }
 

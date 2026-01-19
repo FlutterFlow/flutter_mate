@@ -524,6 +524,48 @@ class VmServiceClient {
     }
   }
 
+  /// Wait for an element with matching label to appear
+  ///
+  /// Polls the semantics tree until an element with a label matching
+  /// the pattern is found, or timeout is reached.
+  ///
+  /// Returns the ref if found, null if timeout.
+  Future<Map<String, dynamic>> waitFor(
+    String labelPattern, {
+    Duration timeout = const Duration(seconds: 5),
+    Duration pollInterval = const Duration(milliseconds: 200),
+  }) async {
+    _ensureConnected();
+
+    final pattern = RegExp(labelPattern, caseSensitive: false);
+    final deadline = DateTime.now().add(timeout);
+
+    while (DateTime.now().isBefore(deadline)) {
+      // Refresh semantics cache
+      await _refreshSemantics();
+
+      // Search for matching node
+      for (final node in _cachedSemanticsNodes ?? []) {
+        final label = node['label'] as String?;
+        final value = node['value'] as String?;
+
+        if (label != null && pattern.hasMatch(label)) {
+          return {'success': true, 'ref': node['ref'], 'label': label};
+        }
+        if (value != null && pattern.hasMatch(value)) {
+          return {'success': true, 'ref': node['ref'], 'value': value};
+        }
+      }
+
+      await Future.delayed(pollInterval);
+    }
+
+    return {
+      'success': false,
+      'error': 'Timeout waiting for element matching: $labelPattern'
+    };
+  }
+
   // ══════════════════════════════════════════════════════════════════════════
   // HELPERS
   // ══════════════════════════════════════════════════════════════════════════

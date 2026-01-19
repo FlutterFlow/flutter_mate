@@ -32,7 +32,7 @@
 /// - `fill`, `typeText`, `clear` - Text input
 /// - `scroll`, `focus` - Navigation
 /// - `pressKey` - Keyboard input
-/// - `toggle`, `select`, `wait` - Other actions
+/// - `waitFor` - Wait for element to appear
 library;
 
 import 'dart:io' as io;

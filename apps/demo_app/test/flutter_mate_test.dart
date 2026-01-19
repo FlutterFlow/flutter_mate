@@ -210,7 +210,8 @@ void main() {
   });
 
   group('FlutterMate Combined Usage', () {
-    testWidgets('use FlutterMate find + standard tester actions', (tester) async {
+    testWidgets('use FlutterMate find + standard tester actions',
+        (tester) async {
       final semanticsHandle = tester.ensureSemantics();
       FlutterMate.initializeForTest();
 

@@ -94,18 +94,12 @@ class SnapshotService {
               // Extract text content from the widget itself
               textContent = _extractWidgetContent(obj.widget);
 
-              // Only walk subtree for LEAF nodes (no children in summary tree)
-              // This handles wrappers like AutoSizeText whose children aren't shown
-              // But avoids propagating content UP for widgets with visible children
-              if (childrenJson.isEmpty) {
-                // Collect ALL text from subtree (includes error messages, etc.)
+              // If no direct text, collect ALL text from element subtree
+              // This is general - works for any widget (form fields, cards, etc.)
+              // Similar to how we traverse for semantics
+              if (textContent == null) {
                 final allTexts = _collectAllTextInSubtree(obj);
                 if (allTexts.isNotEmpty) {
-                  // If we already have direct content, prepend it
-                  if (textContent != null && !allTexts.contains(textContent)) {
-                    allTexts.insert(0, textContent);
-                  }
-                  // Join all texts with separator
                   textContent = allTexts.join(' | ');
                 }
               }
@@ -307,7 +301,6 @@ class SnapshotService {
     element.visitChildren(visit);
     return texts;
   }
-
 
   /// Extract semantics info from a SemanticsNode
   /// Includes all fields from SemanticsData for completeness.

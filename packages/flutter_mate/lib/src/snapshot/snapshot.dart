@@ -298,26 +298,55 @@ class SnapshotService {
   }
 
   /// Extract semantics info from a SemanticsNode
+  /// Includes all fields from SemanticsData for completeness.
   static SemanticsInfo _extractSemanticsInfo(SemanticsNode node) {
     final data = node.getSemanticsData();
 
+    // Extract text selection if present
+    int? textSelectionBase;
+    int? textSelectionExtent;
+    if (data.textSelection != null) {
+      textSelectionBase = data.textSelection!.baseOffset;
+      textSelectionExtent = data.textSelection!.extentOffset;
+    }
+
     return SemanticsInfo(
       id: node.id,
+      identifier: data.identifier.isNotEmpty ? data.identifier : null,
       label: data.label.isNotEmpty ? data.label : null,
       value: data.value.isNotEmpty ? data.value : null,
       hint: data.hint.isNotEmpty ? data.hint : null,
+      tooltip: data.tooltip.isNotEmpty ? data.tooltip : null,
       increasedValue:
           data.increasedValue.isNotEmpty ? data.increasedValue : null,
       decreasedValue:
           data.decreasedValue.isNotEmpty ? data.decreasedValue : null,
       flags: getFlagsFromData(data).toSet(),
       actions: getActionsFromData(data).toSet(),
+      // Text direction
+      textDirection: data.textDirection?.name,
+      // Text selection
+      textSelectionBase: textSelectionBase,
+      textSelectionExtent: textSelectionExtent,
+      // Value length (for text fields)
+      maxValueLength: data.maxValueLength,
+      currentValueLength: data.currentValueLength,
       // Scroll properties
       scrollChildCount: data.scrollChildCount,
       scrollIndex: data.scrollIndex,
       scrollPosition: data.scrollPosition,
       scrollExtentMax: data.scrollExtentMax,
       scrollExtentMin: data.scrollExtentMin,
+      // Additional properties
+      headingLevel: data.headingLevel > 0 ? data.headingLevel : null,
+      linkUrl: data.linkUrl?.toString(),
+      role: data.role.name != 'none' ? data.role.name : null,
+      inputType: data.inputType.name != 'none' ? data.inputType.name : null,
+      validationResult: data.validationResult.name != 'none'
+          ? data.validationResult.name
+          : null,
+      platformViewId: data.platformViewId != -1 ? data.platformViewId : null,
+      controlsNodes: data.controlsNodes,
     );
   }
 }

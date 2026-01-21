@@ -273,9 +273,13 @@ class CombinedNode {
 }
 
 /// Semantics information extracted from a SemanticsNode
+/// Includes all fields from Flutter's SemanticsData class.
 class SemanticsInfo {
   /// Semantics node ID
   final int id;
+
+  /// Unique identifier for this semantics node
+  final String? identifier;
 
   /// Accessibility label (e.g., 'Email', 'Submit button')
   final String? label;
@@ -285,6 +289,9 @@ class SemanticsInfo {
 
   /// Accessibility hint (e.g., 'Double tap to activate')
   final String? hint;
+
+  /// Tooltip text
+  final String? tooltip;
 
   /// For sliders: the value after increasing
   final String? increasedValue;
@@ -297,6 +304,25 @@ class SemanticsInfo {
 
   /// Available actions (e.g., 'tap', 'focus', 'setText')
   final Set<String> actions;
+
+  /// Text direction (ltr, rtl)
+  final String? textDirection;
+
+  // ── Text selection ──
+
+  /// Start of text selection
+  final int? textSelectionBase;
+
+  /// End of text selection
+  final int? textSelectionExtent;
+
+  // ── Value length (for text fields) ──
+
+  /// Maximum allowed value length
+  final int? maxValueLength;
+
+  /// Current value length
+  final int? currentValueLength;
 
   // ── Scroll properties ──
 
@@ -315,20 +341,57 @@ class SemanticsInfo {
   /// Minimum scroll extent (usually 0)
   final double? scrollExtentMin;
 
+  // ── Additional properties ──
+
+  /// Heading level (1-6, 0 if not a heading)
+  final int? headingLevel;
+
+  /// Link URL if this is a link
+  final String? linkUrl;
+
+  /// Semantic role (e.g., 'button', 'textField', 'slider')
+  final String? role;
+
+  /// Input type for text fields (e.g., 'text', 'number', 'email')
+  final String? inputType;
+
+  /// Validation result for form fields (none, valid, invalid)
+  final String? validationResult;
+
+  /// Platform view ID if this is a platform view
+  final int? platformViewId;
+
+  /// IDs of nodes this node controls
+  final Set<String>? controlsNodes;
+
   SemanticsInfo({
     required this.id,
+    this.identifier,
     this.label,
     this.value,
     this.hint,
+    this.tooltip,
     this.increasedValue,
     this.decreasedValue,
     required this.flags,
     required this.actions,
+    this.textDirection,
+    this.textSelectionBase,
+    this.textSelectionExtent,
+    this.maxValueLength,
+    this.currentValueLength,
     this.scrollChildCount,
     this.scrollIndex,
     this.scrollPosition,
     this.scrollExtentMax,
     this.scrollExtentMin,
+    this.headingLevel,
+    this.linkUrl,
+    this.role,
+    this.inputType,
+    this.validationResult,
+    this.platformViewId,
+    this.controlsNodes,
   });
 
   /// Check if this has a specific action
@@ -344,21 +407,46 @@ class SemanticsInfo {
       actions.contains('scrollLeft') ||
       actions.contains('scrollRight');
 
+  /// Check if this is a form field with validation error
+  bool get hasValidationError => validationResult == 'invalid';
+
+  /// Check if this is a form field that passed validation
+  bool get isValid => validationResult == 'valid';
+
   Map<String, dynamic> toJson() => {
         'id': id,
+        if (identifier != null) 'identifier': identifier,
         if (label != null) 'label': label,
         if (value != null && value!.isNotEmpty) 'value': value,
         if (hint != null) 'hint': hint,
+        if (tooltip != null) 'tooltip': tooltip,
         if (increasedValue != null) 'increasedValue': increasedValue,
         if (decreasedValue != null) 'decreasedValue': decreasedValue,
         'flags': flags.toList(),
         'actions': actions.toList(),
+        if (textDirection != null) 'textDirection': textDirection,
+        if (textSelectionBase != null) 'textSelectionBase': textSelectionBase,
+        if (textSelectionExtent != null)
+          'textSelectionExtent': textSelectionExtent,
+        if (maxValueLength != null) 'maxValueLength': maxValueLength,
+        if (currentValueLength != null)
+          'currentValueLength': currentValueLength,
         if (scrollChildCount != null) 'scrollChildCount': scrollChildCount,
         if (scrollIndex != null) 'scrollIndex': scrollIndex,
         if (scrollPosition != null) 'scrollPosition': scrollPosition,
         if (scrollExtentMax != null && scrollExtentMax!.isFinite)
           'scrollExtentMax': scrollExtentMax,
         if (scrollExtentMin != null) 'scrollExtentMin': scrollExtentMin,
+        if (headingLevel != null && headingLevel! > 0)
+          'headingLevel': headingLevel,
+        if (linkUrl != null) 'linkUrl': linkUrl,
+        if (role != null && role != 'none') 'role': role,
+        if (inputType != null && inputType != 'none') 'inputType': inputType,
+        if (validationResult != null && validationResult != 'none')
+          'validationResult': validationResult,
+        if (platformViewId != null) 'platformViewId': platformViewId,
+        if (controlsNodes != null && controlsNodes!.isNotEmpty)
+          'controlsNodes': controlsNodes!.toList(),
       };
 }
 

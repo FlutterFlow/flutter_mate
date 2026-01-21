@@ -198,6 +198,16 @@ class SnapshotService {
         return refA.compareTo(refB);
       });
 
+      // Normalize text for comparison: collapse whitespace, remove special chars
+      String normalizeText(String s) {
+        return s
+            .toLowerCase()
+            .replaceAll(RegExp(r'[\s\n\r\t]+'), ' ') // Collapse whitespace
+            .replaceAll(RegExp(r'[\ufffc\ufffd]'), '') // Remove replacement chars
+            .replaceAll(RegExp(r'[^\x20-\x7E]'), '') // Remove non-printable
+            .trim();
+      }
+
       // Deduplicate text: process in REVERSE order so children claim text first
       // Then filter parent text to exclude text claimed by descendants
       for (var i = nodes.length - 1; i >= 0; i--) {
@@ -205,11 +215,13 @@ class SnapshotService {
         if (node.textContent != null && node.textContent!.isNotEmpty) {
           // Split the text content back into individual texts
           final texts = node.textContent!.split(' | ');
-          // Filter out texts already claimed by children
-          final newTexts =
-              texts.where((t) => !usedTextContent.contains(t)).toList();
-          // Claim these texts
-          usedTextContent.addAll(newTexts);
+          // Filter out texts already claimed by children (using normalized keys)
+          final newTexts = texts.where((t) {
+            final key = normalizeText(t);
+            return key.isNotEmpty && !usedTextContent.contains(key);
+          }).toList();
+          // Claim these texts (using normalized keys)
+          usedTextContent.addAll(newTexts.map(normalizeText));
           // Update node with filtered text (need to recreate since immutable)
           if (newTexts.isEmpty) {
             nodes[i] = CombinedNode(

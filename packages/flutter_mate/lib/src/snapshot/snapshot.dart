@@ -94,10 +94,11 @@ class SnapshotService {
               // Extract text content from the widget itself
               textContent = _extractWidgetContent(obj.widget);
 
-              // If no direct text, collect ALL text from element subtree
-              // This is general - works for any widget (form fields, cards, etc.)
-              // Similar to how we traverse for semantics
-              if (textContent == null) {
+              // If no direct text AND no visible children in summary tree,
+              // collect ALL text from element subtree.
+              // This captures hidden text (error messages, internal Text widgets)
+              // without bubbling up text that's already shown by child nodes.
+              if (textContent == null && childrenJson.isEmpty) {
                 final allTexts = _collectAllTextInSubtree(obj);
                 if (allTexts.isNotEmpty) {
                   textContent = allTexts.join(' | ');
@@ -233,13 +234,18 @@ class SnapshotService {
   static String? _extractWidgetContent(Widget widget) {
     try {
       final str = widget.toString();
+      final typeName = widget.runtimeType.toString();
 
-      // Only extract content in quotes: Text("Hello") → "Hello"
-      // This avoids extracting property values like "alignment: ..."
+      // Only extract from actual text display widgets
+      // This prevents extracting widget names like "EditableText" or "Semantics"
+      if (!typeName.contains('Text') && !typeName.contains('RichText')) {
+        return null;
+      }
+
+      // Extract content in quotes: Text("Hello") → "Hello"
       final quoteMatch = RegExp(r'"([^"]*)"').firstMatch(str);
       if (quoteMatch != null) {
         final content = quoteMatch.group(1)?.trim();
-        // Return null for empty content
         if (content != null && content.isNotEmpty) {
           return content;
         }

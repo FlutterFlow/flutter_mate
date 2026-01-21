@@ -402,13 +402,13 @@ Returns the ref of the found element.''',
       final allTexts = <String>[];
       final seenTexts = <String>{}; // Track by trimmed lowercase for dedup
 
-      // Normalize text for comparison: collapse whitespace, remove special chars
+      // Normalize text for comparison: remove special chars FIRST, then collapse whitespace
       String normalizeForKey(String s) {
         return s
             .toLowerCase()
-            .replaceAll(RegExp(r'[\s\n\r\t]+'), ' ') // Collapse whitespace
-            .replaceAll(RegExp(r'[\ufffc\ufffd]'), '') // Remove replacement chars
+            .replaceAll(RegExp(r'[\ufffc\ufffd]'), '') // Remove replacement chars FIRST
             .replaceAll(RegExp(r'[^\x20-\x7E]'), '') // Remove non-printable
+            .replaceAll(RegExp(r'\s+'), ' ') // THEN collapse whitespace
             .trim();
       }
 

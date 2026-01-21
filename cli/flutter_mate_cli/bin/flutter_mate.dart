@@ -480,30 +480,41 @@ void _printSnapshot(Map<String, dynamic> data) {
     // Build info parts
     final parts = <String>[];
 
-    // Add text content (skip empty strings and icon glyphs)
-    if (textContent != null && textContent.trim().isNotEmpty) {
+    // Collect all text from textContent and semantics label, deduplicate
+    final allTexts = <String>[];
+    final seenTexts = <String>{}; // Track by trimmed lowercase for dedup
+
+    void addText(String? text) {
+      if (text == null || text.trim().isEmpty) return;
       // Skip single-character icon glyphs (Private Use Area)
-      final isIconGlyph =
-          textContent.length == 1 && textContent.codeUnitAt(0) >= 0xE000;
-      if (!isIconGlyph) {
-        parts.add('"$textContent"');
+      if (text.length == 1 && text.codeUnitAt(0) >= 0xE000) return;
+      final key = text.trim().toLowerCase();
+      if (!seenTexts.contains(key)) {
+        seenTexts.add(key);
+        allTexts.add(text.trim());
       }
     }
 
-    // Add semantic label if different from text content (ignore whitespace)
+    // Add textContent parts (split by |)
+    if (textContent != null) {
+      for (final t in textContent.split(' | ')) {
+        addText(t);
+      }
+    }
+
+    // Add semantics label
     final label = semantics?['label'] as String?;
-    if (label != null &&
-        label.isNotEmpty &&
-        label.trim() != textContent?.trim()) {
-      parts.add('"$label"');
+    addText(label);
+
+    if (allTexts.isNotEmpty) {
+      parts.add('"${allTexts.join(', ')}"');
     }
 
     // Add semantic value (e.g., current text in a text field)
     final value = semantics?['value'] as String?;
     if (value != null &&
         value.isNotEmpty &&
-        value.trim() != textContent?.trim() &&
-        value.trim() != label?.trim()) {
+        !seenTexts.contains(value.trim().toLowerCase())) {
       parts.add('= "$value"');
     }
 

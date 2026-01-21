@@ -49,7 +49,11 @@ library;
 import 'dart:convert';
 import 'dart:ui' show Offset;
 
-import 'flutter_mate.dart';
+import 'core/service_extensions.dart';
+import 'snapshot/snapshot.dart';
+import 'actions/semantic_actions.dart';
+import 'actions/gesture_actions.dart';
+import 'actions/keyboard_actions.dart';
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ACTION TYPES
@@ -511,7 +515,7 @@ class ActionExecutor {
 
   static Future<ActionResult> _executeSnapshot(
       Map<String, dynamic> command) async {
-    final snapshot = await FlutterMate.snapshot();
+    final snapshot = await SnapshotService.snapshot();
 
     if (!snapshot.success) {
       return ActionResult.fail(snapshot.error ?? 'Snapshot failed');
@@ -529,7 +533,7 @@ class ActionExecutor {
       return ActionResult.fail('Missing required field: ref');
     }
 
-    final success = await FlutterMate.tap(ref);
+    final success = await SemanticActions.tap(ref);
     if (success) {
       return ActionResult.ok();
     } else {
@@ -546,7 +550,7 @@ class ActionExecutor {
       return ActionResult.fail('Missing required fields: x, y');
     }
 
-    await FlutterMate.tapAt(Offset(x, y));
+    await GestureActions.tapAt(Offset(x, y));
     return ActionResult.ok();
   }
 
@@ -562,7 +566,7 @@ class ActionExecutor {
       return ActionResult.fail('Missing required field: text');
     }
 
-    final success = await FlutterMate.setText(ref, text);
+    final success = await SemanticActions.setText(ref, text);
     if (success) {
       return ActionResult.ok();
     } else {
@@ -576,13 +580,13 @@ class ActionExecutor {
     // First focus the element if ref is provided
     final ref = command['ref'] as String?;
     if (ref != null) {
-      final focused = await FlutterMate.focus(ref);
+      final focused = await SemanticActions.focus(ref);
       if (!focused) {
         return ActionResult.fail('Failed to focus element: $ref');
       }
     }
 
-    final success = await FlutterMate.clearText();
+    final success = await KeyboardActions.clearText();
     if (success) {
       return ActionResult.ok();
     } else {
@@ -617,7 +621,7 @@ class ActionExecutor {
           'Invalid direction: $directionStr. Must be up, down, left, or right.');
     }
 
-    final success = await FlutterMate.scroll(ref, direction);
+    final success = await SemanticActions.scroll(ref, direction);
     if (success) {
       return ActionResult.ok();
     } else {
@@ -632,7 +636,7 @@ class ActionExecutor {
       return ActionResult.fail('Missing required field: ref');
     }
 
-    final success = await FlutterMate.focus(ref);
+    final success = await SemanticActions.focus(ref);
     if (success) {
       return ActionResult.ok();
     } else {
@@ -651,7 +655,7 @@ class ActionExecutor {
       return ActionResult.fail('Missing required field: text');
     }
 
-    final success = await FlutterMate.typeText(ref, text);
+    final success = await KeyboardActions.typeText(ref, text);
     if (!success) {
       return ActionResult.fail('Failed to type text into $ref');
     }
@@ -668,21 +672,21 @@ class ActionExecutor {
     // Map common key names to SDK methods
     switch (key.toLowerCase()) {
       case 'enter':
-        await FlutterMate.pressEnter();
+        await KeyboardActions.pressEnter();
       case 'tab':
-        await FlutterMate.pressTab();
+        await KeyboardActions.pressTab();
       case 'escape':
-        await FlutterMate.pressEscape();
+        await KeyboardActions.pressEscape();
       case 'backspace':
-        await FlutterMate.pressBackspace();
+        await KeyboardActions.pressBackspace();
       case 'arrowup':
-        await FlutterMate.pressArrowUp();
+        await KeyboardActions.pressArrowUp();
       case 'arrowdown':
-        await FlutterMate.pressArrowDown();
+        await KeyboardActions.pressArrowDown();
       case 'arrowleft':
-        await FlutterMate.pressArrowLeft();
+        await KeyboardActions.pressArrowLeft();
       case 'arrowright':
-        await FlutterMate.pressArrowRight();
+        await KeyboardActions.pressArrowRight();
       default:
         return ActionResult.fail('Unknown key: $key');
     }

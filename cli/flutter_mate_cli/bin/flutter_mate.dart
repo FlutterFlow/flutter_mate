@@ -299,7 +299,7 @@ Future<void> _debugTrees(VmServiceClient client, bool jsonOutput) async {
     }
 
     // Print inspector tree
-    print('\n' + '=' * 60);
+    print('\n${'=' * 60}');
     print('📱 INSPECTOR TREE (DevTools structure)');
     print('=' * 60);
 
@@ -313,8 +313,9 @@ Future<void> _debugTrees(VmServiceClient client, bool jsonOutput) async {
 
         print('$indent• $description');
         if (valueId != null) print('$indent  valueId: $valueId');
-        if (widgetRuntimeType != null)
+        if (widgetRuntimeType != null) {
           print('$indent  widgetRuntimeType: $widgetRuntimeType');
+        }
 
         final children = node['children'] as List<dynamic>? ?? [];
         for (final child in children) {
@@ -328,7 +329,7 @@ Future<void> _debugTrees(VmServiceClient client, bool jsonOutput) async {
     }
 
     // Print semantics tree
-    print('\n' + '=' * 60);
+    print('\n${'=' * 60}');
     print('🔤 SEMANTICS TREE (Interactive elements)');
     print('=' * 60);
 
@@ -357,7 +358,7 @@ Future<void> _debugTrees(VmServiceClient client, bool jsonOutput) async {
       if (flagsStr.isNotEmpty) print('$indent  flags: $flagsStr');
     }
 
-    print('\n' + '-' * 60);
+    print('\n${'-' * 60}');
     print(
         'Inspector nodes: ${_countInspectorNodes(inspectorTree)}, Semantics nodes: ${semanticsNodes.length}');
   } catch (e, stack) {

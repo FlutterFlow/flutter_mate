@@ -22,7 +22,12 @@ import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart' hide ScrollDirection;
 import 'package:flutter/widgets.dart';
 
-import 'flutter_mate.dart';
+import 'core/service_extensions.dart';
+import 'snapshot/snapshot.dart';
+import 'actions/semantic_actions.dart';
+import 'actions/gesture_actions.dart';
+import 'actions/keyboard_actions.dart';
+import 'actions/helpers.dart';
 import 'protocol.dart';
 
 /// Executes [Command] objects via the FlutterMate SDK.
@@ -101,7 +106,7 @@ class CommandExecutor {
   // ════════════════════════════════════════════════════════════════════════════
 
   static Future<CommandResponse> _executeSnapshot(SnapshotCommand cmd) async {
-    final snapshot = await FlutterMate.snapshot();
+    final snapshot = await SnapshotService.snapshot();
 
     if (!snapshot.success) {
       return CommandResponse.fail(cmd.id, snapshot.error ?? 'Snapshot failed');
@@ -137,7 +142,7 @@ class CommandExecutor {
   }
 
   static Future<CommandResponse> _executeTap(TapCommand cmd) async {
-    final success = await FlutterMate.tap(cmd.ref);
+    final success = await SemanticActions.tap(cmd.ref);
     if (success) {
       return CommandResponse.ok(cmd.id);
     }
@@ -145,19 +150,19 @@ class CommandExecutor {
   }
 
   static Future<CommandResponse> _executeTapAt(TapAtCommand cmd) async {
-    await FlutterMate.tapAt(ui.Offset(cmd.x, cmd.y));
+    await GestureActions.tapAt(ui.Offset(cmd.x, cmd.y));
     return CommandResponse.ok(cmd.id);
   }
 
   static Future<CommandResponse> _executeDoubleTap(DoubleTapCommand cmd) async {
     // Double tap: tap twice quickly
-    final success1 = await FlutterMate.tap(cmd.ref);
+    final success1 = await SemanticActions.tap(cmd.ref);
     if (!success1) {
       return CommandResponse.fail(
           cmd.id, 'Failed to double tap element: ${cmd.ref}');
     }
     await Future.delayed(const Duration(milliseconds: 50));
-    final success2 = await FlutterMate.tap(cmd.ref);
+    final success2 = await SemanticActions.tap(cmd.ref);
     if (!success2) {
       return CommandResponse.fail(
           cmd.id, 'Failed to complete double tap: ${cmd.ref}');
@@ -166,7 +171,7 @@ class CommandExecutor {
   }
 
   static Future<CommandResponse> _executeLongPress(LongPressCommand cmd) async {
-    final success = await FlutterMate.longPress(cmd.ref);
+    final success = await SemanticActions.longPress(cmd.ref);
     if (success) {
       return CommandResponse.ok(cmd.id);
     }
@@ -175,7 +180,7 @@ class CommandExecutor {
   }
 
   static Future<CommandResponse> _executeSetText(SetTextCommand cmd) async {
-    final success = await FlutterMate.setText(cmd.ref, cmd.text);
+    final success = await SemanticActions.setText(cmd.ref, cmd.text);
     if (success) {
       return CommandResponse.ok(cmd.id);
     }
@@ -184,7 +189,7 @@ class CommandExecutor {
   }
 
   static Future<CommandResponse> _executeTypeText(TypeTextCommand cmd) async {
-    final success = await FlutterMate.typeText(cmd.ref, cmd.text);
+    final success = await KeyboardActions.typeText(cmd.ref, cmd.text);
     if (success) {
       return CommandResponse.ok(cmd.id);
     }
@@ -194,12 +199,12 @@ class CommandExecutor {
 
   static Future<CommandResponse> _executeClear(ClearCommand cmd) async {
     // Focus the element first, then clear
-    final focused = await FlutterMate.focus(cmd.ref);
+    final focused = await SemanticActions.focus(cmd.ref);
     if (!focused) {
       return CommandResponse.fail(
           cmd.id, 'Failed to focus element for clear: ${cmd.ref}');
     }
-    final success = await FlutterMate.clearText();
+    final success = await KeyboardActions.clearText();
     if (success) {
       return CommandResponse.ok(cmd.id);
     }
@@ -220,7 +225,7 @@ class CommandExecutor {
           cmd.id, 'Invalid direction: ${cmd.direction}');
     }
 
-    final success = await FlutterMate.scroll(cmd.ref, direction);
+    final success = await SemanticActions.scroll(cmd.ref, direction);
     if (success) {
       return CommandResponse.ok(cmd.id);
     }
@@ -256,7 +261,7 @@ class CommandExecutor {
     }
 
     // Perform drag gesture
-    await FlutterMate.drag(
+    await GestureActions.drag(
       from: ui.Offset(startX, startY),
       to: ui.Offset(endX, endY),
       duration: Duration(milliseconds: duration),
@@ -266,7 +271,7 @@ class CommandExecutor {
   }
 
   static Future<CommandResponse> _executeFocus(FocusCommand cmd) async {
-    final success = await FlutterMate.focus(cmd.ref);
+    final success = await SemanticActions.focus(cmd.ref);
     if (success) {
       return CommandResponse.ok(cmd.id);
     }
@@ -276,21 +281,21 @@ class CommandExecutor {
   static Future<CommandResponse> _executePressKey(PressKeyCommand cmd) async {
     switch (cmd.key.toLowerCase()) {
       case 'enter':
-        await FlutterMate.pressEnter();
+        await KeyboardActions.pressEnter();
       case 'tab':
-        await FlutterMate.pressTab();
+        await KeyboardActions.pressTab();
       case 'escape':
-        await FlutterMate.pressEscape();
+        await KeyboardActions.pressEscape();
       case 'backspace':
-        await FlutterMate.pressBackspace();
+        await KeyboardActions.pressBackspace();
       case 'arrowup':
-        await FlutterMate.pressArrowUp();
+        await KeyboardActions.pressArrowUp();
       case 'arrowdown':
-        await FlutterMate.pressArrowDown();
+        await KeyboardActions.pressArrowDown();
       case 'arrowleft':
-        await FlutterMate.pressArrowLeft();
+        await KeyboardActions.pressArrowLeft();
       case 'arrowright':
-        await FlutterMate.pressArrowRight();
+        await KeyboardActions.pressArrowRight();
       default:
         return CommandResponse.fail(cmd.id, 'Unknown key: ${cmd.key}');
     }
@@ -301,7 +306,7 @@ class CommandExecutor {
     // Toggle is just a tap on the switch/checkbox
     // If value is specified, we need to check current state first
     // For now, just tap
-    final success = await FlutterMate.tap(cmd.ref);
+    final success = await SemanticActions.tap(cmd.ref);
     if (success) {
       return CommandResponse.ok(cmd.id);
     }
@@ -311,7 +316,7 @@ class CommandExecutor {
   static Future<CommandResponse> _executeSelect(SelectCommand cmd) async {
     // Select: tap to open dropdown, then find and tap the option
     // Step 1: Tap the dropdown
-    final opened = await FlutterMate.tap(cmd.ref);
+    final opened = await SemanticActions.tap(cmd.ref);
     if (!opened) {
       return CommandResponse.fail(
           cmd.id, 'Failed to open dropdown: ${cmd.ref}');
@@ -321,13 +326,13 @@ class CommandExecutor {
     await Future.delayed(const Duration(milliseconds: 200));
 
     // Step 2: Find the option by value/label
-    final optionRef = await FlutterMate.waitFor(cmd.value);
+    final optionRef = await waitFor(cmd.value);
     if (optionRef == null) {
       return CommandResponse.fail(cmd.id, 'Option not found: ${cmd.value}');
     }
 
     // Step 3: Tap the option
-    final selected = await FlutterMate.tap(optionRef);
+    final selected = await SemanticActions.tap(optionRef);
     if (selected) {
       return CommandResponse.ok(cmd.id);
     }
@@ -348,7 +353,7 @@ class CommandExecutor {
       final startTime = DateTime.now();
 
       while (DateTime.now().difference(startTime) < timeout) {
-        final snapshot = await FlutterMate.snapshot();
+        final snapshot = await SnapshotService.snapshot();
         final node = snapshot.nodes.firstWhere(
           (n) => n.ref == cmd.forRef,
           orElse: () => snapshot.nodes.first,
@@ -379,13 +384,13 @@ class CommandExecutor {
   static Future<CommandResponse> _executeBack(BackCommand cmd) async {
     // Try to use the back action from semantics
     // Look for a back button or use navigation pop
-    final snapshot = await FlutterMate.snapshot();
+    final snapshot = await SnapshotService.snapshot();
 
     // Look for back button
     for (final node in snapshot.nodes) {
       final label = node.semantics?.label?.toLowerCase() ?? '';
       if (label.contains('back') || label.contains('pop')) {
-        final success = await FlutterMate.tap(node.ref);
+        final success = await SemanticActions.tap(node.ref);
         if (success) {
           return CommandResponse.ok(cmd.id);
         }
@@ -393,7 +398,7 @@ class CommandExecutor {
     }
 
     // Fallback: press escape or back key
-    await FlutterMate.pressEscape();
+    await KeyboardActions.pressEscape();
     return CommandResponse.ok(cmd.id);
   }
 
@@ -409,7 +414,7 @@ class CommandExecutor {
   }
 
   static Future<CommandResponse> _executeGetText(GetTextCommand cmd) async {
-    final snapshot = await FlutterMate.snapshot();
+    final snapshot = await SnapshotService.snapshot();
     final node = snapshot[cmd.ref];
 
     if (node == null) {
@@ -422,7 +427,7 @@ class CommandExecutor {
   }
 
   static Future<CommandResponse> _executeIsVisible(IsVisibleCommand cmd) async {
-    final snapshot = await FlutterMate.snapshot();
+    final snapshot = await SnapshotService.snapshot();
     final node = snapshot[cmd.ref];
 
     if (node == null) {

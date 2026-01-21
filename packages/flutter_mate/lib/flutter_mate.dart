@@ -44,11 +44,37 @@
 /// See the README for more examples and API documentation.
 library flutter_mate;
 
+// Facade (main public API)
+export 'src/flutter_mate.dart' show FlutterMate;
+export 'src/core/service_extensions.dart' show ScrollDirection;
+
+// Snapshot
+export 'src/snapshot/combined_snapshot.dart'
+    show CombinedSnapshot, CombinedNode, SemanticsInfo, CombinedRect;
+export 'src/snapshot/snapshot.dart' show SnapshotService;
+
+// Actions (also accessible via FlutterMate facade)
+export 'src/actions/semantic_actions.dart'
+    show
+        SemanticActions,
+        tapByLabel,
+        fillByLabel,
+        longPressByLabel,
+        focusByLabel;
+export 'src/actions/gesture_actions.dart' show GestureActions, doubleTapByLabel;
+export 'src/actions/keyboard_actions.dart' show KeyboardActions;
+export 'src/actions/helpers.dart'
+    show findByLabel, findAllByLabel, waitFor, findSemanticsNode;
+export 'src/core/semantics_utils.dart'
+    show
+        getActionsFromData,
+        getFlagsFromData,
+        getRootSemanticsNode,
+        searchSemanticsNodeById;
+
+// Protocol and tools
 export 'src/actions.dart' show MateAction, ActionExecutor, ActionResult;
 export 'src/command_executor.dart' show CommandExecutor;
-export 'src/combined_snapshot.dart'
-    show CombinedSnapshot, CombinedNode, SemanticsInfo, CombinedRect;
-export 'src/flutter_mate.dart' show FlutterMate, ScrollDirection;
 export 'src/protocol.dart'
     show Command, CommandAction, CommandResponse, ParseResult;
 export 'src/protocol.dart'

@@ -188,14 +188,16 @@ void main() {
   });
 
   group('TypeTextCommand', () {
-    test('parses with text only', () {
+    test('parses with ref and text', () {
       final result = Command.parse({
         'action': 'typeText',
+        'ref': 'w5',
         'text': 'Hello World',
       });
 
       expect(result.isValid, isTrue);
       final cmd = result.command as TypeTextCommand;
+      expect(cmd.ref, 'w5');
       expect(cmd.text, 'Hello World');
       expect(cmd.delayMs, isNull);
     });
@@ -203,12 +205,14 @@ void main() {
     test('parses with delay', () {
       final result = Command.parse({
         'action': 'typeText',
+        'ref': 'w5',
         'text': 'Slow typing',
         'delayMs': 100,
       });
 
       expect(result.isValid, isTrue);
       final cmd = result.command as TypeTextCommand;
+      expect(cmd.ref, 'w5');
       expect(cmd.delayMs, 100);
     });
   });

@@ -106,6 +106,12 @@ class CombinedSnapshot {
         // Don't collapse into Semantics widgets
         if (child.widget == 'Semantics') break;
 
+        // Always collapse layout wrappers (regardless of bounds)
+        if (CollapsedNode._layoutWrappers.contains(current.widget)) {
+          current = child;
+          continue;
+        }
+
         // Check bounds - collapse if same bounds
         if (current.bounds != null &&
             child.bounds != null &&
@@ -397,6 +403,52 @@ class CombinedRect {
 
 /// A collapsed node representing a chain of widgets with same bounds
 class CollapsedNode {
+  /// Layout wrapper widgets to hide from display (purely structural)
+  static const _layoutWrappers = {
+    // Spacing/sizing
+    'Padding',
+    'SizedBox',
+    'ConstrainedBox',
+    'LimitedBox',
+    'OverflowBox',
+    'FractionallySizedBox',
+    'IntrinsicHeight',
+    'IntrinsicWidth',
+    // Alignment
+    'Center',
+    'Align',
+    // Flex children
+    'Expanded',
+    'Flexible',
+    'Positioned',
+    'Spacer',
+    // Decoration/styling
+    'Container',
+    'DecoratedBox',
+    'ColoredBox',
+    // Transforms
+    'Transform',
+    'RotatedBox',
+    'FittedBox',
+    'AspectRatio',
+    // Clipping
+    'ClipRect',
+    'ClipRRect',
+    'ClipOval',
+    'ClipPath',
+    // Other structural
+    'Opacity',
+    'Offstage',
+    'Visibility',
+    'IgnorePointer',
+    'AbsorbPointer',
+    'MetaData',
+    'KeyedSubtree',
+    'RepaintBoundary',
+    'Builder',
+    'StatefulBuilder',
+  };
+
   /// Chain of (ref, widget) pairs that were collapsed
   final List<({String ref, String widget})> chain;
 
@@ -432,8 +484,13 @@ class CollapsedNode {
   String get primaryRef => chain.first.ref;
 
   /// Format as "[w0] Widget1 → [w1] Widget2 → ..."
+  /// Filters out layout wrapper widgets for cleaner display.
   String get chainString {
-    return chain.map((e) => '[${e.ref}] ${e.widget}').join(' → ');
+    // Filter out layout wrappers, but keep at least one widget
+    final meaningful =
+        chain.where((e) => !_layoutWrappers.contains(e.widget)).toList();
+    final display = meaningful.isNotEmpty ? meaningful : [chain.first];
+    return display.map((e) => '[${e.ref}] ${e.widget}').join(' → ');
   }
 
   /// Whether this node has semantics

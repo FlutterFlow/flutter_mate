@@ -5,30 +5,31 @@
 /// ## Available Tools
 ///
 /// - `connect` - Connect to a running Flutter app
-/// - `snapshot` - Get UI tree with element refs
-/// - `tap` - Tap element (auto: semantic first, then gesture fallback)
-/// - `setText` - Set text via semantic action (on Semantics widgets)
-/// - `typeText` - Type text via keyboard simulation (on TextField widgets)
-/// - `scroll` - Scroll element (auto: semantic first, then gesture fallback)
+/// - `snapshot` - Get UI tree with element refs (collapsed view)
+/// - `tap` - Tap element (semantic first, then gesture fallback)
+/// - `setText` - Set text via semantic action
+/// - `typeText` - Type text via keyboard simulation
+/// - `scroll` - Scroll element (semantic first, then gesture fallback)
 /// - `focus` - Focus element
 /// - `pressKey` - Press keyboard key
 /// - `clear` - Clear text field
 /// - `doubleTap` - Double tap element
-/// - `longPress` - Long press (auto: semantic first, then gesture fallback)
-/// - `waitFor` - Wait for element with matching label to appear
+/// - `longPress` - Long press element
+/// - `waitFor` - Wait for element with matching label
 ///
-/// ## Snapshot Structure
+/// ## Snapshot Format
 ///
-/// Semantics widgets show full semantic data (label, actions, flags).
-/// Child widgets (TextField, etc.) only show type and bounds.
+/// The snapshot uses a collapsed tree format that:
+/// - Chains widgets with same bounds using →
+/// - Hides layout wrappers (Padding, Container, etc.)
+/// - Shows text content and semantic info inline
 ///
 /// ```
-/// • w9: Semantics "Email" [tap, focus, setText] (TextField)
-///   • w10: TextField (bounds)
+/// • [w1] DemoApp → [w2] MaterialApp → [w3] LoginPage
+///   • [w6] Column
+///     • [w9] Semantics "Email" [tap, focus, setText] (TextField)
+///       • [w10] TextField
 /// ```
-///
-/// - Use `setText w9 "text"` for semantic setText
-/// - Use `typeText w10 "text"` for keyboard simulation
 ///
 /// ## Usage with Cursor
 ///
@@ -365,56 +366,198 @@ Returns the ref of the found element.''',
 
     final nodes = data['nodes'] as List<dynamic>? ?? [];
 
+    // Build node map for collapsing
+    final nodeMap = <String, Map<String, dynamic>>{};
+    for (final node in nodes) {
+      nodeMap[node['ref'] as String] = node as Map<String, dynamic>;
+    }
+
+    // Collapse nodes
+    final collapsed = _collapseNodes(nodes, nodeMap);
+
     final output = StringBuffer();
-    output.writeln('📱 Flutter UI Snapshot');
-    output.writeln('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    output.writeln('Elements: ${nodes.length}');
+    output.writeln('${collapsed.length} elements (from ${nodes.length} nodes)');
     output.writeln('');
 
-    for (final node in nodes) {
-      final ref = node['ref'] as String;
-      final widget = node['widget'] as String;
-      final textContent = node['textContent'] as String?;
-      final semantics = node['semantics'] as Map<String, dynamic>?;
-      final label = semantics?['label'] as String?;
-      final value = semantics?['value'] as String?;
-      final actions =
-          (semantics?['actions'] as List<dynamic>?)?.cast<String>() ?? [];
+    for (final entry in collapsed) {
+      final chain = entry['chain'] as List<Map<String, dynamic>>;
+      final depth = entry['depth'] as int;
+      final semantics = entry['semantics'] as Map<String, dynamic>?;
+      final textContent = entry['textContent'] as String?;
 
-      // Scroll properties
-      final scrollPosition = semantics?['scrollPosition'] as num?;
-      final scrollExtentMax = semantics?['scrollExtentMax'] as num?;
+      final indent = '  ' * depth;
 
-      // Build widget display with optional text content
-      String widgetDisplay = widget;
+      // Filter layout wrappers from display
+      final meaningful = chain
+          .where((item) => !_layoutWrappers.contains(item['widget'] as String))
+          .toList();
+      final display = meaningful.isNotEmpty ? meaningful : [chain.first];
+      final chainStr =
+          display.map((e) => '[${e['ref']}] ${e['widget']}').join(' → ');
+
+      // Build info parts
+      final parts = <String>[];
+
       if (textContent != null && textContent.isNotEmpty) {
-        final truncated = textContent.length > 30
-            ? '${textContent.substring(0, 30)}...'
-            : textContent;
-        widgetDisplay = '$widget "$truncated"';
+        parts.add('"$textContent"');
       }
 
-      final parts = <String>[];
-      if (label != null) parts.add('"$label"');
-      if (value != null && value.isNotEmpty) parts.add('= "$value"');
-      if (actions.isNotEmpty) parts.add('[${actions.join(", ")}]');
+      final label = semantics?['label'] as String?;
+      if (label != null && label.isNotEmpty && label != textContent) {
+        parts.add('"$label"');
+      }
 
-      // Add scroll info if scrollable
+      final actions =
+          (semantics?['actions'] as List<dynamic>?)?.cast<String>() ?? [];
+      if (actions.isNotEmpty) {
+        parts.add('[${actions.join(', ')}]');
+      }
+
+      final flags =
+          (semantics?['flags'] as List<dynamic>?)?.cast<String>() ?? [];
+      final flagsStr = flags
+          .where((f) => f.startsWith('is'))
+          .map((f) => f.substring(2))
+          .join(', ');
+      if (flagsStr.isNotEmpty) parts.add('($flagsStr)');
+
+      final scrollPosition = semantics?['scrollPosition'] as num?;
+      final scrollExtentMax = semantics?['scrollExtentMax'] as num?;
       if (scrollPosition != null) {
         final pos = scrollPosition.toStringAsFixed(0);
         final max = scrollExtentMax?.toStringAsFixed(0) ?? '?';
         parts.add('{scroll: $pos/$max}');
       }
 
-      output.writeln('$ref: $widgetDisplay ${parts.join(" ")}');
+      final info = parts.isNotEmpty ? ' ${parts.join(' ')}' : '';
+      output.writeln('$indent• $chainStr$info');
     }
-
-    output.writeln('');
-    output.writeln('💡 Use refs to interact: tap w5, fill w10 "text"');
 
     return CallToolResult(
       content: [TextContent(text: output.toString())],
     );
+  }
+
+  /// Layout wrapper widgets to hide from display
+  static const _layoutWrappers = {
+    'Padding', 'SizedBox', 'ConstrainedBox', 'LimitedBox', 'OverflowBox',
+    'FractionallySizedBox', 'IntrinsicHeight', 'IntrinsicWidth',
+    'Center', 'Align', 'Expanded', 'Flexible', 'Positioned', 'Spacer',
+    'Container', 'DecoratedBox', 'ColoredBox',
+    'Transform', 'RotatedBox', 'FittedBox', 'AspectRatio',
+    'ClipRect', 'ClipRRect', 'ClipOval', 'ClipPath',
+    'Opacity', 'Offstage', 'Visibility', 'IgnorePointer', 'AbsorbPointer',
+    'MetaData', 'KeyedSubtree', 'RepaintBoundary', 'Builder', 'StatefulBuilder',
+  };
+
+  /// Collapse nodes with same bounds into chains
+  List<Map<String, dynamic>> _collapseNodes(
+      List<dynamic> nodes, Map<String, Map<String, dynamic>> nodeMap) {
+    final result = <Map<String, dynamic>>[];
+    final visited = <String>{};
+
+    void processNode(Map<String, dynamic> node, int displayDepth) {
+      final ref = node['ref'] as String;
+      if (visited.contains(ref)) return;
+
+      // Skip zero-area spacers
+      if (_isHiddenSpacer(node)) {
+        visited.add(ref);
+        return;
+      }
+
+      // Start a chain
+      final chain = <Map<String, dynamic>>[];
+      var current = node;
+      Map<String, dynamic>? aggregatedSemantics;
+      String? aggregatedText;
+
+      while (true) {
+        final currentRef = current['ref'] as String;
+        visited.add(currentRef);
+        chain.add({
+          'ref': currentRef,
+          'widget': current['widget'] as String? ?? '?',
+        });
+
+        final sem = current['semantics'] as Map<String, dynamic>?;
+        if (sem != null) aggregatedSemantics ??= sem;
+
+        final text = current['textContent'] as String?;
+        if (text != null && text.isNotEmpty) aggregatedText ??= text;
+
+        final children = current['children'] as List<dynamic>? ?? [];
+        if (children.isEmpty || children.length > 1) break;
+
+        final widgetType = current['widget'] as String? ?? '';
+        if (widgetType == 'Semantics') break;
+
+        final childRef = children.first as String;
+        final child = nodeMap[childRef];
+        if (child == null) break;
+
+        if (_isHiddenSpacer(child)) {
+          visited.add(childRef);
+          break;
+        }
+
+        final childWidget = child['widget'] as String? ?? '';
+        if (childWidget == 'Semantics') break;
+
+        // Always collapse layout wrappers
+        if (_layoutWrappers.contains(widgetType) || _sameBounds(current, child)) {
+          current = child;
+          continue;
+        }
+
+        break;
+      }
+
+      result.add({
+        'chain': chain,
+        'depth': displayDepth,
+        'semantics': aggregatedSemantics,
+        'textContent': aggregatedText,
+        'children': current['children'] as List<dynamic>? ?? [],
+      });
+
+      final children = current['children'] as List<dynamic>? ?? [];
+      for (final childRef in children) {
+        final child = nodeMap[childRef as String];
+        if (child != null && !visited.contains(childRef)) {
+          processNode(child, displayDepth + 1);
+        }
+      }
+    }
+
+    for (final node in nodes) {
+      if ((node['depth'] as int?) == 0) {
+        processNode(node as Map<String, dynamic>, 0);
+      }
+    }
+
+    return result;
+  }
+
+  bool _isHiddenSpacer(Map<String, dynamic> node) {
+    final widget = node['widget'] as String? ?? '';
+    if (widget != 'SizedBox' && widget != 'Spacer') return false;
+    final bounds = node['bounds'] as Map<String, dynamic>?;
+    if (bounds == null) return true;
+    final width = (bounds['width'] as num?) ?? 0;
+    final height = (bounds['height'] as num?) ?? 0;
+    return width < 2 || height < 2;
+  }
+
+  bool _sameBounds(Map<String, dynamic> a, Map<String, dynamic> b) {
+    final boundsA = a['bounds'] as Map<String, dynamic>?;
+    final boundsB = b['bounds'] as Map<String, dynamic>?;
+    if (boundsA == null || boundsB == null) return false;
+    const tolerance = 1.0;
+    return ((boundsA['x'] as num) - (boundsB['x'] as num)).abs() <= tolerance &&
+        ((boundsA['y'] as num) - (boundsB['y'] as num)).abs() <= tolerance &&
+        ((boundsA['width'] as num) - (boundsB['width'] as num)).abs() <= tolerance &&
+        ((boundsA['height'] as num) - (boundsB['height'] as num)).abs() <= tolerance;
   }
 
   Future<CallToolResult> _handleTap(CallToolRequest request) async {

@@ -16,9 +16,14 @@ import 'package:flutter_mate/flutter_mate.dart';
 // Initialize once at startup
 await FlutterMate.initialize();
 
-// Get UI snapshot (widget tree + semantics)
+// Get UI snapshot (collapsed tree with refs)
 final snapshot = await FlutterMate.snapshot();
-print(snapshot);  // Pretty-printed UI tree with refs
+print(snapshot);
+// 25 elements (from 111 nodes)
+// • [w1] LoginPage → [w2] Scaffold
+//   • [w6] Column
+//     • [w9] Semantics "Email" [tap, focus, setText] (TextField)
+//       • [w10] TextField
 
 // Interact with elements by ref
 await FlutterMate.tap('w10');  // auto: semantic or gesture
@@ -44,6 +49,13 @@ flutter run
 
 # 3. Use the CLI (convert http:// to ws:// and add /ws)
 flutter_mate --uri ws://127.0.0.1:12345/abc=/ws snapshot
+# Output:
+# 25 elements (from 111 nodes)
+# • [w1] LoginPage → [w2] Scaffold
+#   • [w6] Column
+#     • [w9] Semantics "Email" [tap, focus, setText] (TextField)
+#       • [w10] TextField "Email"
+
 flutter_mate --uri ws://127.0.0.1:12345/abc=/ws setText w9 "hello@example.com"  
 flutter_mate --uri ws://127.0.0.1:12345/abc=/ws tap w10
 
@@ -74,8 +86,9 @@ Integrate with **Cursor**, **Claude**, or any MCP-compatible client for AI-power
 ```
 
 Once configured, ask Cursor/Claude to:
+
 - "Take a snapshot of the Flutter app"
-- "Fill the email field with test@example.com"
+- "Fill the email field with <test@example.com>"
 - "Tap the Submit button"
 - "Scroll down and find the settings option"
 
@@ -128,6 +141,33 @@ dart pub get
 # Test the MCP server
 dart run bin/mcp_server.dart --uri=ws://127.0.0.1:12345/abc=/ws
 ```
+
+---
+
+## Snapshot Format
+
+The snapshot uses a **collapsed tree format** that makes complex UIs readable:
+
+```
+25 elements (from 111 nodes)
+
+• [w1] LoginPage → [w2] Scaffold
+  • [w6] Column
+    • [w7] Text "Welcome Back"
+    • [w9] Semantics "Email" [tap, focus, setText] (TextField)
+      • [w10] TextField "Email"
+    • [w17] Semantics "Login" [tap, focus] (Button)
+      • [w18] ElevatedButton
+        • [w19] Text "Login"
+```
+
+**Key features:**
+
+- **Bounds-based collapsing**: Widgets with same bounds are chained with `→`
+- **Layout wrapper hiding**: `Padding`, `Container`, `Expanded`, etc. are hidden
+- **Text content extraction**: Shows actual text from `Text`, `Icon`, wrapper widgets
+- **Semantic info inline**: Labels, actions, and flags shown on Semantics nodes
+- **Ref preservation**: All refs remain valid for interaction
 
 ---
 
@@ -431,15 +471,24 @@ Service extensions (`ext.flutter_mate.*`) expose the SDK functionality via VM Se
 flutter_mate/
 ├── packages/
 │   └── flutter_mate/               # Dart SDK
-│       ├── lib/
-│       │   ├── flutter_mate.dart
-│       │   └── src/
-│       │       ├── flutter_mate.dart     # Main API & service extensions
-│       │       ├── combined_snapshot.dart # Snapshot data structures
-│       │       ├── protocol.dart         # Command definitions
-│       │       ├── command_executor.dart # Execute commands
-│       │       └── actions.dart          # Action types
-│       └── pubspec.yaml
+│       └── lib/
+│           ├── flutter_mate.dart   # Public API exports
+│           └── src/
+│               ├── core/           # Initialization & utilities
+│               │   ├── flutter_mate.dart
+│               │   ├── service_extensions.dart
+│               │   └── semantics_utils.dart
+│               ├── snapshot/       # UI tree capture
+│               │   ├── snapshot.dart
+│               │   └── combined_snapshot.dart
+│               ├── actions/        # Interaction methods
+│               │   ├── semantic_actions.dart
+│               │   ├── gesture_actions.dart
+│               │   ├── keyboard_actions.dart
+│               │   └── helpers.dart
+│               ├── protocol.dart   # Command definitions
+│               ├── command_executor.dart
+│               └── actions.dart    # Action types
 ├── apps/
 │   └── demo_app/                   # Demo Flutter app
 └── cli/
@@ -464,6 +513,8 @@ flutter_mate/
 - [x] Interactive REPL mode
 - [x] Combined widget tree + semantics snapshot
 - [x] MCP Server for AI agent integration
+- [x] Collapsed snapshot format (bounds-based, layout wrapper hiding)
+- [x] Text content extraction for widgets
 - [ ] Screenshot capture
 - [ ] Record & replay
 - [ ] Test generation from recordings

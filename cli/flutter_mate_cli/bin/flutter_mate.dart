@@ -6,6 +6,52 @@ import 'package:flutter_mate_cli/vm_service_client.dart';
 
 const String version = '0.1.0';
 
+/// Layout wrapper widgets to hide from display (purely structural)
+const _layoutWrappers = {
+  // Spacing/sizing
+  'Padding',
+  'SizedBox',
+  'ConstrainedBox',
+  'LimitedBox',
+  'OverflowBox',
+  'FractionallySizedBox',
+  'IntrinsicHeight',
+  'IntrinsicWidth',
+  // Alignment
+  'Center',
+  'Align',
+  // Flex children
+  'Expanded',
+  'Flexible',
+  'Positioned',
+  'Spacer',
+  // Decoration/styling
+  'Container',
+  'DecoratedBox',
+  'ColoredBox',
+  // Transforms
+  'Transform',
+  'RotatedBox',
+  'FittedBox',
+  'AspectRatio',
+  // Clipping
+  'ClipRect',
+  'ClipRRect',
+  'ClipOval',
+  'ClipPath',
+  // Other structural
+  'Opacity',
+  'Offstage',
+  'Visibility',
+  'IgnorePointer',
+  'AbsorbPointer',
+  'MetaData',
+  'KeyedSubtree',
+  'RepaintBoundary',
+  'Builder',
+  'StatefulBuilder',
+};
+
 void main(List<String> arguments) async {
   final parser = ArgParser()
     ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help')
@@ -409,8 +455,6 @@ void _printSnapshot(Map<String, dynamic> data) {
   // Collapse nodes with same bounds
   final collapsed = _collapseNodes(nodes, nodeMap);
 
-  print('📱 Flutter Mate Snapshot');
-  print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   print('Timestamp: ${data['timestamp']}');
   print('${collapsed.length} elements (from ${nodes.length} nodes)');
   print('');
@@ -424,8 +468,13 @@ void _printSnapshot(Map<String, dynamic> data) {
     final indent = '  ' * depth;
 
     // Build chain string: [w0] Widget1 → [w1] Widget2
+    // Filter out layout wrappers, but keep at least one widget
+    final meaningful = chain
+        .where((item) => !_layoutWrappers.contains(item['widget'] as String))
+        .toList();
+    final display = meaningful.isNotEmpty ? meaningful : [chain.first];
     final chainParts = <String>[];
-    for (final item in chain) {
+    for (final item in display) {
       final ref = item['ref'] as String;
       final widget = item['widget'] as String;
       chainParts.add('[$ref] $widget');
@@ -437,17 +486,12 @@ void _printSnapshot(Map<String, dynamic> data) {
 
     // Add text content
     if (textContent != null && textContent.isNotEmpty) {
-      final truncated = textContent.length > 30
-          ? '${textContent.substring(0, 30)}...'
-          : textContent;
-      parts.add('"$truncated"');
+      parts.add('"$textContent"');
     }
 
     // Add semantic label if different from text content
     final label = semantics?['label'] as String?;
-    if (label != null &&
-        label.isNotEmpty &&
-        label != textContent) {
+    if (label != null && label.isNotEmpty && label != textContent) {
       parts.add('"$label"');
     }
 
@@ -459,8 +503,7 @@ void _printSnapshot(Map<String, dynamic> data) {
     }
 
     // Add flags
-    final flags =
-        (semantics?['flags'] as List<dynamic>?)?.cast<String>() ?? [];
+    final flags = (semantics?['flags'] as List<dynamic>?)?.cast<String>() ?? [];
     final flagsStr = flags
         .where((f) => f.startsWith('is'))
         .map((f) => f.substring(2))
@@ -479,9 +522,6 @@ void _printSnapshot(Map<String, dynamic> data) {
     final info = parts.isNotEmpty ? ' ${parts.join(' ')}' : '';
     print('$indent• $chainStr$info');
   }
-
-  print('');
-  print('💡 Use refs to interact: flutter_mate --uri <ws://...> tap w5');
 }
 
 /// Collapse nodes with same bounds into chains
@@ -548,6 +588,12 @@ List<Map<String, dynamic>> _collapseNodes(
       // Don't collapse into Semantics widgets
       final childWidget = child['widget'] as String? ?? '';
       if (childWidget == 'Semantics') break;
+
+      // Always collapse layout wrappers (regardless of bounds)
+      if (_layoutWrappers.contains(widgetType)) {
+        current = child;
+        continue;
+      }
 
       // Check bounds - collapse if same
       if (_sameBounds(current, child)) {

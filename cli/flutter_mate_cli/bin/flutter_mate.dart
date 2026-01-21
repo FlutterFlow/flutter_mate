@@ -506,16 +506,17 @@ void _printSnapshot(Map<String, dynamic> data) {
     final label = semantics?['label'] as String?;
     addText(label);
 
-      if (allTexts.isNotEmpty) {
-        parts.add('(${allTexts.join(', ')})');
-      }
-
-    // Add semantic value (e.g., current text in a text field)
+    // Add semantic value FIRST (e.g., current text in a text field)
     final value = semantics?['value'] as String?;
     if (value != null &&
         value.isNotEmpty &&
         !seenTexts.contains(value.trim().toLowerCase())) {
-      parts.add('= "$value"');
+      parts.add('value = "$value"');
+    }
+
+    // Then add text content list
+    if (allTexts.isNotEmpty) {
+      parts.add('(${allTexts.join(', ')})');
     }
 
     // Build extra semantic info in {key: value, ...} format

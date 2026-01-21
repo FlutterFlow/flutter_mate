@@ -97,8 +97,17 @@ class SnapshotService {
               // Only walk subtree for LEAF nodes (no children in summary tree)
               // This handles wrappers like AutoSizeText whose children aren't shown
               // But avoids propagating content UP for widgets with visible children
-              if (textContent == null && childrenJson.isEmpty) {
-                textContent = _findTextInSubtree(obj);
+              if (childrenJson.isEmpty) {
+                // Collect ALL text from subtree (includes error messages, etc.)
+                final allTexts = _collectAllTextInSubtree(obj);
+                if (allTexts.isNotEmpty) {
+                  // If we already have direct content, prepend it
+                  if (textContent != null && !allTexts.contains(textContent)) {
+                    allTexts.insert(0, textContent);
+                  }
+                  // Join all texts with separator
+                  textContent = allTexts.join(' | ');
+                }
               }
               // Find the RenderObject
               RenderObject? ro;
@@ -277,25 +286,28 @@ class SnapshotService {
     return data.actions != 0 || data.label.isNotEmpty || data.value.isNotEmpty;
   }
 
-  /// Find content by walking the element subtree
-  /// Truly general - applies the same extraction logic to all children
-  static String? _findTextInSubtree(Element element) {
-    String? found;
+  /// Collect ALL text content from an element subtree
+  /// Returns all text found, not just the first
+  static List<String> _collectAllTextInSubtree(Element element) {
+    final texts = <String>[];
+    final seen = <String>{}; // Avoid duplicates
 
     void visit(Element child) {
-      if (found != null) return; // Already found, stop searching
+      // Try to extract text from this widget
+      final content = _extractWidgetContent(child.widget);
+      if (content != null && content.isNotEmpty && !seen.contains(content)) {
+        seen.add(content);
+        texts.add(content);
+      }
 
-      // Try the same extraction on this child widget
-      found = _extractWidgetContent(child.widget);
-      if (found != null) return;
-
-      // Recursively visit children
+      // Continue to ALL children (don't stop on first find)
       child.visitChildren(visit);
     }
 
     element.visitChildren(visit);
-    return found;
+    return texts;
   }
+
 
   /// Extract semantics info from a SemanticsNode
   /// Includes all fields from SemanticsData for completeness.

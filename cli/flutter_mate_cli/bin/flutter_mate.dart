@@ -506,9 +506,9 @@ void _printSnapshot(Map<String, dynamic> data) {
     final label = semantics?['label'] as String?;
     addText(label);
 
-    if (allTexts.isNotEmpty) {
-      parts.add('"${allTexts.join(', ')}"');
-    }
+      if (allTexts.isNotEmpty) {
+        parts.add('(${allTexts.join(', ')})');
+      }
 
     // Add semantic value (e.g., current text in a text field)
     final value = semantics?['value'] as String?;

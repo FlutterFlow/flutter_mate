@@ -425,7 +425,7 @@ Returns the ref of the found element.''',
       addText(label);
 
       if (allTexts.isNotEmpty) {
-        parts.add('"${allTexts.join(', ')}"');
+        parts.add('(${allTexts.join(', ')})');
       }
 
       // Add semantic value (e.g., current text in a text field)

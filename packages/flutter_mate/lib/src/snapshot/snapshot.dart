@@ -63,6 +63,9 @@ class SnapshotService {
       // Clear cached elements for fresh snapshot
       FlutterMate.cachedElements.clear();
 
+      // Track used semantics node IDs to avoid duplication
+      final usedSemanticsIds = <int>{};
+
       // Parse the inspector tree and attach semantics using toObject
       final nodes = <CombinedNode>[];
       int refCounter = 0;
@@ -134,32 +137,14 @@ class SnapshotService {
                   }
                 }
 
-                // Only attach semantics to Semantics widgets
-                // Other widgets just get bounds - actions figure out semantics at runtime
-                if (widgetType == 'Semantics') {
-                  SemanticsNode? sn = ro!.debugSemantics;
-                  if (sn != null) {
-                    // For Semantics widget, find the child semantics with actions
-                    // The Semantics widget annotates its child, so walk down to find actionable node
-                    SemanticsNode nodeWithActions = sn;
-
-                    void findActionableNode(SemanticsNode node) {
-                      final data = node.getSemanticsData();
-                      if (data.actions != 0) {
-                        nodeWithActions = node;
-                        return;
-                      }
-                      node.visitChildren((child) {
-                        findActionableNode(child);
-                        return true;
-                      });
-                    }
-
-                    if (sn.getSemanticsData().actions == 0) {
-                      findActionableNode(sn);
-                    }
-
-                    semantics = _extractSemanticsInfo(nodeWithActions);
+                // Try to find semantics for ANY widget (not just Semantics widgets)
+                // This allows TextField, Button, etc. to show their semantics
+                if (ro != null) {
+                  SemanticsNode? sn = _findSemanticsInRenderTree(ro!);
+                  if (sn != null && !usedSemanticsIds.contains(sn.id)) {
+                    // Mark this semantics ID as used to avoid duplication
+                    usedSemanticsIds.add(sn.id);
+                    semantics = _extractSemanticsInfo(sn);
                   }
                 }
               }
@@ -260,6 +245,36 @@ class SnapshotService {
       // toString can fail for some widgets
     }
     return null;
+  }
+
+  /// Find the best semantics node in the render tree
+  /// Traverses down to find a node with actions or meaningful content
+  static SemanticsNode? _findSemanticsInRenderTree(RenderObject ro) {
+    // First check if this render object has direct semantics
+    SemanticsNode? best = ro.debugSemantics;
+
+    // If no direct semantics or it has no actions/value, traverse down
+    if (best == null || !_hasMeaningfulSemantics(best)) {
+      void visitRenderObject(RenderObject child) {
+        final sn = child.debugSemantics;
+        if (sn != null && _hasMeaningfulSemantics(sn)) {
+          best = sn;
+          return; // Found one, stop
+        }
+        // Continue traversing if no semantics found
+        child.visitChildren(visitRenderObject);
+      }
+
+      ro.visitChildren(visitRenderObject);
+    }
+
+    return best;
+  }
+
+  /// Check if a semantics node has meaningful content (actions, label, or value)
+  static bool _hasMeaningfulSemantics(SemanticsNode node) {
+    final data = node.getSemanticsData();
+    return data.actions != 0 || data.label.isNotEmpty || data.value.isNotEmpty;
   }
 
   /// Find content by walking the element subtree

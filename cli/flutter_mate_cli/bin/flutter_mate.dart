@@ -455,10 +455,6 @@ void _printSnapshot(Map<String, dynamic> data) {
   // Collapse nodes with same bounds
   final collapsed = _collapseNodes(nodes, nodeMap);
 
-  print('Timestamp: ${data['timestamp']}');
-  print('${collapsed.length} elements (from ${nodes.length} nodes)');
-  print('');
-
   for (final entry in collapsed) {
     final chain = entry['chain'] as List<Map<String, dynamic>>;
     final depth = entry['depth'] as int;
@@ -484,15 +480,29 @@ void _printSnapshot(Map<String, dynamic> data) {
     // Build info parts
     final parts = <String>[];
 
-    // Add text content
-    if (textContent != null && textContent.isNotEmpty) {
-      parts.add('"$textContent"');
+    // Add text content (skip empty strings and icon glyphs)
+    if (textContent != null && textContent.trim().isNotEmpty) {
+      // Skip single-character icon glyphs (Private Use Area)
+      final isIconGlyph =
+          textContent.length == 1 && textContent.codeUnitAt(0) >= 0xE000;
+      if (!isIconGlyph) {
+        parts.add('"$textContent"');
+      }
     }
 
     // Add semantic label if different from text content
     final label = semantics?['label'] as String?;
     if (label != null && label.isNotEmpty && label != textContent) {
       parts.add('"$label"');
+    }
+
+    // Add semantic value (e.g., current text in a text field)
+    final value = semantics?['value'] as String?;
+    if (value != null &&
+        value.isNotEmpty &&
+        value != textContent &&
+        value != label) {
+      parts.add('= "$value"');
     }
 
     // Add actions

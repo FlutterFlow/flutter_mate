@@ -97,19 +97,15 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
             const SizedBox(height: 16),
-            Semantics(
-              label: 'Password field',
-              textField: true,
-              child: TextField(
-                controller: _passwordController,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock),
-                ),
-                obscureText: true,
-                onSubmitted: (_) => _handleLogin(),
+            TextField(
+              controller: _passwordController,
+              decoration: const InputDecoration(
+                labelText: 'Password',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.lock),
               ),
+              obscureText: true,
+              onSubmitted: (_) => _handleLogin(),
             ),
             const SizedBox(height: 24),
             if (_message.isNotEmpty)

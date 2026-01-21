@@ -20,7 +20,6 @@ class VmServiceClient {
 
   /// Connect to the Flutter app's VM Service
   Future<void> connect() async {
-    print('Connecting to VM Service at $wsUri...');
     _service = await vmServiceConnectUri(wsUri);
 
     // Get the main isolate
@@ -39,7 +38,6 @@ class VmServiceClient {
       throw Exception('No isolates found');
     }
 
-    print('Connected! Main isolate: $_mainIsolateId');
   }
 
   /// Disconnect from the VM Service

@@ -7,7 +7,9 @@
       "mcp__flutter_mate__tap",
       "mcp__flutter_mate__waitFor",
       "mcp__flutter_mate__scroll",
-      "mcp__flutter_mate__pressKey"
+      "mcp__flutter_mate__pressKey",
+      "mcp__flutter_mate__typeText",
+      "mcp__flutter_mate__clear"
     ]
   }
 }

@@ -398,13 +398,24 @@ Returns the ref of the found element.''',
       // Build info parts
       final parts = <String>[];
 
-      if (textContent != null && textContent.isNotEmpty) {
-        parts.add('"$textContent"');
+      // Skip empty strings and icon glyphs
+      if (textContent != null && textContent.trim().isNotEmpty) {
+        final isIconGlyph = textContent.length == 1 &&
+            textContent.codeUnitAt(0) >= 0xE000;
+        if (!isIconGlyph) {
+          parts.add('"$textContent"');
+        }
       }
 
       final label = semantics?['label'] as String?;
       if (label != null && label.isNotEmpty && label != textContent) {
         parts.add('"$label"');
+      }
+
+      // Add semantic value (e.g., current text in a text field)
+      final value = semantics?['value'] as String?;
+      if (value != null && value.isNotEmpty && value != textContent && value != label) {
+        parts.add('= "$value"');
       }
 
       final actions =

@@ -488,7 +488,8 @@ void _printSnapshot(Map<String, dynamic> data) {
     String normalizeForKey(String s) {
       return s
           .toLowerCase()
-          .replaceAll(RegExp(r'[\ufffc\ufffd]'), '') // Remove replacement chars FIRST
+          .replaceAll(
+              RegExp(r'[\ufffc\ufffd]'), '') // Remove replacement chars FIRST
           .replaceAll(RegExp(r'[^\x20-\x7E]'), '') // Remove non-printable
           .replaceAll(RegExp(r'\s+'), ' ') // THEN collapse whitespace
           .trim();

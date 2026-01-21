@@ -202,7 +202,8 @@ class SnapshotService {
       String normalizeText(String s) {
         return s
             .toLowerCase()
-            .replaceAll(RegExp(r'[\ufffc\ufffd]'), '') // Remove replacement chars FIRST
+            .replaceAll(
+                RegExp(r'[\ufffc\ufffd]'), '') // Remove replacement chars FIRST
             .replaceAll(RegExp(r'[^\x20-\x7E]'), '') // Remove non-printable
             .replaceAll(RegExp(r'\s+'), ' ') // THEN collapse whitespace
             .trim();
@@ -210,8 +211,14 @@ class SnapshotService {
 
       // Deduplicate text: process in REVERSE order so children claim text first
       // Then filter parent text to exclude text claimed by descendants
+      // This includes BOTH textContent AND semantics.label
       for (var i = nodes.length - 1; i >= 0; i--) {
         final node = nodes[i];
+        String? newTextContent = node.textContent;
+        SemanticsInfo? newSemantics = node.semantics;
+        bool changed = false;
+
+        // Process textContent
         if (node.textContent != null && node.textContent!.isNotEmpty) {
           // Split the text content back into individual texts
           final texts = node.textContent!.split(' | ');
@@ -222,28 +229,68 @@ class SnapshotService {
           }).toList();
           // Claim these texts (using normalized keys)
           usedTextContent.addAll(newTexts.map(normalizeText));
-          // Update node with filtered text (need to recreate since immutable)
+          // Update textContent if filtered
           if (newTexts.isEmpty) {
-            nodes[i] = CombinedNode(
-              ref: node.ref,
-              widget: node.widget,
-              depth: node.depth,
-              bounds: node.bounds,
-              children: node.children,
-              semantics: node.semantics,
-              textContent: null,
-            );
+            newTextContent = null;
+            changed = true;
           } else if (newTexts.length < texts.length) {
-            nodes[i] = CombinedNode(
-              ref: node.ref,
-              widget: node.widget,
-              depth: node.depth,
-              bounds: node.bounds,
-              children: node.children,
-              semantics: node.semantics,
-              textContent: newTexts.join(' | '),
-            );
+            newTextContent = newTexts.join(' | ');
+            changed = true;
           }
+        }
+
+        // Process semantics.label - also deduplicate it
+        if (node.semantics != null && node.semantics!.label != null) {
+          final labelKey = normalizeText(node.semantics!.label!);
+          if (labelKey.isNotEmpty && usedTextContent.contains(labelKey)) {
+            // Label is already claimed by a descendant - clear it
+            newSemantics = SemanticsInfo(
+              id: node.semantics!.id,
+              identifier: node.semantics!.identifier,
+              label: null, // Clear the duplicate label
+              value: node.semantics!.value,
+              hint: node.semantics!.hint,
+              tooltip: node.semantics!.tooltip,
+              increasedValue: node.semantics!.increasedValue,
+              decreasedValue: node.semantics!.decreasedValue,
+              textDirection: node.semantics!.textDirection,
+              textSelectionBase: node.semantics!.textSelectionBase,
+              textSelectionExtent: node.semantics!.textSelectionExtent,
+              maxValueLength: node.semantics!.maxValueLength,
+              currentValueLength: node.semantics!.currentValueLength,
+              headingLevel: node.semantics!.headingLevel,
+              linkUrl: node.semantics!.linkUrl,
+              role: node.semantics!.role,
+              inputType: node.semantics!.inputType,
+              validationResult: node.semantics!.validationResult,
+              platformViewId: node.semantics!.platformViewId,
+              controlsNodes: node.semantics!.controlsNodes,
+              flags: node.semantics!.flags,
+              actions: node.semantics!.actions,
+              scrollChildCount: node.semantics!.scrollChildCount,
+              scrollIndex: node.semantics!.scrollIndex,
+              scrollPosition: node.semantics!.scrollPosition,
+              scrollExtentMax: node.semantics!.scrollExtentMax,
+              scrollExtentMin: node.semantics!.scrollExtentMin,
+            );
+            changed = true;
+          } else if (labelKey.isNotEmpty) {
+            // Claim this label
+            usedTextContent.add(labelKey);
+          }
+        }
+
+        // Update node if anything changed
+        if (changed) {
+          nodes[i] = CombinedNode(
+            ref: node.ref,
+            widget: node.widget,
+            depth: node.depth,
+            bounds: node.bounds,
+            children: node.children,
+            semantics: newSemantics,
+            textContent: newTextContent,
+          );
         }
       }
 

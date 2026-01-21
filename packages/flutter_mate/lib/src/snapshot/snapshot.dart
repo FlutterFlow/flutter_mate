@@ -66,6 +66,9 @@ class SnapshotService {
       // Track used semantics node IDs to avoid duplication
       final usedSemanticsIds = <int>{};
 
+      // Track used text content to avoid bubbling up to parents
+      final usedTextContent = <String>{};
+
       // Parse the inspector tree and attach semantics using toObject
       final nodes = <CombinedNode>[];
       int refCounter = 0;
@@ -94,9 +97,7 @@ class SnapshotService {
               // Extract text content from the widget itself
               textContent = _extractWidgetContent(obj.widget);
 
-              // If no direct text, collect ALL text from element subtree.
-              // Since _extractWidgetContent only returns text from Text/RichText,
-              // we won't capture noise like widget type names.
+              // If no direct text, collect ALL text from element subtree
               if (textContent == null) {
                 final allTexts = _collectAllTextInSubtree(obj);
                 if (allTexts.isNotEmpty) {
@@ -196,6 +197,43 @@ class SnapshotService {
         final refB = int.parse(b.ref.substring(1));
         return refA.compareTo(refB);
       });
+
+      // Deduplicate text: process in REVERSE order so children claim text first
+      // Then filter parent text to exclude text claimed by descendants
+      for (var i = nodes.length - 1; i >= 0; i--) {
+        final node = nodes[i];
+        if (node.textContent != null && node.textContent!.isNotEmpty) {
+          // Split the text content back into individual texts
+          final texts = node.textContent!.split(' | ');
+          // Filter out texts already claimed by children
+          final newTexts =
+              texts.where((t) => !usedTextContent.contains(t)).toList();
+          // Claim these texts
+          usedTextContent.addAll(newTexts);
+          // Update node with filtered text (need to recreate since immutable)
+          if (newTexts.isEmpty) {
+            nodes[i] = CombinedNode(
+              ref: node.ref,
+              widget: node.widget,
+              depth: node.depth,
+              bounds: node.bounds,
+              children: node.children,
+              semantics: node.semantics,
+              textContent: null,
+            );
+          } else if (newTexts.length < texts.length) {
+            nodes[i] = CombinedNode(
+              ref: node.ref,
+              widget: node.widget,
+              depth: node.depth,
+              bounds: node.bounds,
+              children: node.children,
+              semantics: node.semantics,
+              textContent: newTexts.join(' | '),
+            );
+          }
+        }
+      }
 
       final snapshot = CombinedSnapshot(
         success: true,

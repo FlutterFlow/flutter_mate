@@ -421,39 +421,41 @@ Returns the ref of the found element.''',
         parts.add('= "$value"');
       }
 
-      // Add validation result indicator
+      // Build extra semantic info in {key: value, ...} format
+      final extraParts = <String>[];
+
       final validationResult = semantics?['validationResult'] as String?;
       if (validationResult == 'invalid') {
-        parts.add('⚠️');
+        extraParts.add('invalid');
       } else if (validationResult == 'valid') {
-        parts.add('✓');
+        extraParts.add('valid');
       }
 
-      // Add tooltip if present
       final tooltip = semantics?['tooltip'] as String?;
       if (tooltip != null && tooltip.isNotEmpty) {
-        parts.add('💬"$tooltip"');
+        extraParts.add('tooltip: "$tooltip"');
       }
 
-      // Add heading level
       final headingLevel = semantics?['headingLevel'] as int?;
       if (headingLevel != null && headingLevel > 0) {
-        parts.add('H$headingLevel');
+        extraParts.add('heading: $headingLevel');
       }
 
-      // Add link URL
       final linkUrl = semantics?['linkUrl'] as String?;
       if (linkUrl != null && linkUrl.isNotEmpty) {
-        parts.add('🔗');
+        extraParts.add('link');
       }
 
-      // Add role/inputType if interesting
       final role = semantics?['role'] as String?;
       final inputType = semantics?['inputType'] as String?;
       if (inputType != null && inputType != 'none' && inputType != 'text') {
-        parts.add('<$inputType>');
+        extraParts.add('type: $inputType');
       } else if (role != null && role != 'none') {
-        parts.add('<$role>');
+        extraParts.add('role: $role');
+      }
+
+      if (extraParts.isNotEmpty) {
+        parts.add('{${extraParts.join(', ')}}');
       }
 
       final actions =

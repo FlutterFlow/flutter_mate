@@ -201,30 +201,34 @@ class CombinedSnapshot {
       if (sem?.value != null && sem!.value!.isNotEmpty) {
         parts.add('= "${sem.value}"');
       }
-      // Validation indicator
+
+      // Build extra semantic info in {key: value, ...} format
+      final extraParts = <String>[];
       if (sem?.validationResult == 'invalid') {
-        parts.add('⚠️');
+        extraParts.add('invalid');
       } else if (sem?.validationResult == 'valid') {
-        parts.add('✓');
+        extraParts.add('valid');
       }
-      // Tooltip
       if (sem?.tooltip != null && sem!.tooltip!.isNotEmpty) {
-        parts.add('💬"${sem.tooltip}"');
+        extraParts.add('tooltip: "${sem.tooltip}"');
       }
-      // Heading level
       if (sem?.headingLevel != null && sem!.headingLevel! > 0) {
-        parts.add('H${sem.headingLevel}');
+        extraParts.add('heading: ${sem.headingLevel}');
       }
-      // Link
       if (sem?.linkUrl != null && sem!.linkUrl!.isNotEmpty) {
-        parts.add('🔗');
+        extraParts.add('link');
       }
-      // Input type or role
-      if (sem?.inputType != null && sem!.inputType != 'none' && sem.inputType != 'text') {
-        parts.add('<${sem.inputType}>');
+      if (sem?.inputType != null &&
+          sem!.inputType != 'none' &&
+          sem.inputType != 'text') {
+        extraParts.add('type: ${sem.inputType}');
       } else if (sem?.role != null && sem!.role != 'none') {
-        parts.add('<${sem.role}>');
+        extraParts.add('role: ${sem.role}');
       }
+      if (extraParts.isNotEmpty) {
+        parts.add('{${extraParts.join(', ')}}');
+      }
+
       // Actions
       if (sem?.actions.isNotEmpty == true) {
         parts.add('[${sem!.actions.join(', ')}]');
@@ -235,8 +239,8 @@ class CombinedSnapshot {
     }
 
     buffer.writeln('');
-    buffer.writeln('💡 Use refs: FlutterMate.tap("w5")');
-    buffer.writeln('   Nodes with [sN] have semantics support');
+    buffer.writeln('Use refs: FlutterMate.tap("w5")');
+    buffer.writeln('Nodes with [sN] have semantics support');
     return buffer.toString();
   }
 }

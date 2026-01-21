@@ -398,30 +398,16 @@ Returns the ref of the found element.''',
       // Build info parts
       final parts = <String>[];
 
-      // Collect all text from textContent and semantics label, deduplicate
+      // Collect all text from textContent and semantics label
+      // SDK already deduplicates these, so just combine them for display
       final allTexts = <String>[];
-      final seenTexts = <String>{}; // Track by trimmed lowercase for dedup
 
-      // Normalize text for comparison: remove special chars FIRST, then collapse whitespace
-      String normalizeForKey(String s) {
-        return s
-            .toLowerCase()
-            .replaceAll(RegExp(r'[\ufffc\ufffd]'), '') // Remove replacement chars FIRST
-            .replaceAll(RegExp(r'[^\x20-\x7E]'), '') // Remove non-printable
-            .replaceAll(RegExp(r'\s+'), ' ') // THEN collapse whitespace
-            .trim();
-      }
-
+      // Helper to add non-empty, non-icon text
       void addText(String? text) {
         if (text == null || text.trim().isEmpty) return;
         // Skip single-character icon glyphs (Private Use Area)
         if (text.length == 1 && text.codeUnitAt(0) >= 0xE000) return;
-        final key = normalizeForKey(text);
-        if (key.isEmpty) return;
-        if (!seenTexts.contains(key)) {
-          seenTexts.add(key);
-          allTexts.add(text.trim());
-        }
+        allTexts.add(text.trim());
       }
 
       // Add textContent parts (split by |)
@@ -431,15 +417,13 @@ Returns the ref of the found element.''',
         }
       }
 
-      // Add semantics label
+      // Add semantics label (SDK already deduplicates this)
       final label = semantics?['label'] as String?;
       addText(label);
 
       // Add semantic value FIRST (e.g., current text in a text field)
       final value = semantics?['value'] as String?;
-      if (value != null &&
-          value.isNotEmpty &&
-          !seenTexts.contains(normalizeForKey(value))) {
+      if (value != null && value.isNotEmpty) {
         parts.add('value = "$value"');
       }
 

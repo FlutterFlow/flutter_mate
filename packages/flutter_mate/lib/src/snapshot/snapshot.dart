@@ -94,11 +94,10 @@ class SnapshotService {
               // Extract text content from the widget itself
               textContent = _extractWidgetContent(obj.widget);
 
-              // If no direct text AND no visible children in summary tree,
-              // collect ALL text from element subtree.
-              // This captures hidden text (error messages, internal Text widgets)
-              // without bubbling up text that's already shown by child nodes.
-              if (textContent == null && childrenJson.isEmpty) {
+              // If no direct text, collect ALL text from element subtree.
+              // Since _extractWidgetContent only returns text from Text/RichText,
+              // we won't capture noise like widget type names.
+              if (textContent == null) {
                 final allTexts = _collectAllTextInSubtree(obj);
                 if (allTexts.isNotEmpty) {
                   textContent = allTexts.join(' | ');

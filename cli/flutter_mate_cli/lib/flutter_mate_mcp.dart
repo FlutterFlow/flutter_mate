@@ -408,7 +408,9 @@ Returns the ref of the found element.''',
       }
 
       final label = semantics?['label'] as String?;
-      if (label != null && label.isNotEmpty && label != textContent) {
+      if (label != null &&
+          label.isNotEmpty &&
+          label.trim() != textContent?.trim()) {
         parts.add('"$label"');
       }
 
@@ -416,8 +418,8 @@ Returns the ref of the found element.''',
       final value = semantics?['value'] as String?;
       if (value != null &&
           value.isNotEmpty &&
-          value != textContent &&
-          value != label) {
+          value.trim() != textContent?.trim() &&
+          value.trim() != label?.trim()) {
         parts.add('= "$value"');
       }
 

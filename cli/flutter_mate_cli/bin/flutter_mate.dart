@@ -490,9 +490,11 @@ void _printSnapshot(Map<String, dynamic> data) {
       }
     }
 
-    // Add semantic label if different from text content
+    // Add semantic label if different from text content (ignore whitespace)
     final label = semantics?['label'] as String?;
-    if (label != null && label.isNotEmpty && label != textContent) {
+    if (label != null &&
+        label.isNotEmpty &&
+        label.trim() != textContent?.trim()) {
       parts.add('"$label"');
     }
 
@@ -500,8 +502,8 @@ void _printSnapshot(Map<String, dynamic> data) {
     final value = semantics?['value'] as String?;
     if (value != null &&
         value.isNotEmpty &&
-        value != textContent &&
-        value != label) {
+        value.trim() != textContent?.trim() &&
+        value.trim() != label?.trim()) {
       parts.add('= "$value"');
     }
 

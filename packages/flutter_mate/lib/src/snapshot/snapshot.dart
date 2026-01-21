@@ -88,8 +88,15 @@ class SnapshotService {
               // Cache the Element for ref lookup (used by typeText, etc.)
               FlutterMate.cachedElements[ref] = obj;
 
-              // Extract text content from widget
+              // Extract text content from the widget itself
               textContent = _extractWidgetContent(obj.widget);
+
+              // Only walk subtree for LEAF nodes (no children in summary tree)
+              // This handles wrappers like AutoSizeText whose children aren't shown
+              // But avoids propagating content UP for widgets with visible children
+              if (textContent == null && childrenJson.isEmpty) {
+                textContent = _findTextInSubtree(obj);
+              }
               // Find the RenderObject
               RenderObject? ro;
               if (obj is RenderObjectElement) {
@@ -233,41 +240,46 @@ class SnapshotService {
     return description;
   }
 
-  /// Extract content from widget using its diagnostic description
-  /// This is a general solution that works for any widget type.
+  /// Extract content from widget using toString()
+  /// Only extracts quoted strings - actual text content, not debug properties.
   static String? _extractWidgetContent(Widget widget) {
     try {
-      // Use toStringShort() which includes key properties for most widgets
-      // e.g., Text("Hello") returns 'Text("Hello")'
-      // e.g., Icon(IconData(U+E88A)) returns 'Icon'
-      final shortString = widget.toStringShort();
+      final str = widget.toString();
 
-      // Extract content between quotes if present
-      final quoteMatch = RegExp(r'"([^"]*)"').firstMatch(shortString);
+      // Only extract content in quotes: Text("Hello") → "Hello"
+      // This avoids extracting property values like "alignment: ..."
+      final quoteMatch = RegExp(r'"([^"]*)"').firstMatch(str);
       if (quoteMatch != null) {
-        return quoteMatch.group(1);
-      }
-
-      // For widgets without quoted content, try toDiagnosticsNode
-      final diagNode = widget.toDiagnosticsNode();
-      final props = diagNode.getProperties();
-      for (final prop in props) {
-        // Look for 'data', 'label', 'text', 'title' properties
-        final name = prop.name?.toLowerCase();
-        if (name == 'data' ||
-            name == 'label' ||
-            name == 'text' ||
-            name == 'title') {
-          final value = prop.value;
-          if (value is String && value.isNotEmpty) {
-            return value;
-          }
+        final content = quoteMatch.group(1)?.trim();
+        // Return null for empty content
+        if (content != null && content.isNotEmpty) {
+          return content;
         }
       }
     } catch (_) {
-      // Diagnostics can fail for some widgets
+      // toString can fail for some widgets
     }
     return null;
+  }
+
+  /// Find content by walking the element subtree
+  /// Truly general - applies the same extraction logic to all children
+  static String? _findTextInSubtree(Element element) {
+    String? found;
+
+    void visit(Element child) {
+      if (found != null) return; // Already found, stop searching
+
+      // Try the same extraction on this child widget
+      found = _extractWidgetContent(child.widget);
+      if (found != null) return;
+
+      // Recursively visit children
+      child.visitChildren(visit);
+    }
+
+    element.visitChildren(visit);
+    return found;
   }
 
   /// Extract semantics info from a SemanticsNode

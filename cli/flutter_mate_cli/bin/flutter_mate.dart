@@ -505,6 +505,42 @@ void _printSnapshot(Map<String, dynamic> data) {
       parts.add('= "$value"');
     }
 
+    // Add validation result indicator
+    final validationResult = semantics?['validationResult'] as String?;
+    if (validationResult == 'invalid') {
+      parts.add('⚠️');
+    } else if (validationResult == 'valid') {
+      parts.add('✓');
+    }
+
+    // Add tooltip if present
+    final tooltip = semantics?['tooltip'] as String?;
+    if (tooltip != null && tooltip.isNotEmpty) {
+      parts.add('💬"$tooltip"');
+    }
+
+    // Add heading level
+    final headingLevel = semantics?['headingLevel'] as int?;
+    if (headingLevel != null && headingLevel > 0) {
+      parts.add('H$headingLevel');
+    }
+
+    // Add link URL
+    final linkUrl = semantics?['linkUrl'] as String?;
+    if (linkUrl != null && linkUrl.isNotEmpty) {
+      parts.add('🔗');
+    }
+
+    // Add role/inputType if interesting
+    final role = semantics?['role'] as String?;
+    final inputType = semantics?['inputType'] as String?;
+    if (inputType != null && inputType != 'none' && inputType != 'text') {
+      parts.add('<$inputType>');
+    } else if (role != null && role != 'none') {
+      // Only show role if no inputType shown
+      parts.add('<$role>');
+    }
+
     // Add actions
     final actions =
         (semantics?['actions'] as List<dynamic>?)?.cast<String>() ?? [];

@@ -192,16 +192,42 @@ class CombinedSnapshot {
       final indent = '  ' * node.depth;
       final hasSemantics = node.semantics != null;
       final semanticsMarker = hasSemantics ? ' [s${node.semantics!.id}]' : '';
+      final sem = node.semantics;
 
       final parts = <String>[];
-      if (node.semantics?.label != null) {
-        parts.add('"${node.semantics!.label}"');
+      if (sem?.label != null) {
+        parts.add('"${sem!.label}"');
       }
-      if (node.semantics?.value != null && node.semantics!.value!.isNotEmpty) {
-        parts.add('= "${node.semantics!.value}"');
+      if (sem?.value != null && sem!.value!.isNotEmpty) {
+        parts.add('= "${sem.value}"');
       }
-      if (node.semantics?.actions.isNotEmpty == true) {
-        parts.add('[${node.semantics!.actions.join(', ')}]');
+      // Validation indicator
+      if (sem?.validationResult == 'invalid') {
+        parts.add('⚠️');
+      } else if (sem?.validationResult == 'valid') {
+        parts.add('✓');
+      }
+      // Tooltip
+      if (sem?.tooltip != null && sem!.tooltip!.isNotEmpty) {
+        parts.add('💬"${sem.tooltip}"');
+      }
+      // Heading level
+      if (sem?.headingLevel != null && sem!.headingLevel! > 0) {
+        parts.add('H${sem.headingLevel}');
+      }
+      // Link
+      if (sem?.linkUrl != null && sem!.linkUrl!.isNotEmpty) {
+        parts.add('🔗');
+      }
+      // Input type or role
+      if (sem?.inputType != null && sem!.inputType != 'none' && sem.inputType != 'text') {
+        parts.add('<${sem.inputType}>');
+      } else if (sem?.role != null && sem!.role != 'none') {
+        parts.add('<${sem.role}>');
+      }
+      // Actions
+      if (sem?.actions.isNotEmpty == true) {
+        parts.add('[${sem!.actions.join(', ')}]');
       }
 
       final info = parts.isNotEmpty ? ' ${parts.join(' ')}' : '';

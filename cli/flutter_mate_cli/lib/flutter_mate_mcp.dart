@@ -402,11 +402,22 @@ Returns the ref of the found element.''',
       final allTexts = <String>[];
       final seenTexts = <String>{}; // Track by trimmed lowercase for dedup
 
+      // Normalize text for comparison: collapse whitespace, remove special chars
+      String normalizeForKey(String s) {
+        return s
+            .toLowerCase()
+            .replaceAll(RegExp(r'[\s\n\r\t]+'), ' ') // Collapse whitespace
+            .replaceAll(RegExp(r'[\ufffc\ufffd]'), '') // Remove replacement chars
+            .replaceAll(RegExp(r'[^\x20-\x7E]'), '') // Remove non-printable
+            .trim();
+      }
+
       void addText(String? text) {
         if (text == null || text.trim().isEmpty) return;
         // Skip single-character icon glyphs (Private Use Area)
         if (text.length == 1 && text.codeUnitAt(0) >= 0xE000) return;
-        final key = text.trim().toLowerCase();
+        final key = normalizeForKey(text);
+        if (key.isEmpty) return;
         if (!seenTexts.contains(key)) {
           seenTexts.add(key);
           allTexts.add(text.trim());
@@ -428,7 +439,7 @@ Returns the ref of the found element.''',
       final value = semantics?['value'] as String?;
       if (value != null &&
           value.isNotEmpty &&
-          !seenTexts.contains(value.trim().toLowerCase())) {
+          !seenTexts.contains(normalizeForKey(value))) {
         parts.add('value = "$value"');
       }
 

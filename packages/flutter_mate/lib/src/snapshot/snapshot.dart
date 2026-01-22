@@ -72,6 +72,20 @@ class SnapshotService {
       // Track used semantics node IDs to avoid duplication
       final usedSemanticsIds = <int>{};
 
+      // Track claimed text for deduplication (children claim first)
+      // Key: normalized text, Value: true (we only need to know if claimed)
+      final claimedText = <String>{};
+
+      // Normalize text for comparison
+      String normalizeText(String s) {
+        return s
+            .toLowerCase()
+            .replaceAll(RegExp(r'[\ufffc\ufffd]'), '')
+            .replaceAll(RegExp(r'[^\x20-\x7E]'), '')
+            .replaceAll(RegExp(r'\s+'), ' ')
+            .trim();
+      }
+
       // Parse the inspector tree and attach semantics using toObject
       final nodes = <CombinedNode>[];
       int refCounter = 0;
@@ -96,11 +110,10 @@ class SnapshotService {
             final obj = service.toObject(valueId, groupName);
             if (obj is Element) {
               // Check if this element is in the current (topmost) route
-              // This filters out widgets from previous screens after navigation
               try {
                 final route = ModalRoute.of(obj);
                 if (route != null && !route.isCurrent) {
-                  // This element is in a non-current route, skip it and children
+                  // Skip non-current route, but still process children
                   for (final childJson in childrenJson) {
                     if (childJson is Map<String, dynamic>) {
                       walkInspectorNode(childJson, depth + 1);
@@ -108,11 +121,9 @@ class SnapshotService {
                   }
                   return;
                 }
-              } catch (_) {
-                // ModalRoute.of can throw if no Navigator ancestor
-              }
+              } catch (_) {}
 
-              // Cache the Element for ref lookup (used by typeText, etc.)
+              // Cache the Element for ref lookup
               FlutterMate.cachedElements[ref] = obj;
 
               // Extract text content from the widget itself
@@ -125,11 +136,11 @@ class SnapshotService {
                   textContent = allTexts.join(' | ');
                 }
               }
+
               // Find the RenderObject
               if (obj is RenderObjectElement) {
                 ro = obj.renderObject;
               } else {
-                // Walk down to find first RenderObjectElement
                 void findRenderObject(Element el) {
                   if (ro != null) return;
                   if (el is RenderObjectElement) {
@@ -138,39 +149,30 @@ class SnapshotService {
                   }
                   el.visitChildren(findRenderObject);
                 }
-
                 findRenderObject(obj);
               }
 
-              if (ro != null) {
-                // Get bounds if it's a RenderBox
-                if (ro is RenderBox) {
-                  final box = ro as RenderBox;
-                  if (box.hasSize) {
-                    try {
-                      final topLeft = box.localToGlobal(Offset.zero);
-                      bounds = CombinedRect(
-                        x: topLeft.dx,
-                        y: topLeft.dy,
-                        width: box.size.width,
-                        height: box.size.height,
-                      );
-                    } catch (_) {
-                      // localToGlobal can fail if not attached
-                    }
-                  }
+              if (ro != null && ro is RenderBox) {
+                final box = ro as RenderBox;
+                if (box.hasSize) {
+                  try {
+                    final topLeft = box.localToGlobal(Offset.zero);
+                    bounds = CombinedRect(
+                      x: topLeft.dx,
+                      y: topLeft.dy,
+                      width: box.size.width,
+                      height: box.size.height,
+                    );
+                  } catch (_) {}
                 }
-                // NOTE: Semantics extraction moved to AFTER children processing
               }
             }
           } catch (e) {
-            // toObject can fail for some elements, continue without semantics
             debugPrint('FlutterMate: toObject failed for $valueId: $e');
           }
         }
 
-        // Process children FIRST so they claim their semantics
-        // This prevents parent from stealing child semantics when searching down
+        // Process children FIRST - they claim their text and semantics
         final childRefs = <String>[];
         final childStartRef = refCounter;
 
@@ -184,14 +186,67 @@ class SnapshotService {
           }
         }
 
+        // NOW deduplicate text - children have already claimed theirs
+        // Filter out text that was already claimed by children
+        if (textContent != null && textContent.isNotEmpty) {
+          final texts = textContent.split(' | ');
+          final newTexts = <String>[];
+          for (final t in texts) {
+            final key = normalizeText(t);
+            if (key.isNotEmpty && !claimedText.contains(key)) {
+              claimedText.add(key); // Claim this text
+              newTexts.add(t);
+            }
+          }
+          textContent = newTexts.isEmpty ? null : newTexts.join(' | ');
+        }
+
         // NOW extract semantics - children have already claimed theirs
-        // Search down to find semantics in internal widgets (not in inspector tree)
-        // but skip already-used IDs (claimed by children in inspector tree)
         if (ro != null) {
-          SemanticsNode? sn = _findSemanticsInRenderTree(ro!);
+          final sn = _findSemanticsInRenderTree(ro!);
           if (sn != null && !usedSemanticsIds.contains(sn.id)) {
             usedSemanticsIds.add(sn.id);
-            semantics = _extractSemanticsInfo(sn);
+            var sem = _extractSemanticsInfo(sn);
+
+            // Also deduplicate semantics.label against claimed text
+            if (sem.label != null) {
+              final labelKey = normalizeText(sem.label!);
+              if (labelKey.isNotEmpty && claimedText.contains(labelKey)) {
+                // Label was claimed by a child - clear it
+                sem = SemanticsInfo(
+                  id: sem.id,
+                  identifier: sem.identifier,
+                  label: null,
+                  value: sem.value,
+                  hint: sem.hint,
+                  tooltip: sem.tooltip,
+                  increasedValue: sem.increasedValue,
+                  decreasedValue: sem.decreasedValue,
+                  textDirection: sem.textDirection,
+                  textSelectionBase: sem.textSelectionBase,
+                  textSelectionExtent: sem.textSelectionExtent,
+                  maxValueLength: sem.maxValueLength,
+                  currentValueLength: sem.currentValueLength,
+                  headingLevel: sem.headingLevel,
+                  linkUrl: sem.linkUrl,
+                  role: sem.role,
+                  inputType: sem.inputType,
+                  validationResult: sem.validationResult,
+                  platformViewId: sem.platformViewId,
+                  controlsNodes: sem.controlsNodes,
+                  flags: sem.flags,
+                  actions: sem.actions,
+                  scrollChildCount: sem.scrollChildCount,
+                  scrollIndex: sem.scrollIndex,
+                  scrollPosition: sem.scrollPosition,
+                  scrollExtentMax: sem.scrollExtentMax,
+                  scrollExtentMin: sem.scrollExtentMin,
+                );
+              } else if (labelKey.isNotEmpty) {
+                claimedText.add(labelKey); // Claim this label
+              }
+            }
+            semantics = sem;
           }
         }
 
@@ -219,135 +274,6 @@ class SnapshotService {
         final refB = int.parse(b.ref.substring(1));
         return refA.compareTo(refB);
       });
-
-      // Normalize text for comparison: remove special chars FIRST, then collapse whitespace
-      String normalizeText(String s) {
-        return s
-            .toLowerCase()
-            .replaceAll(
-                RegExp(r'[\ufffc\ufffd]'), '') // Remove replacement chars FIRST
-            .replaceAll(RegExp(r'[^\x20-\x7E]'), '') // Remove non-printable
-            .replaceAll(RegExp(r'\s+'), ' ') // THEN collapse whitespace
-            .trim();
-      }
-
-      // Build a map of ref -> node for quick lookup
-      final nodeMap = {for (final n in nodes) n.ref: n};
-
-      // Helper to get all descendants of a node (transitively)
-      Set<String> getDescendants(String ref) {
-        final result = <String>{};
-        final node = nodeMap[ref];
-        if (node == null) return result;
-        for (final childRef in node.children) {
-          result.add(childRef);
-          result.addAll(getDescendants(childRef));
-        }
-        return result;
-      }
-
-      // Track which node ref claimed each text: normalizedText -> claimingNodeRef
-      final textClaimant = <String, String>{};
-
-      // Deduplicate text: process in REVERSE order so children claim text first
-      // Only filter text if it was claimed by a DESCENDANT of the current node
-      // This prevents unrelated nodes from affecting each other
-      for (var i = nodes.length - 1; i >= 0; i--) {
-        final node = nodes[i];
-        String? newTextContent = node.textContent;
-        SemanticsInfo? newSemantics = node.semantics;
-        bool changed = false;
-
-        // Get all descendants of this node once
-        final descendants = getDescendants(node.ref);
-
-        // Process textContent
-        if (node.textContent != null && node.textContent!.isNotEmpty) {
-          // Split the text content back into individual texts
-          final texts = node.textContent!.split(' | ');
-          // Filter out texts claimed by DESCENDANTS only (not unrelated nodes)
-          final newTexts = texts.where((t) {
-            final key = normalizeText(t);
-            if (key.isEmpty) return false;
-            final claimant = textClaimant[key];
-            // Keep if no claimant OR claimant is not a descendant
-            return claimant == null || !descendants.contains(claimant);
-          }).toList();
-          // Claim texts that weren't filtered (this node claims them)
-          for (final t in newTexts) {
-            final key = normalizeText(t);
-            if (key.isNotEmpty && !textClaimant.containsKey(key)) {
-              textClaimant[key] = node.ref;
-            }
-          }
-          // Update textContent if filtered
-          if (newTexts.isEmpty) {
-            newTextContent = null;
-            changed = true;
-          } else if (newTexts.length < texts.length) {
-            newTextContent = newTexts.join(' | ');
-            changed = true;
-          }
-        }
-
-        // Process semantics.label - also deduplicate if claimed by descendant
-        if (node.semantics != null && node.semantics!.label != null) {
-          final labelKey = normalizeText(node.semantics!.label!);
-          final claimant = textClaimant[labelKey];
-          if (labelKey.isNotEmpty &&
-              claimant != null &&
-              descendants.contains(claimant)) {
-            // Label is claimed by a descendant - clear it
-            newSemantics = SemanticsInfo(
-              id: node.semantics!.id,
-              identifier: node.semantics!.identifier,
-              label: null, // Clear the duplicate label
-              value: node.semantics!.value,
-              hint: node.semantics!.hint,
-              tooltip: node.semantics!.tooltip,
-              increasedValue: node.semantics!.increasedValue,
-              decreasedValue: node.semantics!.decreasedValue,
-              textDirection: node.semantics!.textDirection,
-              textSelectionBase: node.semantics!.textSelectionBase,
-              textSelectionExtent: node.semantics!.textSelectionExtent,
-              maxValueLength: node.semantics!.maxValueLength,
-              currentValueLength: node.semantics!.currentValueLength,
-              headingLevel: node.semantics!.headingLevel,
-              linkUrl: node.semantics!.linkUrl,
-              role: node.semantics!.role,
-              inputType: node.semantics!.inputType,
-              validationResult: node.semantics!.validationResult,
-              platformViewId: node.semantics!.platformViewId,
-              controlsNodes: node.semantics!.controlsNodes,
-              flags: node.semantics!.flags,
-              actions: node.semantics!.actions,
-              scrollChildCount: node.semantics!.scrollChildCount,
-              scrollIndex: node.semantics!.scrollIndex,
-              scrollPosition: node.semantics!.scrollPosition,
-              scrollExtentMax: node.semantics!.scrollExtentMax,
-              scrollExtentMin: node.semantics!.scrollExtentMin,
-            );
-            changed = true;
-          } else if (labelKey.isNotEmpty &&
-              !textClaimant.containsKey(labelKey)) {
-            // Claim this label
-            textClaimant[labelKey] = node.ref;
-          }
-        }
-
-        // Update node if anything changed
-        if (changed) {
-          nodes[i] = CombinedNode(
-            ref: node.ref,
-            widget: node.widget,
-            depth: node.depth,
-            bounds: node.bounds,
-            children: node.children,
-            semantics: newSemantics,
-            textContent: newTextContent,
-          );
-        }
-      }
 
       // Filter nodes in compact mode (keep meaningful nodes + their ancestors)
       List<CombinedNode> filteredNodes;

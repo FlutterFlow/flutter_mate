@@ -29,10 +29,16 @@ SemanticsNode? findSemanticsNode(String ref) {
   return searchSemanticsNodeById(nodeId);
 }
 
-/// Find element ref by semantic label
+/// Find element ref by text content or semantic label.
 ///
-/// Searches the current snapshot for an element whose label or value
-/// contains the given text (case-insensitive).
+/// Searches the current snapshot for an element whose text contains
+/// the given string (case-insensitive).
+///
+/// Searches (in order):
+/// - `textContent` (from Text/RichText widgets)
+/// - `semantics.label`
+/// - `semantics.value`
+/// - `semantics.hint`
 ///
 /// ```dart
 /// final ref = await findByLabel('Email');
@@ -47,14 +53,25 @@ Future<String?> findByLabel(String label) async {
   final lowerLabel = label.toLowerCase();
 
   for (final node in snap.nodes) {
+    // Check textContent first
+    final textContent = node.textContent;
+    if (textContent != null && textContent.toLowerCase().contains(lowerLabel)) {
+      return node.ref;
+    }
+
+    // Check semantics fields
     final nodeLabel = node.semantics?.label;
-    final nodeValue = node.semantics?.value;
-    // Check label
     if (nodeLabel != null && nodeLabel.toLowerCase().contains(lowerLabel)) {
       return node.ref;
     }
-    // Check value
+
+    final nodeValue = node.semantics?.value;
     if (nodeValue != null && nodeValue.toLowerCase().contains(lowerLabel)) {
+      return node.ref;
+    }
+
+    final nodeHint = node.semantics?.hint;
+    if (nodeHint != null && nodeHint.toLowerCase().contains(lowerLabel)) {
       return node.ref;
     }
   }
@@ -62,9 +79,15 @@ Future<String?> findByLabel(String label) async {
   return null;
 }
 
-/// Find all element refs matching a label pattern
+/// Find all element refs matching a text pattern.
 ///
-/// Returns all refs whose label or value matches the pattern.
+/// Returns all refs whose text matches the pattern (regex, case-insensitive).
+///
+/// Searches:
+/// - `textContent` (from Text/RichText widgets)
+/// - `semantics.label`
+/// - `semantics.value`
+/// - `semantics.hint`
 ///
 /// ```dart
 /// final refs = await findAllByLabel('Item');
@@ -80,11 +103,37 @@ Future<List<String>> findAllByLabel(String labelPattern) async {
   final refs = <String>[];
 
   for (final node in snap.nodes) {
-    final label = node.semantics?.label;
-    final value = node.semantics?.value;
-    if (label != null && pattern.hasMatch(label)) {
-      refs.add(node.ref);
-    } else if (value != null && pattern.hasMatch(value)) {
+    bool matched = false;
+
+    // Check textContent first
+    final textContent = node.textContent;
+    if (textContent != null && pattern.hasMatch(textContent)) {
+      matched = true;
+    }
+
+    // Check semantics fields
+    if (!matched) {
+      final label = node.semantics?.label;
+      if (label != null && pattern.hasMatch(label)) {
+        matched = true;
+      }
+    }
+
+    if (!matched) {
+      final value = node.semantics?.value;
+      if (value != null && pattern.hasMatch(value)) {
+        matched = true;
+      }
+    }
+
+    if (!matched) {
+      final hint = node.semantics?.hint;
+      if (hint != null && pattern.hasMatch(hint)) {
+        matched = true;
+      }
+    }
+
+    if (matched) {
       refs.add(node.ref);
     }
   }
@@ -92,9 +141,6 @@ Future<List<String>> findAllByLabel(String labelPattern) async {
   return refs;
 }
 
-/// Wait for an element to appear
-///
-/// Returns the ref if found, null if timeout.
 /// Wait for an element with matching text to appear.
 ///
 /// Polls the snapshot until an element with text matching the pattern

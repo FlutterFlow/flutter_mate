@@ -253,6 +253,23 @@ List<CollapsedEntry> collapseNodes(Map<String, CombinedNode> nodeMap) {
 }
 
 // ============================================================================
+// Utilities
+// ============================================================================
+
+/// Escape special characters in a string for display.
+String escapeString(String s, {bool escapeDollar = true}) {
+  final escapedString = s
+      .replaceAll('\\', r'\\')
+      .replaceAll('\r\n', r'\n')
+      .replaceAll('\n', r'\n')
+      .replaceAll('\r', '')
+      .replaceAll('\t', r'\t')
+      .replaceAll('\'', r"\'")
+      .replaceAll('"', r'\"');
+  return escapeDollar ? escapedString.replaceAll(r'$', r'\$') : escapedString;
+}
+
+// ============================================================================
 // Formatting
 // ============================================================================
 
@@ -276,9 +293,8 @@ String formatCollapsedEntry(CollapsedEntry entry) {
     if (text == null || text.trim().isEmpty) return;
     // Skip single-character icon glyphs (Private Use Area)
     if (text.length == 1 && text.codeUnitAt(0) >= 0xE000) return;
-    // Escape newlines for cleaner display
-    final escaped = text.trim().replaceAll('\n', '\\n').replaceAll('\r', '\\r');
-    allTexts.add(escaped);
+    // Escape special characters for cleaner display
+    allTexts.add(escapeString(text.trim(), escapeDollar: false));
   }
 
   // Add textContent parts (split by |)

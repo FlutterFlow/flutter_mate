@@ -318,14 +318,24 @@ String escapeString(String s, {bool escapeDollar = true}) {
 // ============================================================================
 
 /// Format a single collapsed entry for display.
-String formatCollapsedEntry(CollapsedEntry entry) {
+///
+/// If [compact] is true, only show the last widget in the chain (which has
+/// all the aggregated info), hiding structural wrapper widgets.
+String formatCollapsedEntry(CollapsedEntry entry, {bool compact = false}) {
   final indent = '  ' * entry.depth;
 
-  // Filter layout wrappers from display chain
-  final meaningful =
-      entry.chain.where((item) => !layoutWrappers.contains(item.widget));
-  final display = meaningful.isNotEmpty ? meaningful : [entry.chain.first];
-  final chainStr = display.map((e) => '[${e.ref}] ${e.widget}').join(' → ');
+  // In compact mode, just show the last widget (it has all aggregated info)
+  // In normal mode, filter layout wrappers but show the full chain
+  String chainStr;
+  if (compact) {
+    final last = entry.chain.last;
+    chainStr = '[${last.ref}] ${last.widget}';
+  } else {
+    final meaningful =
+        entry.chain.where((item) => !layoutWrappers.contains(item.widget));
+    final display = meaningful.isNotEmpty ? meaningful : [entry.chain.first];
+    chainStr = display.map((e) => '[${e.ref}] ${e.widget}').join(' → ');
+  }
 
   // Build info parts
   final parts = <String>[];
@@ -428,15 +438,17 @@ String formatCollapsedEntry(CollapsedEntry entry) {
 ///
 /// If [compact] is true, only shows widgets with meaningful info (text,
 /// semantics, actions, flags, etc.). Purely structural widgets like
-/// `[w123] Row` are hidden.
+/// `[w123] Row` are hidden, and chains are collapsed to just the last widget.
 List<String> formatSnapshot(List<dynamic> rawNodes, {bool compact = false}) {
   final nodeMap = parseNodes(rawNodes);
   final collapsed = collapseNodes(nodeMap);
 
   if (compact) {
-    // Filter to only entries with additional info
+    // Filter to only entries with additional info, show just last widget
     final meaningful = collapsed.where(hasAdditionalInfo).toList();
-    return meaningful.map(formatCollapsedEntry).toList();
+    return meaningful
+        .map((e) => formatCollapsedEntry(e, compact: true))
+        .toList();
   }
 
   return collapsed.map(formatCollapsedEntry).toList();

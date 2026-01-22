@@ -186,9 +186,12 @@ List<Map<String, dynamic>> collapseNodes(
       final child = nodeMap[ref];
       if (child == null || visited.contains(ref)) continue;
 
-      // Skip spacer widgets between siblings
+      // Skip spacer widgets between siblings (only if they have no children)
       final widgetType = child['widget'] as String? ?? '';
-      if (hasMultipleSiblings && siblingSpacers.contains(widgetType)) {
+      final childChildren = child['children'] as List<dynamic>? ?? [];
+      if (hasMultipleSiblings &&
+          siblingSpacers.contains(widgetType) &&
+          childChildren.isEmpty) {
         visited.add(ref);
         continue;
       }

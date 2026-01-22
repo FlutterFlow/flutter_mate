@@ -315,14 +315,28 @@ class SnapshotService {
     }
   }
 
-  /// Extract widget type from inspector description
+  /// Extract widget type from inspector description.
+  ///
+  /// Cleans up debug info like:
+  /// - `Padding(padding: EdgeInsets...)` → `Padding`
+  /// - `Container-[GlobalKey#779a0 modalMenuButton]` → `Container`
+  /// - `InkWell-[<'dashboard_notifications'>]` → `InkWell`
   static String _extractWidgetType(String description) {
-    // Description can be like "Text" or "Padding(padding: EdgeInsets...)"
-    final parenIndex = description.indexOf('(');
-    if (parenIndex > 0) {
-      return description.substring(0, parenIndex);
+    var result = description;
+
+    // Strip debug key suffix: Widget-[...] → Widget
+    final keyIndex = result.indexOf('-[');
+    if (keyIndex > 0) {
+      result = result.substring(0, keyIndex);
     }
-    return description;
+
+    // Strip constructor params: Widget(...) → Widget
+    final parenIndex = result.indexOf('(');
+    if (parenIndex > 0) {
+      result = result.substring(0, parenIndex);
+    }
+
+    return result;
   }
 
   /// Extract text content from a widget.

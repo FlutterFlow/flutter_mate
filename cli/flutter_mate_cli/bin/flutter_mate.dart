@@ -521,10 +521,10 @@ Future<void> _interactiveMode(VmServiceClient client) async {
         case 'snapshot':
         case 's':
           // Check for -c flag in args
-          await _snapshot(client, args.contains('-c'));
+          await _snapshot(client, false, compact: args.contains('-c'));
           break;
         case 'sc': // Shortcut for compact snapshot
-          await _snapshot(client, true);
+          await _snapshot(client, false, compact: true);
           break;
         case 'tap':
         case 't':

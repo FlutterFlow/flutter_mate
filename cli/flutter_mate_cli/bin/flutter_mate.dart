@@ -27,12 +27,17 @@ void main(List<String> arguments) async {
   parser.addCommand('doubleTap');
   parser.addCommand('longPress');
   parser.addCommand('swipe');
+  parser.addCommand('hover');
+  parser.addCommand('drag');
   parser.addCommand('clear');
   parser.addCommand('typeText');
   parser.addCommand('pressKey');
+  parser.addCommand('keyDown');
+  parser.addCommand('keyUp');
   parser.addCommand('back');
   parser.addCommand('wait');
   parser.addCommand('getText');
+  parser.addCommand('find');
   parser.addCommand('screenshot');
   parser.addCommand('extensions'); // List available extensions
   parser.addCommand('attach'); // Interactive mode
@@ -184,6 +189,23 @@ Future<void> _executeCommand({
         final swipeResult = await client.swipe(direction: args[0]);
         _printResult('swipe', swipeResult, jsonOutput);
         break;
+      case 'hover':
+        if (args.isEmpty) {
+          stderr.writeln('Error: hover requires a ref (e.g., hover w5)');
+          exit(1);
+        }
+        final hoverResult = await client.hover(args[0]);
+        _printResult('hover', hoverResult, jsonOutput);
+        break;
+      case 'drag':
+        if (args.length < 2) {
+          stderr.writeln(
+              'Error: drag requires fromRef and toRef (e.g., drag w5 w10)');
+          exit(1);
+        }
+        final dragResult = await client.drag(args[0], args[1]);
+        _printResult('drag', dragResult, jsonOutput);
+        break;
       case 'clear':
         if (args.isEmpty) {
           stderr.writeln('Error: clear requires a ref (e.g., clear w5)');
@@ -215,6 +237,22 @@ Future<void> _executeCommand({
         final keyResult = await client.pressKey(args[0]);
         _printResult('pressKey', keyResult, jsonOutput);
         break;
+      case 'keyDown':
+        if (args.isEmpty) {
+          stderr.writeln('Error: keyDown requires a key (e.g., keyDown shift)');
+          exit(1);
+        }
+        final keyDownResult = await client.keyDown(args[0]);
+        _printResult('keyDown', keyDownResult, jsonOutput);
+        break;
+      case 'keyUp':
+        if (args.isEmpty) {
+          stderr.writeln('Error: keyUp requires a key (e.g., keyUp shift)');
+          exit(1);
+        }
+        final keyUpResult = await client.keyUp(args[0]);
+        _printResult('keyUp', keyUpResult, jsonOutput);
+        break;
       case 'back':
         // Use pure VM back (press escape or back key)
         final backResult = await client.pressKey('escape');
@@ -240,6 +278,26 @@ Future<void> _executeCommand({
         }
         final textResult = await client.getText(args[0]);
         _printResult('getText', textResult, jsonOutput);
+        break;
+      case 'find':
+        if (args.isEmpty) {
+          stderr.writeln('Error: find requires a ref (e.g., find w5)');
+          exit(1);
+        }
+        final findResult = await client.find(args[0]);
+        if (jsonOutput) {
+          print(const JsonEncoder.withIndent('  ').convert(findResult));
+        } else if (findResult['success'] == true) {
+          final element = findResult['result']?['element'] as Map?;
+          if (element != null) {
+            _printElementDetails(element);
+          } else {
+            print('✅ Element found but no details available');
+          }
+        } else {
+          stderr.writeln(
+              '❌ find failed: ${findResult['error'] ?? 'unknown error'}');
+        }
         break;
       case 'screenshot':
         // Screenshots require special handling - not pure VM
@@ -318,6 +376,60 @@ void _printSnapshot(Map<String, dynamic> data, {bool compact = false}) {
   for (final line in lines) {
     print(line);
   }
+}
+
+/// Print detailed info about an element
+void _printElementDetails(Map element) {
+  final ref = element['ref'] ?? 'unknown';
+  final widget = element['widget'] ?? 'unknown';
+  final bounds = element['bounds'];
+  final semantics = element['semantics'];
+  final textContent = element['textContent'];
+  final children = element['children'] as List?;
+
+  print('┌─────────────────────────────────────────');
+  print('│ [$ref] $widget');
+  print('├─────────────────────────────────────────');
+
+  if (bounds != null) {
+    print('│ Bounds:');
+    print('│   x: ${bounds['x']}, y: ${bounds['y']}');
+    print('│   width: ${bounds['width']}, height: ${bounds['height']}');
+  }
+
+  if (textContent != null && textContent.toString().isNotEmpty) {
+    print('│ Text: "$textContent"');
+  }
+
+  if (semantics != null) {
+    print('│ Semantics:');
+    if (semantics['label'] != null) {
+      print('│   label: "${semantics['label']}"');
+    }
+    if (semantics['value'] != null) {
+      print('│   value: "${semantics['value']}"');
+    }
+    if (semantics['hint'] != null) {
+      print('│   hint: "${semantics['hint']}"');
+    }
+    final actions = semantics['actions'] as List?;
+    if (actions != null && actions.isNotEmpty) {
+      print('│   actions: ${actions.join(', ')}');
+    }
+    final flags = semantics['flags'] as List?;
+    if (flags != null && flags.isNotEmpty) {
+      print('│   flags: ${flags.join(', ')}');
+    }
+    if (semantics['isValid'] == false) {
+      print('│   validation: invalid');
+    }
+  }
+
+  if (children != null && children.isNotEmpty) {
+    print('│ Children: ${children.length} (${children.join(', ')})');
+  }
+
+  print('└─────────────────────────────────────────');
 }
 
 Future<void> _listExtensions(VmServiceClient client) async {
@@ -473,6 +585,23 @@ Future<void> _interactiveMode(VmServiceClient client) async {
             _printResult('swipe', r, false);
           }
           break;
+        case 'hover':
+        case 'h':
+          if (args.isEmpty) {
+            print('Usage: hover <ref>');
+          } else {
+            final r = await client.hover(args[0]);
+            _printResult('hover', r, false);
+          }
+          break;
+        case 'drag':
+          if (args.length < 2) {
+            print('Usage: drag <fromRef> <toRef>');
+          } else {
+            final r = await client.drag(args[0], args[1]);
+            _printResult('drag', r, false);
+          }
+          break;
         case 'clear':
           if (args.isEmpty) {
             print('Usage: clear <ref>');
@@ -501,6 +630,24 @@ Future<void> _interactiveMode(VmServiceClient client) async {
             _printResult('key', r, false);
           }
           break;
+        case 'keydown':
+        case 'kd':
+          if (args.isEmpty) {
+            print('Usage: keydown <key>');
+          } else {
+            final r = await client.keyDown(args[0]);
+            _printResult('keyDown', r, false);
+          }
+          break;
+        case 'keyup':
+        case 'ku':
+          if (args.isEmpty) {
+            print('Usage: keyup <key>');
+          } else {
+            final r = await client.keyUp(args[0]);
+            _printResult('keyUp', r, false);
+          }
+          break;
         case 'back':
           final r = await client.pressKey('escape');
           _printResult('back', r, false);
@@ -523,6 +670,24 @@ Future<void> _interactiveMode(VmServiceClient client) async {
             _printResult('getText', r, false);
           }
           break;
+        case 'find':
+        case 'info':
+          if (args.isEmpty) {
+            print('Usage: find <ref>');
+          } else {
+            final r = await client.find(args[0]);
+            if (r['success'] == true) {
+              final element = r['result']?['element'] as Map?;
+              if (element != null) {
+                _printElementDetails(element);
+              } else {
+                print('✅ Element found');
+              }
+            } else {
+              print('❌ ${r['error'] ?? 'Element not found'}');
+            }
+          }
+          break;
         case 'screenshot':
         case 'ss':
           await _screenshot(client, null);
@@ -538,6 +703,8 @@ Future<void> _interactiveMode(VmServiceClient client) async {
           print('  tap, t <ref>     - Tap element (auto: semantic or gesture)');
           print('  doubleTap, dt <ref> - Double tap element');
           print('  longPress, lp <ref> - Long press element');
+          print('  hover, h <ref>   - Hover over element (trigger onHover)');
+          print('  drag <from> <to> - Drag from one element to another');
           print('  setText, f <ref> <text> - Set text (semantic action)');
           print('  typeText <ref> <text> - Type text (keyboard simulation)');
           print('  clear <ref>      - Clear text field');
@@ -545,9 +712,12 @@ Future<void> _interactiveMode(VmServiceClient client) async {
           print('  swipe <dir>      - Swipe gesture');
           print('  focus <ref>      - Focus element');
           print('  key <keyName>    - Press keyboard key');
+          print('  keydown, kd <key> - Press key down (hold)');
+          print('  keyup, ku <key>  - Release key');
           print('  back             - Navigate back');
           print('  wait <ms>        - Wait milliseconds');
           print('  getText, text <ref> - Get element text');
+          print('  find, info <ref> - Get detailed element info');
           print('  screenshot, ss   - Take screenshot');
           print('  extensions, ext  - List extensions');
           print('  quit             - Exit');
@@ -578,13 +748,18 @@ Connection:
 
 Commands:
   snapshot              Get UI snapshot (widget tree + semantics)
+  find <ref>            Get detailed info about an element
   tap <ref>             Tap on element (e.g., tap w123)
   doubleTap <ref>       Double tap element
   longPress <ref>       Long press element
+  hover <ref>           Hover over element (trigger onHover/onEnter)
+  drag <from> <to>      Drag from one element to another
   fill <ref> <text>     Fill text field via semantic setText (e.g., fill w9 "text")
   typeText <ref> <text> Type text via keyboard simulation (e.g., typeText w10 "text")
   clear <ref>           Clear text field
   pressKey <key>        Press keyboard key (enter, tab, escape, etc.)
+  keyDown <key>         Press key down (hold without releasing)
+  keyUp <key>           Release a key
   scroll <ref> [dir]    Scroll element (dir: up, down, left, right)
   swipe <dir>           Swipe gesture
   focus <ref>           Focus on element

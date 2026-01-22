@@ -17,6 +17,7 @@ import '../snapshot/snapshot.dart';
 ///
 /// **Snapshot:**
 /// - `ext.flutter_mate.snapshot` - Get UI tree with widget refs and semantics
+/// - `ext.flutter_mate.find` - Get detailed info about a specific element
 ///
 /// **Ref-based actions (use widget ref from snapshot):**
 /// - `ext.flutter_mate.tap` - Tap element (semantic + gesture fallback)
@@ -26,15 +27,21 @@ import '../snapshot/snapshot.dart';
 /// - `ext.flutter_mate.longPress` - Long press element
 /// - `ext.flutter_mate.doubleTap` - Double tap element
 /// - `ext.flutter_mate.typeText` - Type text via keyboard simulation
+/// - `ext.flutter_mate.hover` - Hover over element (triggers onHover)
+/// - `ext.flutter_mate.drag` - Drag from one element to another
 ///
 /// **Coordinate-based actions:**
 /// - `ext.flutter_mate.tapAt` - Tap at screen coordinates
 /// - `ext.flutter_mate.doubleTapAt` - Double tap at coordinates
 /// - `ext.flutter_mate.longPressAt` - Long press at coordinates
+/// - `ext.flutter_mate.hoverAt` - Hover at coordinates
+/// - `ext.flutter_mate.dragTo` - Drag from one point to another
 /// - `ext.flutter_mate.swipe` - Swipe gesture from a start position
 ///
 /// **Keyboard:**
-/// - `ext.flutter_mate.pressKey` - Press a keyboard key
+/// - `ext.flutter_mate.pressKey` - Press a keyboard key (keydown + keyup)
+/// - `ext.flutter_mate.keyDown` - Press key down (without releasing)
+/// - `ext.flutter_mate.keyUp` - Release a key
 /// - `ext.flutter_mate.clearText` - Clear focused text field
 ///
 /// **Utilities:**
@@ -302,6 +309,157 @@ class FlutterMateServiceExtensions {
         );
         return ServiceExtensionResponse.result(
             jsonEncode({'success': success}));
+      });
+
+      // ext.flutter_mate.hover - Hover over element by ref
+      registerExtension('ext.flutter_mate.hover', (method, params) async {
+        final ref = params['ref'];
+        if (ref == null) {
+          return ServiceExtensionResponse.error(
+            ServiceExtensionResponse.invalidParams,
+            'Missing ref parameter',
+          );
+        }
+        final success = await GestureActions.hover(ref);
+        if (!success) {
+          return ServiceExtensionResponse.result(jsonEncode({
+            'success': false,
+            'error': 'hover failed: element not found or no bounds',
+          }));
+        }
+        return ServiceExtensionResponse.result(jsonEncode({'success': true}));
+      });
+
+      // ext.flutter_mate.hoverAt - Hover at screen coordinates
+      registerExtension('ext.flutter_mate.hoverAt', (method, params) async {
+        final x = double.tryParse(params['x'] ?? '');
+        final y = double.tryParse(params['y'] ?? '');
+        if (x == null || y == null) {
+          return ServiceExtensionResponse.error(
+            ServiceExtensionResponse.invalidParams,
+            'Missing or invalid x/y coordinates',
+          );
+        }
+        await GestureActions.hoverAt(Offset(x, y));
+        return ServiceExtensionResponse.result(jsonEncode({'success': true}));
+      });
+
+      // ext.flutter_mate.drag - Drag from one element to another by refs
+      registerExtension('ext.flutter_mate.drag', (method, params) async {
+        final fromRef = params['fromRef'];
+        final toRef = params['toRef'];
+        if (fromRef == null || toRef == null) {
+          return ServiceExtensionResponse.error(
+            ServiceExtensionResponse.invalidParams,
+            'Missing fromRef or toRef parameter',
+          );
+        }
+        final success = await GestureActions.dragFromTo(fromRef, toRef);
+        if (!success) {
+          return ServiceExtensionResponse.result(jsonEncode({
+            'success': false,
+            'error': 'drag failed: element not found or no bounds',
+          }));
+        }
+        return ServiceExtensionResponse.result(jsonEncode({'success': true}));
+      });
+
+      // ext.flutter_mate.dragTo - Drag from one point to another
+      registerExtension('ext.flutter_mate.dragTo', (method, params) async {
+        final fromX = double.tryParse(params['fromX'] ?? '');
+        final fromY = double.tryParse(params['fromY'] ?? '');
+        final toX = double.tryParse(params['toX'] ?? '');
+        final toY = double.tryParse(params['toY'] ?? '');
+        if (fromX == null || fromY == null || toX == null || toY == null) {
+          return ServiceExtensionResponse.error(
+            ServiceExtensionResponse.invalidParams,
+            'Missing or invalid coordinates',
+          );
+        }
+        await GestureActions.drag(
+          from: Offset(fromX, fromY),
+          to: Offset(toX, toY),
+        );
+        return ServiceExtensionResponse.result(jsonEncode({'success': true}));
+      });
+
+      // ext.flutter_mate.keyDown - Press key down (without releasing)
+      registerExtension('ext.flutter_mate.keyDown', (method, params) async {
+        final key = params['key'];
+        if (key == null) {
+          return ServiceExtensionResponse.error(
+            ServiceExtensionResponse.invalidParams,
+            'Missing key parameter',
+          );
+        }
+        final logicalKey = KeyboardActions.parseLogicalKey(key);
+        if (logicalKey == null) {
+          return ServiceExtensionResponse.error(
+            ServiceExtensionResponse.invalidParams,
+            'Unknown key: $key',
+          );
+        }
+        final control = params['control'] == 'true';
+        final shift = params['shift'] == 'true';
+        final alt = params['alt'] == 'true';
+        final command = params['command'] == 'true';
+
+        final success = await KeyboardActions.keyDown(logicalKey,
+            control: control, shift: shift, alt: alt, command: command);
+        return ServiceExtensionResponse.result(
+            jsonEncode({'success': success}));
+      });
+
+      // ext.flutter_mate.keyUp - Release a key
+      registerExtension('ext.flutter_mate.keyUp', (method, params) async {
+        final key = params['key'];
+        if (key == null) {
+          return ServiceExtensionResponse.error(
+            ServiceExtensionResponse.invalidParams,
+            'Missing key parameter',
+          );
+        }
+        final logicalKey = KeyboardActions.parseLogicalKey(key);
+        if (logicalKey == null) {
+          return ServiceExtensionResponse.error(
+            ServiceExtensionResponse.invalidParams,
+            'Unknown key: $key',
+          );
+        }
+        final control = params['control'] == 'true';
+        final shift = params['shift'] == 'true';
+        final alt = params['alt'] == 'true';
+        final command = params['command'] == 'true';
+
+        final success = await KeyboardActions.keyUp(logicalKey,
+            control: control, shift: shift, alt: alt, command: command);
+        return ServiceExtensionResponse.result(
+            jsonEncode({'success': success}));
+      });
+
+      // ext.flutter_mate.find - Get detailed info about a specific element
+      registerExtension('ext.flutter_mate.find', (method, params) async {
+        final ref = params['ref'];
+        if (ref == null) {
+          return ServiceExtensionResponse.error(
+            ServiceExtensionResponse.invalidParams,
+            'Missing ref parameter',
+          );
+        }
+
+        final snap = await SnapshotService.snapshot();
+        final node = snap[ref];
+        if (node == null) {
+          return ServiceExtensionResponse.result(jsonEncode({
+            'success': false,
+            'error': 'Element not found: $ref',
+          }));
+        }
+
+        return ServiceExtensionResponse.result(jsonEncode({
+          'success': true,
+          'element': node.toJson(),
+        }));
       });
 
       _registered = true;

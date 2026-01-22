@@ -211,7 +211,7 @@ class KeyboardActions {
     }
   }
 
-  /// Simulate pressing a specific key
+  /// Simulate pressing a specific key (keydown + keyup)
   ///
   /// ```dart
   /// await KeyboardActions.pressKey(LogicalKeyboardKey.enter);
@@ -221,12 +221,9 @@ class KeyboardActions {
     FlutterMate.ensureInitialized();
 
     try {
-      final messenger = WidgetsBinding.instance.defaultBinaryMessenger;
-      final keyId = key.keyId;
-
-      await _sendKeyEventWithLogicalKey(messenger, 'keydown', keyId, 0);
+      await keyDown(key);
       await FlutterMate.delay(const Duration(milliseconds: 30));
-      await _sendKeyEventWithLogicalKey(messenger, 'keyup', keyId, 0);
+      await keyUp(key);
       await FlutterMate.delay(const Duration(milliseconds: 30));
 
       return true;
@@ -234,6 +231,90 @@ class KeyboardActions {
       debugPrint('FlutterMate: pressKey error: $e');
       return false;
     }
+  }
+
+  /// Simulate pressing a key down (without releasing)
+  ///
+  /// Use with [keyUp] for fine-grained keyboard control.
+  /// ```dart
+  /// await KeyboardActions.keyDown(LogicalKeyboardKey.shift);
+  /// await KeyboardActions.pressKey(LogicalKeyboardKey.keyA);
+  /// await KeyboardActions.keyUp(LogicalKeyboardKey.shift);
+  /// ```
+  static Future<bool> keyDown(
+    LogicalKeyboardKey key, {
+    bool control = false,
+    bool shift = false,
+    bool alt = false,
+    bool command = false,
+  }) async {
+    FlutterMate.ensureInitialized();
+
+    try {
+      final messenger = WidgetsBinding.instance.defaultBinaryMessenger;
+      final keyId = key.keyId;
+      final modifiers = _getModifiers(
+        control: control,
+        shift: shift,
+        alt: alt,
+        command: command,
+      );
+
+      await _sendKeyEventWithLogicalKey(messenger, 'keydown', keyId, modifiers);
+      return true;
+    } catch (e) {
+      debugPrint('FlutterMate: keyDown error: $e');
+      return false;
+    }
+  }
+
+  /// Simulate releasing a key (after keyDown)
+  ///
+  /// ```dart
+  /// await KeyboardActions.keyDown(LogicalKeyboardKey.shift);
+  /// await KeyboardActions.pressKey(LogicalKeyboardKey.keyA);
+  /// await KeyboardActions.keyUp(LogicalKeyboardKey.shift);
+  /// ```
+  static Future<bool> keyUp(
+    LogicalKeyboardKey key, {
+    bool control = false,
+    bool shift = false,
+    bool alt = false,
+    bool command = false,
+  }) async {
+    FlutterMate.ensureInitialized();
+
+    try {
+      final messenger = WidgetsBinding.instance.defaultBinaryMessenger;
+      final keyId = key.keyId;
+      final modifiers = _getModifiers(
+        control: control,
+        shift: shift,
+        alt: alt,
+        command: command,
+      );
+
+      await _sendKeyEventWithLogicalKey(messenger, 'keyup', keyId, modifiers);
+      return true;
+    } catch (e) {
+      debugPrint('FlutterMate: keyUp error: $e');
+      return false;
+    }
+  }
+
+  /// Get macOS modifier flags for keyboard events
+  static int _getModifiers({
+    bool control = false,
+    bool shift = false,
+    bool alt = false,
+    bool command = false,
+  }) {
+    int modifiers = 0;
+    if (shift) modifiers |= 0x20000;
+    if (control) modifiers |= 0x40000;
+    if (alt) modifiers |= 0x80000;
+    if (command) modifiers |= 0x100000;
+    return modifiers;
   }
 
   static Future<void> _sendKeyEventWithLogicalKey(
@@ -292,20 +373,11 @@ class KeyboardActions {
     FlutterMate.ensureInitialized();
 
     try {
-      final messenger = WidgetsBinding.instance.defaultBinaryMessenger;
-
-      // macOS modifier flags
-      int modifiers = 0;
-      if (shift) modifiers |= 0x20000;
-      if (control) modifiers |= 0x40000;
-      if (alt) modifiers |= 0x80000;
-      if (command) modifiers |= 0x100000;
-
-      final keyId = key.keyId;
-
-      await _sendKeyEventWithLogicalKey(messenger, 'keydown', keyId, modifiers);
+      await keyDown(key,
+          control: control, shift: shift, alt: alt, command: command);
       await FlutterMate.delay(const Duration(milliseconds: 30));
-      await _sendKeyEventWithLogicalKey(messenger, 'keyup', keyId, modifiers);
+      await keyUp(key,
+          control: control, shift: shift, alt: alt, command: command);
       await FlutterMate.delay(const Duration(milliseconds: 30));
 
       return true;

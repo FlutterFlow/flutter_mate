@@ -6,15 +6,20 @@
 ///
 /// - `connect` - Connect to a running Flutter app via VM Service
 /// - `snapshot` - Capture UI tree with element refs (collapsed view)
+/// - `find` - Get detailed info about a specific element
 /// - `tap` - Tap element (tries semantic action, falls back to gesture)
+/// - `doubleTap` - Double tap an element
+/// - `longPress` - Long press an element
+/// - `hover` - Hover over an element (trigger onHover/onEnter)
+/// - `drag` - Drag from one element to another
 /// - `setText` - Set text via semantic action (for Semantics widgets)
 /// - `typeText` - Type text via keyboard simulation (for TextField widgets)
 /// - `scroll` - Scroll element in a direction
 /// - `focus` - Focus an element (for text input)
 /// - `pressKey` - Press a keyboard key (enter, tab, escape, etc.)
+/// - `keyDown` - Press a key down (hold without releasing)
+/// - `keyUp` - Release a key
 /// - `clear` - Clear text from a text field
-/// - `doubleTap` - Double tap an element
-/// - `longPress` - Long press an element
 /// - `waitFor` - Wait for element with matching label/text to appear
 ///
 /// ## Snapshot Format
@@ -95,15 +100,20 @@ base mixin FlutterMateSupport on ToolsSupport {
     // so they're included in the capabilities response
     registerTool(_connectTool, _handleConnect);
     registerTool(_snapshotTool, _handleSnapshot);
+    registerTool(_findTool, _handleFind);
     registerTool(_tapTool, _handleTap);
     registerTool(_setTextTool, _handleSetText);
     registerTool(_scrollTool, _handleScroll);
     registerTool(_focusTool, _handleFocus);
     registerTool(_pressKeyTool, _handlePressKey);
+    registerTool(_keyDownTool, _handleKeyDown);
+    registerTool(_keyUpTool, _handleKeyUp);
     registerTool(_typeTextTool, _handleTypeText);
     registerTool(_clearTool, _handleClear);
     registerTool(_doubleTapTool, _handleDoubleTap);
     registerTool(_longPressTool, _handleLongPress);
+    registerTool(_hoverTool, _handleHover);
+    registerTool(_dragTool, _handleDrag);
     registerTool(_waitForTool, _handleWaitFor);
 
     return super.initialize(request);
@@ -365,6 +375,93 @@ Returns the ref of the found element and what text matched.''',
     ),
   );
 
+  static final _hoverTool = Tool(
+    name: 'hover',
+    description: '''Hover over an element (trigger onHover/onEnter callbacks).
+
+Useful for showing tooltips, dropdown menus, or any hover-based UI.''',
+    inputSchema: Schema.object(
+      properties: {
+        'ref': Schema.string(description: 'Element ref from snapshot.'),
+      },
+      required: ['ref'],
+    ),
+  );
+
+  static final _dragTool = Tool(
+    name: 'drag',
+    description: '''Drag from one element to another.
+
+Simulates a drag gesture from the center of one element to the center of another.
+Useful for drag-and-drop, sliders, or reordering items.''',
+    inputSchema: Schema.object(
+      properties: {
+        'fromRef': Schema.string(
+          description: 'Element ref to drag from.',
+        ),
+        'toRef': Schema.string(
+          description: 'Element ref to drag to.',
+        ),
+      },
+      required: ['fromRef', 'toRef'],
+    ),
+  );
+
+  static final _keyDownTool = Tool(
+    name: 'keyDown',
+    description: '''Press a key down (hold without releasing).
+
+Use with keyUp for fine-grained keyboard control.
+Useful for modifier keys (shift, control, alt, command) when typing.
+
+Common keys: enter, tab, escape, backspace, delete, space,
+arrowUp, arrowDown, arrowLeft, arrowRight''',
+    inputSchema: Schema.object(
+      properties: {
+        'key': Schema.string(description: 'Key name to press down.'),
+        'control': Schema.bool(description: 'Hold control modifier.'),
+        'shift': Schema.bool(description: 'Hold shift modifier.'),
+        'alt': Schema.bool(description: 'Hold alt/option modifier.'),
+        'command': Schema.bool(description: 'Hold command/meta modifier.'),
+      },
+      required: ['key'],
+    ),
+  );
+
+  static final _keyUpTool = Tool(
+    name: 'keyUp',
+    description: '''Release a key (after keyDown).
+
+Use with keyDown for fine-grained keyboard control.''',
+    inputSchema: Schema.object(
+      properties: {
+        'key': Schema.string(description: 'Key name to release.'),
+        'control': Schema.bool(description: 'Control modifier state.'),
+        'shift': Schema.bool(description: 'Shift modifier state.'),
+        'alt': Schema.bool(description: 'Alt/option modifier state.'),
+        'command': Schema.bool(description: 'Command/meta modifier state.'),
+      },
+      required: ['key'],
+    ),
+  );
+
+  static final _findTool = Tool(
+    name: 'find',
+    description: '''Get detailed information about a specific element.
+
+Returns the full element data including bounds, semantics, text content,
+and children. Useful for inspecting a specific element after taking a snapshot.''',
+    annotations: ToolAnnotations(title: 'Find Element', readOnlyHint: true),
+    inputSchema: Schema.object(
+      properties: {
+        'ref': Schema.string(
+          description: 'Element ref from snapshot (e.g., "w5").',
+        ),
+      },
+      required: ['ref'],
+    ),
+  );
+
   // ══════════════════════════════════════════════════════════════════════════
   // Tool Handlers
   // ══════════════════════════════════════════════════════════════════════════
@@ -601,6 +698,153 @@ Returns the ref of the found element and what text matched.''',
     return CallToolResult(
       content: [TextContent(text: result['error'] ?? 'Element not found')],
       isError: true,
+    );
+  }
+
+  Future<CallToolResult> _handleHover(CallToolRequest request) async {
+    final ref = request.arguments?['ref'] as String?;
+    if (ref == null) return _missingArg('ref');
+
+    final result = await _callExtension(
+      'ext.flutter_mate.hover',
+      args: {'ref': ref},
+    );
+
+    return _simpleResult(result, 'hover');
+  }
+
+  Future<CallToolResult> _handleDrag(CallToolRequest request) async {
+    final fromRef = request.arguments?['fromRef'] as String?;
+    final toRef = request.arguments?['toRef'] as String?;
+    if (fromRef == null) return _missingArg('fromRef');
+    if (toRef == null) return _missingArg('toRef');
+
+    final result = await _callExtension(
+      'ext.flutter_mate.drag',
+      args: {'fromRef': fromRef, 'toRef': toRef},
+    );
+
+    return _simpleResult(result, 'drag');
+  }
+
+  Future<CallToolResult> _handleKeyDown(CallToolRequest request) async {
+    final key = request.arguments?['key'] as String?;
+    if (key == null) return _missingArg('key');
+
+    final control = request.arguments?['control'] as bool? ?? false;
+    final shift = request.arguments?['shift'] as bool? ?? false;
+    final alt = request.arguments?['alt'] as bool? ?? false;
+    final command = request.arguments?['command'] as bool? ?? false;
+
+    final result = await _callExtension(
+      'ext.flutter_mate.keyDown',
+      args: {
+        'key': key,
+        if (control) 'control': 'true',
+        if (shift) 'shift': 'true',
+        if (alt) 'alt': 'true',
+        if (command) 'command': 'true',
+      },
+    );
+
+    return _simpleResult(result, 'keyDown');
+  }
+
+  Future<CallToolResult> _handleKeyUp(CallToolRequest request) async {
+    final key = request.arguments?['key'] as String?;
+    if (key == null) return _missingArg('key');
+
+    final control = request.arguments?['control'] as bool? ?? false;
+    final shift = request.arguments?['shift'] as bool? ?? false;
+    final alt = request.arguments?['alt'] as bool? ?? false;
+    final command = request.arguments?['command'] as bool? ?? false;
+
+    final result = await _callExtension(
+      'ext.flutter_mate.keyUp',
+      args: {
+        'key': key,
+        if (control) 'control': 'true',
+        if (shift) 'shift': 'true',
+        if (alt) 'alt': 'true',
+        if (command) 'command': 'true',
+      },
+    );
+
+    return _simpleResult(result, 'keyUp');
+  }
+
+  Future<CallToolResult> _handleFind(CallToolRequest request) async {
+    final ref = request.arguments?['ref'] as String?;
+    if (ref == null) return _missingArg('ref');
+
+    final result = await _callExtension(
+      'ext.flutter_mate.find',
+      args: {'ref': ref},
+    );
+
+    if (result['success'] != true) {
+      return CallToolResult(
+        content: [
+          TextContent(text: '❌ find failed: ${result['error'] ?? 'Unknown'}'),
+        ],
+        isError: true,
+      );
+    }
+
+    final data = _parseResult(result['result']);
+    final element = data?['element'] as Map<String, dynamic>?;
+    if (element == null) {
+      return CallToolResult(
+        content: [TextContent(text: '❌ Element not found: $ref')],
+        isError: true,
+      );
+    }
+
+    final output = StringBuffer();
+    output.writeln('Element: ${element['ref']} ${element['widget']}');
+    output.writeln('');
+
+    final bounds = element['bounds'];
+    if (bounds != null) {
+      output.writeln('Bounds:');
+      output.writeln(
+          '  x: ${bounds['x']}, y: ${bounds['y']}, w: ${bounds['width']}, h: ${bounds['height']}');
+    }
+
+    final textContent = element['textContent'];
+    if (textContent != null && textContent.toString().isNotEmpty) {
+      output.writeln('Text: "$textContent"');
+    }
+
+    final semantics = element['semantics'];
+    if (semantics != null) {
+      output.writeln('Semantics:');
+      if (semantics['label'] != null) {
+        output.writeln('  label: "${semantics['label']}"');
+      }
+      if (semantics['value'] != null) {
+        output.writeln('  value: "${semantics['value']}"');
+      }
+      if (semantics['hint'] != null) {
+        output.writeln('  hint: "${semantics['hint']}"');
+      }
+      final actions = semantics['actions'] as List?;
+      if (actions != null && actions.isNotEmpty) {
+        output.writeln('  actions: ${actions.join(', ')}');
+      }
+      final flags = semantics['flags'] as List?;
+      if (flags != null && flags.isNotEmpty) {
+        output.writeln('  flags: ${flags.join(', ')}');
+      }
+    }
+
+    final children = element['children'] as List?;
+    if (children != null && children.isNotEmpty) {
+      output.writeln('Children: ${children.join(', ')}');
+    }
+
+    return CallToolResult(
+      content: [TextContent(text: output.toString())],
     );
   }
 

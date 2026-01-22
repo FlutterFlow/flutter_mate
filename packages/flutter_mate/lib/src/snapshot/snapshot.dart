@@ -378,7 +378,6 @@ class SnapshotService {
           }
         }
       }
-
     } catch (_) {
       // Diagnostics can fail for some widgets
     }

@@ -211,6 +211,63 @@ class VmServiceClient {
     });
   }
 
+  /// Hover at coordinates (triggers onHover/onEnter).
+  Future<Map<String, dynamic>> hoverAt(double x, double y) async {
+    return callExtension('ext.flutter_mate.hoverAt', args: {
+      'x': x.toString(),
+      'y': y.toString(),
+    });
+  }
+
+  /// Drag from one point to another.
+  Future<Map<String, dynamic>> dragTo({
+    required double fromX,
+    required double fromY,
+    required double toX,
+    required double toY,
+  }) async {
+    return callExtension('ext.flutter_mate.dragTo', args: {
+      'fromX': fromX.toString(),
+      'fromY': fromY.toString(),
+      'toX': toX.toString(),
+      'toY': toY.toString(),
+    });
+  }
+
+  /// Press key down (without releasing).
+  Future<Map<String, dynamic>> keyDown(
+    String key, {
+    bool control = false,
+    bool shift = false,
+    bool alt = false,
+    bool command = false,
+  }) async {
+    return callExtension('ext.flutter_mate.keyDown', args: {
+      'key': key,
+      if (control) 'control': 'true',
+      if (shift) 'shift': 'true',
+      if (alt) 'alt': 'true',
+      if (command) 'command': 'true',
+    });
+  }
+
+  /// Release a key.
+  Future<Map<String, dynamic>> keyUp(
+    String key, {
+    bool control = false,
+    bool shift = false,
+    bool alt = false,
+    bool command = false,
+  }) async {
+    return callExtension('ext.flutter_mate.keyUp', args: {
+      'key': key,
+      if (control) 'control': 'true',
+      if (shift) 'shift': 'true',
+      if (alt) 'alt': 'true',
+      if (command) 'command': 'true',
+    });
+  }
+
   // ══════════════════════════════════════════════════════════════════════════
   // REF-BASED ACTIONS
   // These find an element by its ref (from semantics tree) and perform actions.
@@ -285,6 +342,24 @@ class VmServiceClient {
   /// Double tap on an element by ref
   Future<Map<String, dynamic>> doubleTap(String ref) async {
     return callExtension('ext.flutter_mate.doubleTap', args: {'ref': ref});
+  }
+
+  /// Hover over an element by ref (triggers onHover/onEnter)
+  Future<Map<String, dynamic>> hover(String ref) async {
+    return callExtension('ext.flutter_mate.hover', args: {'ref': ref});
+  }
+
+  /// Drag from one element to another by refs
+  Future<Map<String, dynamic>> drag(String fromRef, String toRef) async {
+    return callExtension('ext.flutter_mate.drag',
+        args: {'fromRef': fromRef, 'toRef': toRef});
+  }
+
+  /// Get detailed info about a specific element by ref
+  ///
+  /// Returns the full element data including bounds, semantics, text content.
+  Future<Map<String, dynamic>> find(String ref) async {
+    return callExtension('ext.flutter_mate.find', args: {'ref': ref});
   }
 
   /// Get text from an element by ref

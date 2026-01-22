@@ -314,6 +314,104 @@ class GestureActions {
     return true;
   }
 
+  /// Simulate a hover (mouse enter) over an element by ref
+  ///
+  /// Sends PointerHoverEvent to trigger onHover/onEnter callbacks.
+  /// ```dart
+  /// await GestureActions.hover('w15');
+  /// ```
+  static Future<bool> hover(String ref) async {
+    FlutterMate.ensureInitialized();
+
+    final snap = await SnapshotService.snapshot();
+    final nodeInfo = snap[ref];
+    if (nodeInfo == null) {
+      debugPrint('FlutterMate: Node not found: $ref');
+      return false;
+    }
+
+    final centerPoint = nodeInfo.center;
+    if (centerPoint == null) {
+      debugPrint('FlutterMate: Node has no bounds: $ref');
+      return false;
+    }
+
+    await hoverAt(Offset(centerPoint.x, centerPoint.y));
+    return true;
+  }
+
+  /// Simulate a hover at specific coordinates
+  ///
+  /// Sends mouse enter and hover events to trigger hover callbacks.
+  static Future<void> hoverAt(Offset position) async {
+    FlutterMate.ensureInitialized();
+
+    debugPrint('FlutterMate: hoverAt $position');
+
+    final pointerId = ++_pointerIdCounter;
+    final now = Duration(milliseconds: DateTime.now().millisecondsSinceEpoch);
+
+    // Send hover event (mouse device kind required for hover)
+    FlutterMate.dispatchPointerEvent(PointerHoverEvent(
+      pointer: pointerId,
+      position: position,
+      timeStamp: now,
+      kind: PointerDeviceKind.mouse,
+    ));
+
+    await FlutterMate.delay(const Duration(milliseconds: 100));
+  }
+
+  /// Move mouse to position (for hover effects)
+  static Future<void> mouseMoveTo(Offset position) async {
+    FlutterMate.ensureInitialized();
+
+    final now = Duration(milliseconds: DateTime.now().millisecondsSinceEpoch);
+
+    FlutterMate.dispatchPointerEvent(PointerHoverEvent(
+      position: position,
+      timeStamp: now,
+      kind: PointerDeviceKind.mouse,
+    ));
+
+    await FlutterMate.delay(const Duration(milliseconds: 16));
+  }
+
+  /// Drag from one element to another
+  ///
+  /// ```dart
+  /// await GestureActions.dragFromTo('w10', 'w20');
+  /// ```
+  static Future<bool> dragFromTo(String fromRef, String toRef) async {
+    FlutterMate.ensureInitialized();
+
+    final snap = await SnapshotService.snapshot();
+    final fromNode = snap[fromRef];
+    final toNode = snap[toRef];
+
+    if (fromNode == null) {
+      debugPrint('FlutterMate: From node not found: $fromRef');
+      return false;
+    }
+    if (toNode == null) {
+      debugPrint('FlutterMate: To node not found: $toRef');
+      return false;
+    }
+
+    final fromCenter = fromNode.center;
+    final toCenter = toNode.center;
+    if (fromCenter == null || toCenter == null) {
+      debugPrint('FlutterMate: Nodes have no bounds');
+      return false;
+    }
+
+    await drag(
+      from: Offset(fromCenter.x, fromCenter.y),
+      to: Offset(toCenter.x, toCenter.y),
+    );
+    return true;
+  }
+
   /// Simulate a long press at screen coordinates
   static Future<void> longPressAt(
     Offset position, {

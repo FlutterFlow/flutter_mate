@@ -67,15 +67,7 @@ const layoutWrappers = {
   'FutureBuilder',
   'LayoutBuilder',
   'OrientationBuilder',
-  // Input handling internals
-  'MouseRegion',
-  'Listener',
-  'RawGestureDetector',
   // Other structural
-  'Offstage',
-  'Visibility',
-  'IgnorePointer',
-  'AbsorbPointer',
   'MetaData',
   'KeyedSubtree',
   'RepaintBoundary',
@@ -85,16 +77,37 @@ const layoutWrappers = {
   'MediaQuery',
   'Theme',
   'DefaultTextEditingShortcuts',
-  'Shortcuts',
-  'Actions',
-  'Focus',
-  'FocusScope',
-  'FocusTraversalGroup',
-  'ExcludeFocus',
-  'ExcludeSemantics',
-  'BlockSemantics',
-  'MergeSemantics',
 };
+
+/// Widgets that should be skipped when they appear as siblings (spacers between items).
+/// These are only skipped when they have no meaningful content (no text, no semantics).
+const siblingSpacers = {
+  'SizedBox',
+  'Spacer',
+  'Divider',
+  'VerticalDivider',
+  'Gap', // Common spacing package
+};
+
+/// Check if a node is a meaningless spacer that can be skipped as a sibling.
+bool isMeaninglessSpacer(Map<String, dynamic> node) {
+  final widget = node['widget'] as String? ?? '';
+  if (!siblingSpacers.contains(widget)) return false;
+
+  // Has semantics? Keep it
+  final semantics = node['semantics'] as Map<String, dynamic>?;
+  if (semantics != null) return false;
+
+  // Has text content? Keep it
+  final text = node['textContent'] as String?;
+  if (text != null && text.isNotEmpty) return false;
+
+  // Has children? Keep it (might be a container)
+  final children = node['children'] as List<dynamic>? ?? [];
+  if (children.isNotEmpty) return false;
+
+  return true;
+}
 
 /// Collapse nodes with same bounds into chains for cleaner display.
 List<Map<String, dynamic>> collapseNodes(
@@ -185,13 +198,22 @@ List<Map<String, dynamic>> collapseNodes(
       'children': current['children'] as List<dynamic>? ?? [],
     });
 
-    // Process children
+    // Process children - skip meaningless spacers when there are multiple siblings
     final children = current['children'] as List<dynamic>? ?? [];
+    final hasMultipleSiblings = children.length > 1;
+
     for (final childRef in children) {
-      final child = nodeMap[childRef as String];
-      if (child != null && !visited.contains(childRef)) {
-        processNode(child, displayDepth + 1);
+      final ref = childRef as String;
+      final child = nodeMap[ref];
+      if (child == null || visited.contains(ref)) continue;
+
+      // Skip meaningless spacers between siblings
+      if (hasMultipleSiblings && isMeaninglessSpacer(child)) {
+        visited.add(ref);
+        continue;
       }
+
+      processNode(child, displayDepth + 1);
     }
   }
 

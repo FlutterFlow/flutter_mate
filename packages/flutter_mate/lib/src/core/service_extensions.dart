@@ -210,6 +210,82 @@ class FlutterMateServiceExtensions {
         return ServiceExtensionResponse.result(jsonEncode(result));
       });
 
+      // ext.flutter_mate.ensureSemantics - Ensure semantics tree is available
+      registerExtension('ext.flutter_mate.ensureSemantics',
+          (method, params) async {
+        try {
+          WidgetsBinding.instance.ensureSemantics();
+          return ServiceExtensionResponse.result(
+              jsonEncode({'success': true}));
+        } catch (e) {
+          return ServiceExtensionResponse.result(
+              jsonEncode({'success': false, 'error': e.toString()}));
+        }
+      });
+
+      // ext.flutter_mate.tapAt - Tap at screen coordinates
+      registerExtension('ext.flutter_mate.tapAt', (method, params) async {
+        final x = double.tryParse(params['x'] ?? '');
+        final y = double.tryParse(params['y'] ?? '');
+        if (x == null || y == null) {
+          return ServiceExtensionResponse.error(
+            ServiceExtensionResponse.invalidParams,
+            'Missing or invalid x/y coordinates',
+          );
+        }
+        final success = await GestureActions.tapAt(Offset(x, y));
+        return ServiceExtensionResponse.result(
+            jsonEncode({'success': success}));
+      });
+
+      // ext.flutter_mate.doubleTapAt - Double tap at screen coordinates
+      registerExtension('ext.flutter_mate.doubleTapAt', (method, params) async {
+        final x = double.tryParse(params['x'] ?? '');
+        final y = double.tryParse(params['y'] ?? '');
+        if (x == null || y == null) {
+          return ServiceExtensionResponse.error(
+            ServiceExtensionResponse.invalidParams,
+            'Missing or invalid x/y coordinates',
+          );
+        }
+        await GestureActions.doubleTapAt(Offset(x, y));
+        return ServiceExtensionResponse.result(jsonEncode({'success': true}));
+      });
+
+      // ext.flutter_mate.longPressAt - Long press at screen coordinates
+      registerExtension('ext.flutter_mate.longPressAt', (method, params) async {
+        final x = double.tryParse(params['x'] ?? '');
+        final y = double.tryParse(params['y'] ?? '');
+        final durationMs = int.tryParse(params['durationMs'] ?? '500') ?? 500;
+        if (x == null || y == null) {
+          return ServiceExtensionResponse.error(
+            ServiceExtensionResponse.invalidParams,
+            'Missing or invalid x/y coordinates',
+          );
+        }
+        await GestureActions.longPressAt(
+            Offset(x, y),
+            pressDuration: Duration(milliseconds: durationMs));
+        return ServiceExtensionResponse.result(jsonEncode({'success': true}));
+      });
+
+      // ext.flutter_mate.swipe - Swipe gesture
+      registerExtension('ext.flutter_mate.swipe', (method, params) async {
+        final direction = params['direction'] ?? 'up';
+        final startX = double.tryParse(params['startX'] ?? '200') ?? 200;
+        final startY = double.tryParse(params['startY'] ?? '400') ?? 400;
+        final distance = double.tryParse(params['distance'] ?? '200') ?? 200;
+
+        final success = await GestureActions.swipe(
+          direction: direction,
+          startX: startX,
+          startY: startY,
+          distance: distance,
+        );
+        return ServiceExtensionResponse.result(
+            jsonEncode({'success': success}));
+      });
+
       _registered = true;
       debugPrint('FlutterMate: Service extensions registered');
       return true;

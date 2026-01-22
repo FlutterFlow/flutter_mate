@@ -107,18 +107,9 @@ class VmServiceClient {
   Future<bool> ensureSemantics() async {
     if (_semanticsEnsured) return true;
 
-    try {
-      // Use WidgetsBinding which includes RendererBinding mixin
-      final result =
-          await evaluate('WidgetsBinding.instance.ensureSemantics()');
-      _semanticsEnsured = result != null;
-      return _semanticsEnsured;
-    } catch (e) {
-      print('Note: ensureSemantics: $e');
-      // Semantics might already be active
-      _semanticsEnsured = true;
-      return true;
-    }
+    final result = await callExtension('ext.flutter_mate.ensureSemantics');
+    _semanticsEnsured = result['success'] == true;
+    return _semanticsEnsured;
   }
 
   /// Get UI snapshot via FlutterMate service extension
@@ -174,17 +165,10 @@ class VmServiceClient {
 
   /// Tap at screen coordinates.
   Future<Map<String, dynamic>> tapAt(double x, double y) async {
-    try {
-      // Pointer down
-      await evaluate('WidgetsBinding.instance.handlePointerEvent('
-          'PointerDownEvent(position: Offset($x, $y), pointer: 1))');
-      // Pointer up
-      await evaluate('WidgetsBinding.instance.handlePointerEvent('
-          'PointerUpEvent(position: Offset($x, $y), pointer: 1))');
-      return {'success': true};
-    } catch (e) {
-      return {'success': false, 'error': e.toString()};
-    }
+    return callExtension('ext.flutter_mate.tapAt', args: {
+      'x': x.toString(),
+      'y': y.toString(),
+    });
   }
 
   /// Perform a swipe gesture.
@@ -194,66 +178,30 @@ class VmServiceClient {
     double startY = 400,
     double distance = 200,
   }) async {
-    try {
-      // Calculate end position
-      double endX = startX, endY = startY;
-      switch (direction.toLowerCase()) {
-        case 'up':
-          endY = startY - distance;
-        case 'down':
-          endY = startY + distance;
-        case 'left':
-          endX = startX - distance;
-        case 'right':
-          endX = startX + distance;
-      }
-
-      // Pointer down at start
-      await evaluate('WidgetsBinding.instance.handlePointerEvent('
-          'PointerDownEvent(position: Offset($startX, $startY), pointer: 1))');
-
-      // Move in steps
-      const steps = 5;
-      for (int i = 1; i <= steps; i++) {
-        final t = i / steps;
-        final x = startX + (endX - startX) * t;
-        final y = startY + (endY - startY) * t;
-        await evaluate('WidgetsBinding.instance.handlePointerEvent('
-            'PointerMoveEvent(position: Offset($x, $y), pointer: 1, '
-            'delta: Offset(${(endX - startX) / steps}, ${(endY - startY) / steps})))');
-        await Future.delayed(const Duration(milliseconds: 16));
-      }
-
-      // Pointer up at end
-      await evaluate('WidgetsBinding.instance.handlePointerEvent('
-          'PointerUpEvent(position: Offset($endX, $endY), pointer: 1))');
-
-      return {'success': true};
-    } catch (e) {
-      return {'success': false, 'error': e.toString()};
-    }
+    return callExtension('ext.flutter_mate.swipe', args: {
+      'direction': direction,
+      'startX': startX.toString(),
+      'startY': startY.toString(),
+      'distance': distance.toString(),
+    });
   }
 
   /// Double tap at coordinates.
   Future<Map<String, dynamic>> doubleTapAt(double x, double y) async {
-    await tapAt(x, y);
-    await Future.delayed(const Duration(milliseconds: 50));
-    return tapAt(x, y);
+    return callExtension('ext.flutter_mate.doubleTapAt', args: {
+      'x': x.toString(),
+      'y': y.toString(),
+    });
   }
 
   /// Long press at coordinates.
   Future<Map<String, dynamic>> longPressAt(double x, double y,
       {int durationMs = 500}) async {
-    try {
-      await evaluate('WidgetsBinding.instance.handlePointerEvent('
-          'PointerDownEvent(position: Offset($x, $y), pointer: 1))');
-      await Future.delayed(Duration(milliseconds: durationMs));
-      await evaluate('WidgetsBinding.instance.handlePointerEvent('
-          'PointerUpEvent(position: Offset($x, $y), pointer: 1))');
-      return {'success': true};
-    } catch (e) {
-      return {'success': false, 'error': e.toString()};
-    }
+    return callExtension('ext.flutter_mate.longPressAt', args: {
+      'x': x.toString(),
+      'y': y.toString(),
+      'durationMs': durationMs.toString(),
+    });
   }
 
   // ══════════════════════════════════════════════════════════════════════════

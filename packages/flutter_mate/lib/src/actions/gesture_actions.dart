@@ -346,6 +346,43 @@ class GestureActions {
 
     await FlutterMate.delay(const Duration(milliseconds: 50));
   }
+
+  /// Swipe gesture from a starting position in a direction
+  ///
+  /// [direction] - 'up', 'down', 'left', or 'right'
+  /// [startX], [startY] - Starting position
+  /// [distance] - Distance to swipe in pixels
+  static Future<bool> swipe({
+    required String direction,
+    double startX = 200,
+    double startY = 400,
+    double distance = 200,
+  }) async {
+    FlutterMate.ensureInitialized();
+
+    double endX = startX, endY = startY;
+    switch (direction.toLowerCase()) {
+      case 'up':
+        endY = startY - distance;
+      case 'down':
+        endY = startY + distance;
+      case 'left':
+        endX = startX - distance;
+      case 'right':
+        endX = startX + distance;
+      default:
+        debugPrint('FlutterMate: Invalid swipe direction: $direction');
+        return false;
+    }
+
+    await drag(
+      from: Offset(startX, startY),
+      to: Offset(endX, endY),
+      duration: const Duration(milliseconds: 200),
+    );
+
+    return true;
+  }
 }
 
 /// Double tap element by label (convenience method)

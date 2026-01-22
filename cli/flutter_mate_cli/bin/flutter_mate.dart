@@ -12,7 +12,11 @@ void main(List<String> arguments) async {
     ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help')
     ..addFlag('version', abbr: 'v', negatable: false, help: 'Show version')
     ..addOption('uri', abbr: 'u', help: 'VM Service WebSocket URI (ws://...)')
-    ..addFlag('json', abbr: 'j', negatable: false, help: 'Output as JSON');
+    ..addFlag('json', abbr: 'j', negatable: false, help: 'Output as JSON')
+    ..addFlag('compact',
+        abbr: 'c',
+        negatable: false,
+        help: 'Compact mode: only show widgets with info (text, actions, etc)');
 
   // Add subcommands
   parser.addCommand('snapshot');
@@ -48,6 +52,7 @@ void main(List<String> arguments) async {
 
     final wsUri = results['uri'] as String?;
     final jsonOutput = results['json'] as bool;
+    final compact = results['compact'] as bool;
 
     if (wsUri == null) {
       stderr.writeln('Error: --uri is required');
@@ -92,6 +97,7 @@ void main(List<String> arguments) async {
       args: args,
       wsUri: uri,
       jsonOutput: jsonOutput,
+      compact: compact,
     );
   } catch (e) {
     stderr.writeln('Error: $e');
@@ -104,6 +110,7 @@ Future<void> _executeCommand({
   required List<String> args,
   required String wsUri,
   required bool jsonOutput,
+  required bool compact,
 }) async {
   final client = VmServiceClient(wsUri);
 
@@ -112,7 +119,7 @@ Future<void> _executeCommand({
 
     switch (command) {
       case 'snapshot':
-        await _snapshot(client, jsonOutput);
+        await _snapshot(client, jsonOutput, compact: compact);
         break;
       case 'tap':
         if (args.isEmpty) {
@@ -254,7 +261,11 @@ Future<void> _executeCommand({
   }
 }
 
-Future<void> _snapshot(VmServiceClient client, bool jsonOutput) async {
+Future<void> _snapshot(
+  VmServiceClient client,
+  bool jsonOutput, {
+  bool compact = false,
+}) async {
   try {
     // Get snapshot via FlutterMate service extension
     final result = await client.getSnapshot();
@@ -274,7 +285,7 @@ Future<void> _snapshot(VmServiceClient client, bool jsonOutput) async {
     if (jsonOutput) {
       print(const JsonEncoder.withIndent('  ').convert(data));
     } else {
-      _printSnapshot(data);
+      _printSnapshot(data, compact: compact);
     }
   } catch (e, stack) {
     stderr.writeln('Error getting snapshot: $e');
@@ -295,14 +306,14 @@ void _printResult(
   }
 }
 
-void _printSnapshot(Map<String, dynamic> data) {
+void _printSnapshot(Map<String, dynamic> data, {bool compact = false}) {
   if (data['success'] != true) {
     stderr.writeln('Error: ${data['error']}');
     return;
   }
 
   final nodes = data['nodes'] as List<dynamic>;
-  final lines = formatSnapshot(nodes);
+  final lines = formatSnapshot(nodes, compact: compact);
   for (final line in lines) {
     print(line);
   }
@@ -592,8 +603,8 @@ Examples:
   # Get UI snapshot
   flutter_mate --uri ws://127.0.0.1:12345/abc=/ws snapshot
   
-  # Interactive elements only
-  flutter_mate --uri ws://127.0.0.1:12345/abc=/ws snapshot -i
+  # Compact mode: only widgets with info (text, actions, flags)
+  flutter_mate --uri ws://127.0.0.1:12345/abc=/ws -c snapshot
   
   # Interact with elements
   flutter_mate --uri ws://127.0.0.1:12345/abc=/ws tap w10

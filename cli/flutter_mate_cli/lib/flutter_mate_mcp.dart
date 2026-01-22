@@ -194,9 +194,21 @@ Each line: `[ref] Widget (text) value="..." {state} [actions] (flags)`
 
 - Widgets with same bounds chained with → (e.g., `Container → Text`)
 - Layout wrappers hidden (Padding, Center, etc.)
-- Indentation shows parent-child hierarchy''',
+- Indentation shows parent-child hierarchy
+
+## Compact Mode
+
+Set compact=true to only show widgets with meaningful info.
+Hides purely structural widgets like `[w123] Row` or `[w456] Column`.''',
     annotations: ToolAnnotations(title: 'UI Snapshot', readOnlyHint: true),
-    inputSchema: Schema.object(properties: {}),
+    inputSchema: Schema.object(
+      properties: {
+        'compact': Schema.bool(
+          description:
+              'Only show widgets with info (text, actions, flags). Hides structural-only widgets.',
+        ),
+      },
+    ),
   );
 
   static final _tapTool = Tool(
@@ -394,6 +406,8 @@ Returns the ref of the found element and what text matched.''',
   }
 
   Future<CallToolResult> _handleSnapshot(CallToolRequest request) async {
+    final compact = request.arguments?['compact'] as bool? ?? false;
+
     final result = await _callExtension('ext.flutter_mate.snapshot');
 
     if (result['success'] != true) {
@@ -416,10 +430,15 @@ Returns the ref of the found element and what text matched.''',
     }
 
     final nodes = data['nodes'] as List<dynamic>? ?? [];
-    final lines = formatSnapshot(nodes);
+    final lines = formatSnapshot(nodes, compact: compact);
 
     final output = StringBuffer();
-    output.writeln('${lines.length} elements (from ${nodes.length} nodes)');
+    if (compact) {
+      output.writeln(
+          '${lines.length} meaningful elements (from ${nodes.length} nodes)');
+    } else {
+      output.writeln('${lines.length} elements (from ${nodes.length} nodes)');
+    }
     output.writeln('');
     for (final line in lines) {
       output.writeln(line);

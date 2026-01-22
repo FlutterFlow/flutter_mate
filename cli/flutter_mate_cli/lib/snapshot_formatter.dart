@@ -259,6 +259,47 @@ List<CollapsedEntry> collapseNodes(Map<String, CombinedNode> nodeMap) {
 // Utilities
 // ============================================================================
 
+/// Check if a collapsed entry has any meaningful info beyond just widget type.
+/// Returns true if it has text, semantics, actions, flags, etc.
+bool hasAdditionalInfo(CollapsedEntry entry) {
+  // Has text content
+  if (entry.textContent?.isNotEmpty == true) return true;
+
+  final sem = entry.semantics;
+  if (sem == null) return false;
+
+  // Has semantic label, value, or hint
+  if (sem.label?.isNotEmpty == true) return true;
+  if (sem.value?.isNotEmpty == true) return true;
+  if (sem.hint?.isNotEmpty == true) return true;
+
+  // Has actions
+  if (sem.actions.isNotEmpty) return true;
+
+  // Has meaningful flags
+  if (sem.flags.isNotEmpty) return true;
+
+  // Has validation state
+  if (sem.validationResult != null) return true;
+
+  // Has scroll info
+  if (sem.scrollPosition != null) return true;
+
+  // Has tooltip
+  if (sem.tooltip?.isNotEmpty == true) return true;
+
+  // Has heading level
+  if (sem.headingLevel != null && sem.headingLevel! > 0) return true;
+
+  // Has link
+  if (sem.linkUrl?.isNotEmpty == true) return true;
+
+  // Has input type
+  if (sem.inputType != null && sem.inputType != 'none') return true;
+
+  return false;
+}
+
 /// Escape special characters in a string for display.
 String escapeString(String s, {bool escapeDollar = true}) {
   final escapedString = s
@@ -384,8 +425,19 @@ String formatCollapsedEntry(CollapsedEntry entry) {
 
 /// Format an entire snapshot for display.
 /// Returns a list of formatted lines.
-List<String> formatSnapshot(List<dynamic> rawNodes) {
+///
+/// If [compact] is true, only shows widgets with meaningful info (text,
+/// semantics, actions, flags, etc.). Purely structural widgets like
+/// `[w123] Row` are hidden.
+List<String> formatSnapshot(List<dynamic> rawNodes, {bool compact = false}) {
   final nodeMap = parseNodes(rawNodes);
   final collapsed = collapseNodes(nodeMap);
+
+  if (compact) {
+    // Filter to only entries with additional info
+    final meaningful = collapsed.where(hasAdditionalInfo).toList();
+    return meaningful.map(formatCollapsedEntry).toList();
+  }
+
   return collapsed.map(formatCollapsedEntry).toList();
 }

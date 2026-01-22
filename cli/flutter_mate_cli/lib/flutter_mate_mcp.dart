@@ -4,31 +4,50 @@
 ///
 /// ## Available Tools
 ///
-/// - `connect` - Connect to a running Flutter app
-/// - `snapshot` - Get UI tree with element refs (collapsed view)
-/// - `tap` - Tap element (semantic first, then gesture fallback)
-/// - `setText` - Set text via semantic action
-/// - `typeText` - Type text via keyboard simulation
-/// - `scroll` - Scroll element (semantic first, then gesture fallback)
-/// - `focus` - Focus element
-/// - `pressKey` - Press keyboard key
-/// - `clear` - Clear text field
-/// - `doubleTap` - Double tap element
-/// - `longPress` - Long press element
-/// - `waitFor` - Wait for element with matching label
+/// - `connect` - Connect to a running Flutter app via VM Service
+/// - `snapshot` - Capture UI tree with element refs (collapsed view)
+/// - `tap` - Tap element (tries semantic action, falls back to gesture)
+/// - `setText` - Set text via semantic action (for Semantics widgets)
+/// - `typeText` - Type text via keyboard simulation (for TextField widgets)
+/// - `scroll` - Scroll element in a direction
+/// - `focus` - Focus an element (for text input)
+/// - `pressKey` - Press a keyboard key (enter, tab, escape, etc.)
+/// - `clear` - Clear text from a text field
+/// - `doubleTap` - Double tap an element
+/// - `longPress` - Long press an element
+/// - `waitFor` - Wait for element with matching label/text to appear
 ///
 /// ## Snapshot Format
 ///
-/// The snapshot uses a collapsed tree format that:
-/// - Chains widgets with same bounds using →
-/// - Hides layout wrappers (Padding, Container, etc.)
-/// - Shows text content, semantic info, and validation state inline
+/// The snapshot displays a collapsed tree where:
+/// - Widgets with same bounds are chained with → (parent → child)
+/// - Layout wrappers (Padding, Center, SizedBox, etc.) are hidden
+/// - Indentation shows hierarchy (• bullet = child level)
+///
+/// ### Line Format
 ///
 /// ```
-/// • [w1] DemoApp → [w2] MaterialApp → [w3] LoginPage
-///   • [w6] Column
-///     • [w9] TextField (Email, Enter your email) {valid} [tap, focus] (TextField, Focusable)
-///     • [w15] ElevatedButton (Submit) [tap] (Button, Enabled)
+/// [ref] WidgetType (text content) value = "..." {state} [actions] (flags)
+/// ```
+///
+/// Sections (all optional except ref and widget):
+/// - `[w123]` - Ref ID for interacting with the element
+/// - `WidgetType` - Widget class name (may include debug key like `[GlobalKey#...]`)
+/// - `(Label, Hint, Error)` - Text content: semantic label, hint, validation errors
+/// - `value = "..."` - Semantic value (e.g., typed text in a field)
+/// - `{valid}` or `{invalid}` - Validation state for form fields
+/// - `{type: email}` - Keyboard type hints
+/// - `[tap, focus, scrollUp]` - Available semantic actions
+/// - `(TextField, Button, Focusable, Enabled, Obscured)` - Semantic flags
+///
+/// ### Example Snapshot
+///
+/// ```
+/// • [w1] MyApp → [w2] MaterialApp → [w3] LoginScreen
+///   • [w5] Column
+///     • [w9] TextFormField (Email, Enter email) {valid} [tap, focus] (TextField, Focusable)
+///     • [w15] TextFormField (Password) value = "****" [tap, focus] (Obscured)
+///     • [w20] ElevatedButton (Submit) [tap] (Button, Enabled)
 /// ```
 ///
 /// ## Usage with Cursor
@@ -138,14 +157,15 @@ base mixin FlutterMateSupport on ToolsSupport {
     name: 'connect',
     description: '''Connect to a running Flutter app via VM Service.
 
-Provide the WebSocket URI from the Flutter app's console output:
+Get the URI from the Flutter app's console output when running `flutter run`:
   "A Dart VM Service on macOS is available at: http://127.0.0.1:12345/abc=/"
 
-Convert to WebSocket: ws://127.0.0.1:12345/abc=/ws''',
+The URI will be automatically normalized (http→ws, adds /ws suffix if needed).''',
     inputSchema: Schema.object(
       properties: {
         'uri': Schema.string(
-          description: 'VM Service WebSocket URI (ws://...)',
+          description:
+              'VM Service URI from Flutter console (http:// or ws://).',
         ),
       },
       required: ['uri'],
@@ -156,12 +176,25 @@ Convert to WebSocket: ws://127.0.0.1:12345/abc=/ws''',
     name: 'snapshot',
     description: '''Capture the current UI state of the Flutter app.
 
-Returns a tree of user widgets with refs (w0, w1, w2...) that can be used
-for subsequent interactions. Each element includes:
-- ref: Stable identifier for this snapshot session
-- widget: Widget type name
-- bounds: Position {x, y, width, height}
-- semantics: Label, value, actions, flags (on Semantics widgets)''',
+Returns a collapsed tree of widgets with refs (w0, w1, w2...) for interaction.
+
+## Output Format
+
+Each line: `[ref] Widget (text) value="..." {state} [actions] (flags)`
+
+- `[w123]` - Ref ID to use with other tools
+- `Widget` - Widget type (may include debug key like `[GlobalKey#...]`)
+- `(Label, Hint)` - Text content from semantics
+- `value = "..."` - Typed text in fields
+- `{valid}` / `{invalid}` - Form validation state
+- `[tap, focus]` - Available semantic actions
+- `(TextField, Button, Enabled)` - Semantic flags
+
+## Tree Structure
+
+- Widgets with same bounds chained with → (e.g., `Container → Text`)
+- Layout wrappers hidden (Padding, Center, etc.)
+- Indentation shows parent-child hierarchy''',
     annotations: ToolAnnotations(title: 'UI Snapshot', readOnlyHint: true),
     inputSchema: Schema.object(properties: {}),
   );
@@ -182,12 +215,18 @@ for subsequent interactions. Each element includes:
 
   static final _setTextTool = Tool(
     name: 'setText',
-    description: 'Set text on a field using semantic action. '
-        'Use on Semantics widgets (e.g., w9). For keyboard simulation, use typeText.',
+    description: '''Set text on a field using semantic action.
+
+Use this for widgets with (TextField) flag in snapshot. This directly sets
+the value without simulating keystrokes. Preferred for form fields.
+
+For keyboard simulation (typing character by character), use typeText instead.''',
     inputSchema: Schema.object(
       properties: {
-        'ref': Schema.string(description: 'Semantics widget ref.'),
-        'text': Schema.string(description: 'Text to set.'),
+        'ref': Schema.string(
+          description: 'Element ref from snapshot (e.g., "w9").',
+        ),
+        'text': Schema.string(description: 'Text to set in the field.'),
       },
       required: ['ref', 'text'],
     ),
@@ -195,13 +234,17 @@ for subsequent interactions. Each element includes:
 
   static final _scrollTool = Tool(
     name: 'scroll',
-    description: 'Scroll a scrollable element. '
-        'Tries semantic action first, falls back to gesture.',
+    description: '''Scroll a scrollable element in a direction.
+
+Scrollable elements show [scrollUp], [scrollDown], etc. in their actions.
+Tries semantic scroll action first, falls back to gesture simulation.''',
     inputSchema: Schema.object(
       properties: {
-        'ref': Schema.string(description: 'Scrollable element ref.'),
+        'ref': Schema.string(
+          description: 'Scrollable element ref from snapshot.',
+        ),
         'direction': Schema.string(
-          description: 'Scroll direction: up, down, left, right.',
+          description: 'Direction: up, down, left, right.',
         ),
       },
       required: ['ref', 'direction'],
@@ -235,12 +278,17 @@ arrowUp, arrowDown, arrowLeft, arrowRight''',
 
   static final _typeTextTool = Tool(
     name: 'typeText',
-    description: 'Type text into a widget using keyboard simulation. '
-        'Use this for TextField widgets (e.g., w10). '
-        'For Semantics widgets, use fill instead.',
+    description: '''Type text into a field using keyboard simulation.
+
+Taps to focus the element first, then types each character via platform messages.
+Use this when you need to simulate actual typing behavior.
+
+For direct value setting (faster, no keystroke simulation), use setText instead.''',
     inputSchema: Schema.object(
       properties: {
-        'ref': Schema.string(description: 'Widget ref (e.g., w10).'),
+        'ref': Schema.string(
+          description: 'Element ref from snapshot (e.g., "w10").',
+        ),
         'text': Schema.string(description: 'Text to type.'),
       },
       required: ['ref', 'text'],
@@ -283,17 +331,19 @@ arrowUp, arrowDown, arrowLeft, arrowRight''',
 
   static final _waitForTool = Tool(
     name: 'waitFor',
-    description: '''Wait for an element with matching label to appear.
+    description: '''Wait for an element with matching text to appear.
 
-Polls the UI until an element with a label or value matching the pattern
-is found, or timeout is reached. Useful for waiting after navigation
-or async operations.
+Polls the UI until an element matching the pattern is found, or timeout is reached.
+Useful for waiting after navigation or async operations.
 
-Returns the ref of the found element.''',
+Searches (in order): textContent, semantics.label, semantics.value, semantics.hint
+
+Returns the ref of the found element and what text matched.''',
     inputSchema: Schema.object(
       properties: {
         'labelPattern': Schema.string(
-          description: 'Regex pattern to match against element labels/values.',
+          description:
+              'Regex pattern to match against element text/label/value/hint.',
         ),
         'timeout': Schema.int(
           description: 'Timeout in milliseconds (default: 5000).',

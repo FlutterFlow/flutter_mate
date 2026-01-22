@@ -45,9 +45,8 @@ void main() {
 
       // Verify we can find multiple elements
       final snapshot = await FlutterMate.snapshot();
-      final nodesWithLabels = snapshot.nodes
-          .where((n) => n.semantics?.label != null)
-          .toList();
+      final nodesWithLabels =
+          snapshot.nodes.where((n) => n.semantics?.label != null).toList();
 
       expect(nodesWithLabels.length, greaterThanOrEqualTo(1),
           reason: 'Should find nodes with semantic labels');
@@ -68,9 +67,8 @@ void main() {
       expect(snapshot.nodes, isNotEmpty);
 
       // Find nodes with semantics labels
-      final nodesWithLabels = snapshot.nodes
-          .where((n) => n.semantics?.label != null)
-          .toList();
+      final nodesWithLabels =
+          snapshot.nodes.where((n) => n.semantics?.label != null).toList();
       expect(nodesWithLabels, isNotEmpty,
           reason: 'Snapshot should contain nodes with semantic labels');
 

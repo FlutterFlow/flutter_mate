@@ -96,15 +96,57 @@ base class FlutterMateServer extends MCPServer
 
 1. Always start with snapshot() to see available elements
 2. Elements have refs like w0, w1, w2...
-3. Use refs to interact: tap, fill, scroll, focus
+3. Use refs to interact: tap, setText, scroll, focus
 4. Take another snapshot after navigation to get new refs
 
-## Example
+## Snapshot Format
 
-snapshot() → see w9 is Semantics for text field, w10 is TextField, w18 is Submit
-setText(ref: "w9", text: "hello@example.com")  // semantic action
-tap(ref: "w18")  // auto: semantic or gesture
-snapshot() → verify navigation occurred
+The snapshot shows a collapsed tree where:
+- Widgets with same bounds are chained with → (parent → child)
+- Layout wrappers (Padding, Center, etc.) are hidden
+- Indentation shows hierarchy (• bullet = child level)
+
+### Line Format
+
+Each element line has this structure:
+```
+[ref] WidgetType (text content) value = "..." {state} [actions] (flags)
+```
+
+Sections (all optional except ref and widget):
+- `[w123]` - Ref ID, use this to interact with the element
+- `WidgetType` - Flutter widget class name (may include debug key like `[GlobalKey#...]`)
+- `(Label, Hint, Error)` - Text content: semantic label, hint text, validation errors
+- `value = "..."` - Semantic value (e.g., text typed in a field)
+- `{valid}` or `{invalid}` - Validation state for form fields
+- `{type: email}` - Keyboard type hints
+- `[tap, focus, scrollUp]` - Available semantic actions
+- `(TextField, Button, Focusable, Enabled, Obscured)` - Semantic flags/traits
+
+### Example Snapshot
+
+```
+• [w1] MyApp → [w2] MaterialApp → [w3] LoginScreen
+  • [w5] Column
+    • [w9] TextFormField (Email, Enter your email) {valid} [tap, focus] (TextField, Focusable, Enabled)
+    • [w15] TextFormField (Password) value = "****" {valid} [tap, focus] (TextField, Focusable, Enabled, Obscured)
+    • [w20] ElevatedButton (Submit) [tap] (Button, Enabled)
+    • [w25] Text (Don't have an account?)
+    • [w27] GestureDetector → [w28] Text (Sign Up) [tap]
+```
+
+### Using Refs
+
+- `tap(ref: "w20")` - Tap the Submit button
+- `setText(ref: "w9", text: "user@example.com")` - Fill email field
+- `focus(ref: "w15")` - Focus password field
+- `scroll(ref: "w5", direction: "down")` - Scroll the Column
+
+## Tips
+
+- Chained widgets (→) share the same position - pick any ref in the chain
+- Actions like [tap] indicate semantic support; if missing, gesture fallback is used
+- After navigation, always take a new snapshot - refs change between screens
 ''',
         ) {
     // Set the URI if provided

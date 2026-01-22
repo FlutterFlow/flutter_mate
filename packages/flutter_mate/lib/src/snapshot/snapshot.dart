@@ -90,7 +90,6 @@ class SnapshotService {
         CombinedRect? bounds;
         SemanticsInfo? semantics;
         String? textContent;
-        bool isOffScreen = false;
 
         // Use toObject to get the actual Element from valueId
         if (valueId != null) {
@@ -98,6 +97,23 @@ class SnapshotService {
             // ignore: invalid_use_of_protected_member
             final obj = service.toObject(valueId, groupName);
             if (obj is Element) {
+              // Check if this element is in the current (topmost) route
+              // This filters out widgets from previous screens after navigation
+              try {
+                final route = ModalRoute.of(obj);
+                if (route != null && !route.isCurrent) {
+                  // This element is in a non-current route, skip it and children
+                  for (final childJson in childrenJson) {
+                    if (childJson is Map<String, dynamic>) {
+                      walkInspectorNode(childJson, depth + 1);
+                    }
+                  }
+                  return;
+                }
+              } catch (_) {
+                // ModalRoute.of can throw if no Navigator ancestor
+              }
+
               // Cache the Element for ref lookup (used by typeText, etc.)
               FlutterMate.cachedElements[ref] = obj;
 
@@ -142,12 +158,6 @@ class SnapshotService {
                         width: box.size.width,
                         height: box.size.height,
                       );
-
-                      // Mark widgets that are off-screen (from previous routes)
-                      // Slide transitions push old routes to negative x coordinates
-                      if (topLeft.dx < -10 || topLeft.dy < -10) {
-                        isOffScreen = true;
-                      }
                     } catch (_) {
                       // localToGlobal can fail if not attached
                     }
@@ -170,18 +180,6 @@ class SnapshotService {
             // toObject can fail for some elements, continue without semantics
             debugPrint('FlutterMate: toObject failed for $valueId: $e');
           }
-        }
-
-        // Skip off-screen nodes and their children entirely
-        if (isOffScreen) {
-          // Don't process children or add this node
-          // Just walk children to keep refCounter in sync
-          for (final childJson in childrenJson) {
-            if (childJson is Map<String, dynamic>) {
-              walkInspectorNode(childJson, depth + 1);
-            }
-          }
-          return;
         }
 
         // Collect children refs

@@ -109,21 +109,50 @@ class SnapshotService {
             // ignore: invalid_use_of_protected_member
             final obj = service.toObject(valueId, groupName);
             if (obj is Element) {
-              // Check if this element is in the current (topmost) route
-              // Note: ModalRoute.of can throw assertion errors during navigation
-              try {
-                final route = ModalRoute.of(obj);
-                if (route != null && !route.isCurrent) {
-                  // Skip non-current route, but still process children
-                  for (final childJson in childrenJson) {
-                    if (childJson is Map<String, dynamic>) {
-                      walkInspectorNode(childJson, depth + 1);
-                    }
+              // Find the RenderObject first to check if it's painting
+              if (obj is RenderObjectElement) {
+                ro = obj.renderObject;
+              } else {
+                void findRenderObject(Element el) {
+                  if (ro != null) return;
+                  if (el is RenderObjectElement) {
+                    ro = el.renderObject;
+                    return;
                   }
-                  return;
+                  el.visitChildren(findRenderObject);
                 }
-              } catch (_) {
-                // ModalRoute.of can throw - continue processing this element
+
+                findRenderObject(obj);
+              }
+
+              // Skip elements from previous routes (e.g., after navigation)
+              // These have RenderObjects that are off-screen (animated out)
+              if (ro != null && ro is RenderBox) {
+                final box = ro as RenderBox;
+                if (box.hasSize && box.attached) {
+                  try {
+                    final topLeft = box.localToGlobal(Offset.zero);
+                    // Skip elements that are significantly off-screen (previous routes)
+                    // Use a threshold to allow for minor overflow
+                    if (topLeft.dx < -box.size.width ||
+                        topLeft.dy < -box.size.height) {
+                      // Skip this element but continue processing children
+                      // (in case some children are on-screen overlays)
+                      for (final childJson in childrenJson) {
+                        if (childJson is Map<String, dynamic>) {
+                          walkInspectorNode(childJson, depth + 1);
+                        }
+                      }
+                      return;
+                    }
+                    bounds = CombinedRect(
+                      x: topLeft.dx,
+                      y: topLeft.dy,
+                      width: box.size.width,
+                      height: box.size.height,
+                    );
+                  } catch (_) {}
+                }
               }
 
               // Cache the Element for ref lookup
@@ -142,37 +171,6 @@ class SnapshotService {
                 }
               } catch (_) {
                 // Text extraction can fail during navigation transitions
-              }
-
-              // Find the RenderObject
-              if (obj is RenderObjectElement) {
-                ro = obj.renderObject;
-              } else {
-                void findRenderObject(Element el) {
-                  if (ro != null) return;
-                  if (el is RenderObjectElement) {
-                    ro = el.renderObject;
-                    return;
-                  }
-                  el.visitChildren(findRenderObject);
-                }
-
-                findRenderObject(obj);
-              }
-
-              if (ro != null && ro is RenderBox) {
-                final box = ro as RenderBox;
-                if (box.hasSize) {
-                  try {
-                    final topLeft = box.localToGlobal(Offset.zero);
-                    bounds = CombinedRect(
-                      x: topLeft.dx,
-                      y: topLeft.dy,
-                      width: box.size.width,
-                      height: box.size.height,
-                    );
-                  } catch (_) {}
-                }
               }
             }
           } catch (e) {
@@ -448,17 +446,6 @@ class SnapshotService {
 
     void visit(Element child) {
       try {
-        // Skip elements in non-current routes (previous screens after navigation)
-        // Note: ModalRoute.of can throw during navigation transitions
-        try {
-          final route = ModalRoute.of(child);
-          if (route != null && !route.isCurrent) {
-            return; // Don't collect text from previous routes
-          }
-        } catch (_) {
-          // ModalRoute.of can throw - skip this check and continue
-        }
-
         // Try to extract text from this widget
         final content = _extractWidgetContent(child.widget);
         if (content != null && content.isNotEmpty && !seen.contains(content)) {

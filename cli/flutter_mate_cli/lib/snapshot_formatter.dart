@@ -3,6 +3,189 @@
 /// Extracts common logic for collapsing widget nodes and formatting
 /// the snapshot output.
 
+// ============================================================================
+// Typed classes for snapshot data
+// ============================================================================
+
+/// Bounds of a widget in the UI.
+class NodeBounds {
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+
+  const NodeBounds({
+    required this.x,
+    required this.y,
+    required this.width,
+    required this.height,
+  });
+
+  factory NodeBounds.fromJson(Map<String, dynamic> json) {
+    return NodeBounds(
+      x: (json['x'] as num?)?.toDouble() ?? 0,
+      y: (json['y'] as num?)?.toDouble() ?? 0,
+      width: (json['width'] as num?)?.toDouble() ?? 0,
+      height: (json['height'] as num?)?.toDouble() ?? 0,
+    );
+  }
+
+  bool sameBoundsAs(NodeBounds other, {double tolerance = 1.0}) {
+    return (x - other.x).abs() <= tolerance &&
+        (y - other.y).abs() <= tolerance &&
+        (width - other.width).abs() <= tolerance &&
+        (height - other.height).abs() <= tolerance;
+  }
+
+  bool get isZeroArea => width < 2 || height < 2;
+}
+
+/// Semantics information for a widget.
+class NodeSemantics {
+  final int? id;
+  final String? label;
+  final String? value;
+  final String? hint;
+  final String? tooltip;
+  final String? validationResult;
+  final int? headingLevel;
+  final String? linkUrl;
+  final String? role;
+  final String? inputType;
+  final double? scrollPosition;
+  final double? scrollExtentMax;
+  final List<String> actions;
+  final List<String> flags;
+
+  const NodeSemantics({
+    this.id,
+    this.label,
+    this.value,
+    this.hint,
+    this.tooltip,
+    this.validationResult,
+    this.headingLevel,
+    this.linkUrl,
+    this.role,
+    this.inputType,
+    this.scrollPosition,
+    this.scrollExtentMax,
+    this.actions = const [],
+    this.flags = const [],
+  });
+
+  factory NodeSemantics.fromJson(Map<String, dynamic> json) {
+    return NodeSemantics(
+      id: json['id'] as int?,
+      label: json['label'] as String?,
+      value: json['value'] as String?,
+      hint: json['hint'] as String?,
+      tooltip: json['tooltip'] as String?,
+      validationResult: json['validationResult'] as String?,
+      headingLevel: json['headingLevel'] as int?,
+      linkUrl: json['linkUrl'] as String?,
+      role: json['role'] as String?,
+      inputType: json['inputType'] as String?,
+      scrollPosition: (json['scrollPosition'] as num?)?.toDouble(),
+      scrollExtentMax: (json['scrollExtentMax'] as num?)?.toDouble(),
+      actions: (json['actions'] as List<dynamic>?)?.cast<String>() ?? [],
+      flags: (json['flags'] as List<dynamic>?)?.cast<String>() ?? [],
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        if (id != null) 'id': id,
+        if (label != null) 'label': label,
+        if (value != null) 'value': value,
+        if (hint != null) 'hint': hint,
+        if (tooltip != null) 'tooltip': tooltip,
+        if (validationResult != null) 'validationResult': validationResult,
+        if (headingLevel != null) 'headingLevel': headingLevel,
+        if (linkUrl != null) 'linkUrl': linkUrl,
+        if (role != null) 'role': role,
+        if (inputType != null) 'inputType': inputType,
+        if (scrollPosition != null) 'scrollPosition': scrollPosition,
+        if (scrollExtentMax != null) 'scrollExtentMax': scrollExtentMax,
+        if (actions.isNotEmpty) 'actions': actions,
+        if (flags.isNotEmpty) 'flags': flags,
+      };
+}
+
+/// A node in the snapshot tree.
+class SnapshotNode {
+  final String ref;
+  final String widget;
+  final int depth;
+  final NodeBounds? bounds;
+  final NodeSemantics? semantics;
+  final String? textContent;
+  final List<String> children;
+
+  const SnapshotNode({
+    required this.ref,
+    required this.widget,
+    required this.depth,
+    this.bounds,
+    this.semantics,
+    this.textContent,
+    this.children = const [],
+  });
+
+  factory SnapshotNode.fromJson(Map<String, dynamic> json) {
+    return SnapshotNode(
+      ref: json['ref'] as String? ?? '',
+      widget: json['widget'] as String? ?? '?',
+      depth: json['depth'] as int? ?? 0,
+      bounds: json['bounds'] != null
+          ? NodeBounds.fromJson(json['bounds'] as Map<String, dynamic>)
+          : null,
+      semantics: json['semantics'] != null
+          ? NodeSemantics.fromJson(json['semantics'] as Map<String, dynamic>)
+          : null,
+      textContent: json['textContent'] as String?,
+      children: (json['children'] as List<dynamic>?)?.cast<String>() ?? [],
+    );
+  }
+
+  bool get isHiddenSpacer {
+    if (widget != 'SizedBox' && widget != 'Spacer') return false;
+    return bounds?.isZeroArea ?? true;
+  }
+
+  bool get isSiblingSpacerCandidate {
+    return siblingSpacers.contains(widget) && children.isEmpty;
+  }
+}
+
+/// A chain item in a collapsed entry (ref + widget name).
+class ChainItem {
+  final String ref;
+  final String widget;
+
+  const ChainItem({required this.ref, required this.widget});
+}
+
+/// A collapsed entry for display (chain of widgets + aggregated info).
+class CollapsedEntry {
+  final List<ChainItem> chain;
+  final int depth;
+  final NodeSemantics? semantics;
+  final String? textContent;
+  final List<String> children;
+
+  const CollapsedEntry({
+    required this.chain,
+    required this.depth,
+    this.semantics,
+    this.textContent,
+    this.children = const [],
+  });
+}
+
+// ============================================================================
+// Constants
+// ============================================================================
+
 /// Layout wrapper widgets to hide from display (purely structural)
 const layoutWrappers = {
   // Spacing/sizing
@@ -88,79 +271,82 @@ const siblingSpacers = {
   'Gap',
 };
 
+// ============================================================================
+// Collapsing logic
+// ============================================================================
+
+/// Parse raw JSON nodes into typed [SnapshotNode] objects.
+Map<String, SnapshotNode> parseNodes(List<dynamic> rawNodes) {
+  final nodeMap = <String, SnapshotNode>{};
+  for (final raw in rawNodes) {
+    final node = SnapshotNode.fromJson(raw as Map<String, dynamic>);
+    nodeMap[node.ref] = node;
+  }
+  return nodeMap;
+}
+
 /// Collapse nodes with same bounds into chains for cleaner display.
-List<Map<String, dynamic>> collapseNodes(
-    List<dynamic> nodes, Map<String, Map<String, dynamic>> nodeMap) {
-  final result = <Map<String, dynamic>>[];
+List<CollapsedEntry> collapseNodes(Map<String, SnapshotNode> nodeMap) {
+  final result = <CollapsedEntry>[];
   final visited = <String>{};
 
-  void processNode(Map<String, dynamic> node, int displayDepth) {
-    final ref = node['ref'] as String;
-    if (visited.contains(ref)) return;
+  void processNode(SnapshotNode node, int displayDepth) {
+    if (visited.contains(node.ref)) return;
 
     // Skip zero-area spacers
-    if (isHiddenSpacer(node)) {
-      visited.add(ref);
+    if (node.isHiddenSpacer) {
+      visited.add(node.ref);
       return;
     }
 
     // Start a chain with this node
-    final chain = <Map<String, dynamic>>[];
+    final chain = <ChainItem>[];
     var current = node;
-    Map<String, dynamic>? aggregatedSemantics;
+    NodeSemantics? aggregatedSemantics;
     String? aggregatedText;
 
     while (true) {
-      final currentRef = current['ref'] as String;
-      visited.add(currentRef);
-      chain.add({
-        'ref': currentRef,
-        'widget': current['widget'] as String? ?? '?',
-      });
+      visited.add(current.ref);
+      chain.add(ChainItem(ref: current.ref, widget: current.widget));
 
-      // Aggregate semantics
-      final sem = current['semantics'] as Map<String, dynamic>?;
-      if (sem != null) {
-        aggregatedSemantics ??= sem;
-      }
+      // Aggregate semantics (first one wins)
+      aggregatedSemantics ??= current.semantics;
 
-      // Aggregate text content
-      final text = current['textContent'] as String?;
-      if (text != null && text.isNotEmpty) {
-        aggregatedText ??= text;
+      // Aggregate text content (first one wins)
+      if (current.textContent?.isNotEmpty == true) {
+        aggregatedText ??= current.textContent;
       }
 
       // Stop conditions
-      final children = current['children'] as List<dynamic>? ?? [];
-      if (children.isEmpty) break;
-      if (children.length > 1) break;
+      if (current.children.isEmpty) break;
+      if (current.children.length > 1) break;
 
       // Don't collapse past Semantics widgets
-      final widgetType = current['widget'] as String? ?? '';
-      if (widgetType == 'Semantics') break;
+      if (current.widget == 'Semantics') break;
 
-      final childRef = children.first as String;
+      final childRef = current.children.first;
       final child = nodeMap[childRef];
       if (child == null) break;
 
       // Skip hidden spacers
-      if (isHiddenSpacer(child)) {
+      if (child.isHiddenSpacer) {
         visited.add(childRef);
         break;
       }
 
       // Don't collapse into Semantics widgets
-      final childWidget = child['widget'] as String? ?? '';
-      if (childWidget == 'Semantics') break;
+      if (child.widget == 'Semantics') break;
 
       // Always collapse layout wrappers (regardless of bounds)
-      if (layoutWrappers.contains(widgetType)) {
+      if (layoutWrappers.contains(current.widget)) {
         current = child;
         continue;
       }
 
       // Check bounds - collapse if same
-      if (sameBounds(current, child)) {
+      if (current.bounds != null &&
+          child.bounds != null &&
+          current.bounds!.sameBoundsAs(child.bounds!)) {
         current = child;
         continue;
       }
@@ -169,30 +355,24 @@ List<Map<String, dynamic>> collapseNodes(
     }
 
     // Create collapsed entry
-    result.add({
-      'chain': chain,
-      'depth': displayDepth,
-      'semantics': aggregatedSemantics,
-      'textContent': aggregatedText,
-      'children': current['children'] as List<dynamic>? ?? [],
-    });
+    result.add(CollapsedEntry(
+      chain: chain,
+      depth: displayDepth,
+      semantics: aggregatedSemantics,
+      textContent: aggregatedText,
+      children: current.children,
+    ));
 
-    // Process children - skip meaningless spacers when there are multiple siblings
-    final children = current['children'] as List<dynamic>? ?? [];
-    final hasMultipleSiblings = children.length > 1;
+    // Process children - skip spacers when there are multiple siblings
+    final hasMultipleSiblings = current.children.length > 1;
 
-    for (final childRef in children) {
-      final ref = childRef as String;
-      final child = nodeMap[ref];
-      if (child == null || visited.contains(ref)) continue;
+    for (final childRef in current.children) {
+      final child = nodeMap[childRef];
+      if (child == null || visited.contains(childRef)) continue;
 
       // Skip spacer widgets between siblings (only if they have no children)
-      final widgetType = child['widget'] as String? ?? '';
-      final childChildren = child['children'] as List<dynamic>? ?? [];
-      if (hasMultipleSiblings &&
-          siblingSpacers.contains(widgetType) &&
-          childChildren.isEmpty) {
-        visited.add(ref);
+      if (hasMultipleSiblings && child.isSiblingSpacerCandidate) {
+        visited.add(childRef);
         continue;
       }
 
@@ -200,81 +380,36 @@ List<Map<String, dynamic>> collapseNodes(
     }
   }
 
-  // Find and process root nodes
-  for (final node in nodes) {
-    final nodeData = node as Map<String, dynamic>;
-    final depth = nodeData['depth'] as int? ?? 0;
-    if (depth == 0) {
-      processNode(nodeData, 0);
+  // Find and process root nodes (depth 0)
+  for (final node in nodeMap.values) {
+    if (node.depth == 0) {
+      processNode(node, 0);
     }
   }
 
   return result;
 }
 
-/// Check if a node should be hidden (zero-area spacer)
-bool isHiddenSpacer(Map<String, dynamic> node) {
-  final widget = node['widget'] as String? ?? '';
-  if (widget != 'SizedBox' && widget != 'Spacer') return false;
-
-  final bounds = node['bounds'] as Map<String, dynamic>?;
-  if (bounds == null) return true;
-
-  final width = (bounds['width'] as num?)?.toDouble() ?? 0;
-  final height = (bounds['height'] as num?)?.toDouble() ?? 0;
-
-  return width < 2 || height < 2;
-}
-
-/// Check if two nodes have the same bounds
-bool sameBounds(Map<String, dynamic> a, Map<String, dynamic> b) {
-  final boundsA = a['bounds'] as Map<String, dynamic>?;
-  final boundsB = b['bounds'] as Map<String, dynamic>?;
-
-  if (boundsA == null || boundsB == null) return false;
-
-  const tolerance = 1.0;
-
-  final xDiff = ((boundsA['x'] as num?) ?? 0) - ((boundsB['x'] as num?) ?? 0);
-  final yDiff = ((boundsA['y'] as num?) ?? 0) - ((boundsB['y'] as num?) ?? 0);
-  final wDiff =
-      ((boundsA['width'] as num?) ?? 0) - ((boundsB['width'] as num?) ?? 0);
-  final hDiff =
-      ((boundsA['height'] as num?) ?? 0) - ((boundsB['height'] as num?) ?? 0);
-
-  return xDiff.abs() <= tolerance &&
-      yDiff.abs() <= tolerance &&
-      wDiff.abs() <= tolerance &&
-      hDiff.abs() <= tolerance;
-}
+// ============================================================================
+// Formatting
+// ============================================================================
 
 /// Format a single collapsed entry for display.
-/// Returns a formatted string like:
-/// `• [w0] Widget (text) {info} [actions] (Flags)`
-String formatCollapsedEntry(Map<String, dynamic> entry) {
-  final chain = entry['chain'] as List<Map<String, dynamic>>;
-  final depth = entry['depth'] as int;
-  final semantics = entry['semantics'] as Map<String, dynamic>?;
-  final textContent = entry['textContent'] as String?;
-
-  final indent = '  ' * depth;
+String formatCollapsedEntry(CollapsedEntry entry) {
+  final indent = '  ' * entry.depth;
 
   // Filter layout wrappers from display chain
-  final meaningful = chain
-      .where((item) => !layoutWrappers.contains(item['widget'] as String))
-      .toList();
-  final display = meaningful.isNotEmpty ? meaningful : [chain.first];
-  final chainStr =
-      display.map((e) => '[${e['ref']}] ${e['widget']}').join(' → ');
+  final meaningful =
+      entry.chain.where((item) => !layoutWrappers.contains(item.widget));
+  final display = meaningful.isNotEmpty ? meaningful : [entry.chain.first];
+  final chainStr = display.map((e) => '[${e.ref}] ${e.widget}').join(' → ');
 
   // Build info parts
   final parts = <String>[];
 
   // Collect all text from textContent and semantics label
-  // SDK already deduplicates these, so just combine them for display
   final allTexts = <String>[];
 
-  // Helper to add non-empty, non-icon text
   void addText(String? text) {
     if (text == null || text.trim().isEmpty) return;
     // Skip single-character icon glyphs (Private Use Area)
@@ -283,18 +418,17 @@ String formatCollapsedEntry(Map<String, dynamic> entry) {
   }
 
   // Add textContent parts (split by |)
-  if (textContent != null) {
-    for (final t in textContent.split(' | ')) {
+  if (entry.textContent != null) {
+    for (final t in entry.textContent!.split(' | ')) {
       addText(t);
     }
   }
 
-  // Add semantics label (SDK already deduplicates this)
-  final label = semantics?['label'] as String?;
-  addText(label);
+  // Add semantics label
+  addText(entry.semantics?.label);
 
   // Add semantic value FIRST (e.g., current text in a text field)
-  final value = semantics?['value'] as String?;
+  final value = entry.semantics?.value;
   if (value != null && value.isNotEmpty) {
     parts.add('value = "$value"');
   }
@@ -306,35 +440,34 @@ String formatCollapsedEntry(Map<String, dynamic> entry) {
 
   // Build extra semantic info in {key: value, ...} format
   final extraParts = <String>[];
+  final sem = entry.semantics;
 
-  final validationResult = semantics?['validationResult'] as String?;
-  if (validationResult == 'invalid') {
-    extraParts.add('invalid');
-  } else if (validationResult == 'valid') {
-    extraParts.add('valid');
-  }
+  if (sem != null) {
+    if (sem.validationResult == 'invalid') {
+      extraParts.add('invalid');
+    } else if (sem.validationResult == 'valid') {
+      extraParts.add('valid');
+    }
 
-  final tooltip = semantics?['tooltip'] as String?;
-  if (tooltip != null && tooltip.isNotEmpty) {
-    extraParts.add('tooltip: "$tooltip"');
-  }
+    if (sem.tooltip?.isNotEmpty == true) {
+      extraParts.add('tooltip: "${sem.tooltip}"');
+    }
 
-  final headingLevel = semantics?['headingLevel'] as int?;
-  if (headingLevel != null && headingLevel > 0) {
-    extraParts.add('heading: $headingLevel');
-  }
+    if (sem.headingLevel != null && sem.headingLevel! > 0) {
+      extraParts.add('heading: ${sem.headingLevel}');
+    }
 
-  final linkUrl = semantics?['linkUrl'] as String?;
-  if (linkUrl != null && linkUrl.isNotEmpty) {
-    extraParts.add('link');
-  }
+    if (sem.linkUrl?.isNotEmpty == true) {
+      extraParts.add('link');
+    }
 
-  final role = semantics?['role'] as String?;
-  final inputType = semantics?['inputType'] as String?;
-  if (inputType != null && inputType != 'none' && inputType != 'text') {
-    extraParts.add('type: $inputType');
-  } else if (role != null && role != 'none') {
-    extraParts.add('role: $role');
+    if (sem.inputType != null &&
+        sem.inputType != 'none' &&
+        sem.inputType != 'text') {
+      extraParts.add('type: ${sem.inputType}');
+    } else if (sem.role != null && sem.role != 'none') {
+      extraParts.add('role: ${sem.role}');
+    }
   }
 
   if (extraParts.isNotEmpty) {
@@ -342,26 +475,23 @@ String formatCollapsedEntry(Map<String, dynamic> entry) {
   }
 
   // Add actions
-  final actions =
-      (semantics?['actions'] as List<dynamic>?)?.cast<String>() ?? [];
-  if (actions.isNotEmpty) {
-    parts.add('[${actions.join(', ')}]');
+  if (sem != null && sem.actions.isNotEmpty) {
+    parts.add('[${sem.actions.join(', ')}]');
   }
 
   // Add flags
-  final flags = (semantics?['flags'] as List<dynamic>?)?.cast<String>() ?? [];
-  final flagsStr = flags
-      .where((f) => f.startsWith('is'))
-      .map((f) => f.substring(2))
-      .join(', ');
-  if (flagsStr.isNotEmpty) parts.add('($flagsStr)');
+  if (sem != null && sem.flags.isNotEmpty) {
+    final flagsStr = sem.flags
+        .where((f) => f.startsWith('is'))
+        .map((f) => f.substring(2))
+        .join(', ');
+    if (flagsStr.isNotEmpty) parts.add('($flagsStr)');
+  }
 
   // Add scroll info
-  final scrollPosition = semantics?['scrollPosition'] as num?;
-  final scrollExtentMax = semantics?['scrollExtentMax'] as num?;
-  if (scrollPosition != null) {
-    final pos = scrollPosition.toStringAsFixed(0);
-    final max = scrollExtentMax?.toStringAsFixed(0) ?? '?';
+  if (sem?.scrollPosition != null) {
+    final pos = sem!.scrollPosition!.toStringAsFixed(0);
+    final max = sem.scrollExtentMax?.toStringAsFixed(0) ?? '?';
     parts.add('{scroll: $pos/$max}');
   }
 
@@ -371,16 +501,8 @@ String formatCollapsedEntry(Map<String, dynamic> entry) {
 
 /// Format an entire snapshot for display.
 /// Returns a list of formatted lines.
-List<String> formatSnapshot(List<dynamic> nodes) {
-  // Build node map
-  final nodeMap = <String, Map<String, dynamic>>{};
-  for (final node in nodes) {
-    nodeMap[node['ref'] as String] = node as Map<String, dynamic>;
-  }
-
-  // Collapse nodes
-  final collapsed = collapseNodes(nodes, nodeMap);
-
-  // Format each entry
-  return collapsed.map((entry) => formatCollapsedEntry(entry)).toList();
+List<String> formatSnapshot(List<dynamic> rawNodes) {
+  final nodeMap = parseNodes(rawNodes);
+  final collapsed = collapseNodes(nodeMap);
+  return collapsed.map(formatCollapsedEntry).toList();
 }

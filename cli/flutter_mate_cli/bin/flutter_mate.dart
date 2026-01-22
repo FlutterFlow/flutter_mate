@@ -308,7 +308,7 @@ Future<void> _executeCommand({
         await _listExtensions(client);
         break;
       case 'attach':
-        await _interactiveMode(client);
+        await _interactiveMode(client, compact: compact);
         break;
       default:
         stderr.writeln('Unknown command: $command');
@@ -496,8 +496,9 @@ Future<void> _screenshot(VmServiceClient client, String? path) async {
   print('✅ Screenshot saved to $outputPath');
 }
 
-Future<void> _interactiveMode(VmServiceClient client) async {
-  print('🎮 Flutter Mate Interactive Mode');
+Future<void> _interactiveMode(VmServiceClient client,
+    {bool compact = false}) async {
+  print('🎮 Flutter Mate Interactive Mode${compact ? ' (compact)' : ''}');
   print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   print('Type "help" for commands, "quit" to exit');
   print('');
@@ -520,7 +521,12 @@ Future<void> _interactiveMode(VmServiceClient client) async {
       switch (cmd) {
         case 'snapshot':
         case 's':
-          await _snapshot(client, false);
+          // Check for -c flag in args
+          final useCompact = compact || args.contains('-c');
+          await _snapshot(client, useCompact);
+          break;
+        case 'sc': // Shortcut for compact snapshot
+          await _snapshot(client, true);
           break;
         case 'tap':
         case 't':
@@ -699,7 +705,8 @@ Future<void> _interactiveMode(VmServiceClient client) async {
         case 'help':
         case '?':
           print('Commands:');
-          print('  snapshot, s      - Get UI snapshot');
+          print('  snapshot, s [-c] - Get UI snapshot (-c for compact)');
+          print('  sc               - Compact snapshot (shortcut)');
           print('  tap, t <ref>     - Tap element (auto: semantic or gesture)');
           print('  doubleTap, dt <ref> - Double tap element');
           print('  longPress, lp <ref> - Long press element');
@@ -721,6 +728,10 @@ Future<void> _interactiveMode(VmServiceClient client) async {
           print('  screenshot, ss   - Take screenshot');
           print('  extensions, ext  - List extensions');
           print('  quit             - Exit');
+          if (compact) {
+            print('');
+            print('Note: Running in compact mode (-c flag)');
+          }
           break;
         default:
           print('Unknown command: $cmd (type "help" for commands)');

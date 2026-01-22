@@ -530,7 +530,9 @@ class SnapshotService {
         // Try to extract text from the render object (not widget diagnostics)
         if (child is RenderObjectElement) {
           final content = _extractTextFromRenderObject(child.renderObject);
-          if (content != null && content.isNotEmpty && !seen.contains(content)) {
+          if (content != null &&
+              content.isNotEmpty &&
+              !seen.contains(content)) {
             seen.add(content);
             texts.add(content);
           }

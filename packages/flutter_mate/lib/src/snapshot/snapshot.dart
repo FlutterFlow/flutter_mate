@@ -493,6 +493,16 @@ class SnapshotService {
     final seen = <String>{}; // Avoid duplicates
 
     void visit(Element child) {
+      // Skip elements in non-current routes (previous screens after navigation)
+      try {
+        final route = ModalRoute.of(child);
+        if (route != null && !route.isCurrent) {
+          return; // Don't collect text from previous routes
+        }
+      } catch (_) {
+        // ModalRoute.of can throw if no Navigator ancestor
+      }
+
       // Try to extract text from this widget
       final content = _extractWidgetContent(child.widget);
       if (content != null && content.isNotEmpty && !seen.contains(content)) {

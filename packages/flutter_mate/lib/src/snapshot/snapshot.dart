@@ -486,34 +486,12 @@ class SnapshotService {
     return buffer.toString().trim();
   }
 
-  /// Find the best semantics node in the render tree
-  /// Traverses down to find a node with actions or meaningful content
+  /// Get semantics directly attached to this render object
+  /// Does NOT traverse down - each widget should only show its own semantics
   static SemanticsNode? _findSemanticsInRenderTree(RenderObject ro) {
-    // First check if this render object has direct semantics
-    SemanticsNode? best = ro.debugSemantics;
-
-    // If no direct semantics or it has no actions/value, traverse down
-    if (best == null || !_hasMeaningfulSemantics(best)) {
-      void visitRenderObject(RenderObject child) {
-        final sn = child.debugSemantics;
-        if (sn != null && _hasMeaningfulSemantics(sn)) {
-          best = sn;
-          return; // Found one, stop
-        }
-        // Continue traversing if no semantics found
-        child.visitChildren(visitRenderObject);
-      }
-
-      ro.visitChildren(visitRenderObject);
-    }
-
-    return best;
-  }
-
-  /// Check if a semantics node has meaningful content (actions, label, or value)
-  static bool _hasMeaningfulSemantics(SemanticsNode node) {
-    final data = node.getSemanticsData();
-    return data.actions != 0 || data.label.isNotEmpty || data.value.isNotEmpty;
+    // Only use semantics directly attached to this render object
+    // Don't traverse down - children will claim their own semantics
+    return ro.debugSemantics;
   }
 
   /// Collect ALL text content from an element subtree

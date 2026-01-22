@@ -139,6 +139,17 @@ class FlutterMate {
   static Future<bool> scrollGesture(String ref, Offset delta) =>
       gesture.GestureActions.scrollGesture(ref, delta);
 
+  /// Hover over an element by ref (triggers onHover/onEnter)
+  static Future<bool> hover(String ref) => gesture.GestureActions.hover(ref);
+
+  /// Hover at screen coordinates
+  static Future<void> hoverAt(Offset position) =>
+      gesture.GestureActions.hoverAt(position);
+
+  /// Drag from one element to another by refs
+  static Future<bool> dragFromTo(String fromRef, String toRef) =>
+      gesture.GestureActions.dragFromTo(fromRef, toRef);
+
   // === Keyboard Actions ===
 
   /// Type text into a text field by ref
@@ -183,6 +194,41 @@ class FlutterMate {
     bool command = false,
   }) =>
       keyboard.KeyboardActions.pressShortcut(
+        key,
+        control: control,
+        shift: shift,
+        alt: alt,
+        command: command,
+      );
+
+  /// Press a key down (without releasing)
+  ///
+  /// Use with [keyUp] for fine-grained keyboard control.
+  /// Useful for holding modifier keys (shift, control, etc.)
+  static Future<bool> keyDown(
+    LogicalKeyboardKey key, {
+    bool control = false,
+    bool shift = false,
+    bool alt = false,
+    bool command = false,
+  }) =>
+      keyboard.KeyboardActions.keyDown(
+        key,
+        control: control,
+        shift: shift,
+        alt: alt,
+        command: command,
+      );
+
+  /// Release a key (after keyDown)
+  static Future<bool> keyUp(
+    LogicalKeyboardKey key, {
+    bool control = false,
+    bool shift = false,
+    bool alt = false,
+    bool command = false,
+  }) =>
+      keyboard.KeyboardActions.keyUp(
         key,
         control: control,
         shift: shift,

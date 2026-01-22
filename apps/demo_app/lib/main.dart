@@ -640,6 +640,179 @@ class _ActionsPageState extends State<ActionsPage> {
                 child: const Text('Reset Counters'),
               ),
             ),
+            const SizedBox(height: 24),
+
+            // Hover area
+            Semantics(
+              label: 'Hover area',
+              child: _HoverArea(
+                onHover: (isHovering) {
+                  if (isHovering) {
+                    _showAction('Hover entered!');
+                  }
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Drag area
+            const Text('Drag & Drop:',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 100,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Semantics(
+                      label: 'Draggable item',
+                      child: Draggable<String>(
+                        data: 'dragged_item',
+                        feedback: Material(
+                          elevation: 4,
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            color: Colors.purple.shade200,
+                            child: const Text('Dragging...'),
+                          ),
+                        ),
+                        childWhenDragging: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade300,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey),
+                          ),
+                          child: const Center(child: Text('(Dragged)')),
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.purple.shade100,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.purple, width: 2),
+                          ),
+                          child: const Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.drag_indicator,
+                                    color: Colors.purple),
+                                Text('Drag Me',
+                                    style: TextStyle(color: Colors.purple)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Semantics(
+                      label: 'Drop target',
+                      child: DragTarget<String>(
+                        onAcceptWithDetails: (details) {
+                          _showAction('Item dropped: ${details.data}');
+                        },
+                        builder: (context, candidateData, rejectedData) {
+                          final isHovering = candidateData.isNotEmpty;
+                          return Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: isHovering
+                                  ? Colors.green.shade200
+                                  : Colors.green.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isHovering
+                                    ? Colors.green
+                                    : Colors.green.shade300,
+                                width: 2,
+                              ),
+                            ),
+                            child: Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    isHovering
+                                        ? Icons.check_circle
+                                        : Icons.upload,
+                                    color: Colors.green,
+                                  ),
+                                  Text(
+                                    isHovering ? 'Release!' : 'Drop Here',
+                                    style: const TextStyle(color: Colors.green),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Hover-enabled area widget
+class _HoverArea extends StatefulWidget {
+  final void Function(bool isHovering) onHover;
+
+  const _HoverArea({required this.onHover});
+
+  @override
+  State<_HoverArea> createState() => _HoverAreaState();
+}
+
+class _HoverAreaState extends State<_HoverArea> {
+  bool _isHovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) {
+        setState(() => _isHovering = true);
+        widget.onHover(true);
+      },
+      onExit: (_) {
+        setState(() => _isHovering = false);
+        widget.onHover(false);
+      },
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: _isHovering ? Colors.green.shade200 : Colors.green.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: _isHovering ? Colors.green : Colors.green.shade300,
+            width: 2,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              _isHovering ? Icons.visibility : Icons.visibility_off,
+              size: 48,
+              color: Colors.green,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _isHovering ? 'Hovering!' : 'Hover Over Me',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.green,
+              ),
+            ),
           ],
         ),
       ),

@@ -110,6 +110,7 @@ class SnapshotService {
             final obj = service.toObject(valueId, groupName);
             if (obj is Element) {
               // Check if this element is in the current (topmost) route
+              // Note: ModalRoute.of can throw assertion errors during navigation
               try {
                 final route = ModalRoute.of(obj);
                 if (route != null && !route.isCurrent) {
@@ -121,20 +122,26 @@ class SnapshotService {
                   }
                   return;
                 }
-              } catch (_) {}
+              } catch (_) {
+                // ModalRoute.of can throw - continue processing this element
+              }
 
               // Cache the Element for ref lookup
               FlutterMate.cachedElements[ref] = obj;
 
               // Extract text content from the widget itself
-              textContent = _extractWidgetContent(obj.widget);
+              try {
+                textContent = _extractWidgetContent(obj.widget);
 
-              // If no direct text, collect ALL text from element subtree
-              if (textContent == null) {
-                final allTexts = _collectAllTextInSubtree(obj);
-                if (allTexts.isNotEmpty) {
-                  textContent = allTexts.join(' | ');
+                // If no direct text, collect ALL text from element subtree
+                if (textContent == null) {
+                  final allTexts = _collectAllTextInSubtree(obj);
+                  if (allTexts.isNotEmpty) {
+                    textContent = allTexts.join(' | ');
+                  }
                 }
+              } catch (_) {
+                // Text extraction can fail during navigation transitions
               }
 
               // Find the RenderObject
@@ -440,28 +447,37 @@ class SnapshotService {
     final seen = <String>{}; // Avoid duplicates
 
     void visit(Element child) {
-      // Skip elements in non-current routes (previous screens after navigation)
       try {
-        final route = ModalRoute.of(child);
-        if (route != null && !route.isCurrent) {
-          return; // Don't collect text from previous routes
+        // Skip elements in non-current routes (previous screens after navigation)
+        // Note: ModalRoute.of can throw during navigation transitions
+        try {
+          final route = ModalRoute.of(child);
+          if (route != null && !route.isCurrent) {
+            return; // Don't collect text from previous routes
+          }
+        } catch (_) {
+          // ModalRoute.of can throw - skip this check and continue
         }
+
+        // Try to extract text from this widget
+        final content = _extractWidgetContent(child.widget);
+        if (content != null && content.isNotEmpty && !seen.contains(content)) {
+          seen.add(content);
+          texts.add(content);
+        }
+
+        // Continue to ALL children (don't stop on first find)
+        child.visitChildren(visit);
       } catch (_) {
-        // ModalRoute.of can throw if no Navigator ancestor
+        // Element may become invalid during navigation - skip it
       }
-
-      // Try to extract text from this widget
-      final content = _extractWidgetContent(child.widget);
-      if (content != null && content.isNotEmpty && !seen.contains(content)) {
-        seen.add(content);
-        texts.add(content);
-      }
-
-      // Continue to ALL children (don't stop on first find)
-      child.visitChildren(visit);
     }
 
-    element.visitChildren(visit);
+    try {
+      element.visitChildren(visit);
+    } catch (_) {
+      // Parent element may be invalid
+    }
     return texts;
   }
 

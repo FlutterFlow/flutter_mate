@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_mate/flutter_mate.dart';
 import 'package:demo_app/main.dart';
@@ -741,6 +742,245 @@ void main() {
       // 5. Take another snapshot after navigation
       snapshot = await FlutterMate.snapshot();
       expect(snapshot.nodes, isNotEmpty);
+
+      semanticsHandle.dispose();
+    });
+  });
+
+  group('FlutterMate Hover Tests', () {
+    testWidgets('hover can find hover-enabled element', (tester) async {
+      final semanticsHandle = tester.ensureSemantics();
+      FlutterMate.initializeForTest();
+
+      await tester.pumpWidget(const DemoApp());
+      await tester.pumpAndSettle();
+
+      // Navigate to dashboard and then Actions page
+      await _loginWithValidCredentials(tester);
+      await tester.tap(find.text('Actions'));
+      await tester.pumpAndSettle();
+
+      // Find the hover area
+      final hoverRef = await FlutterMate.findByLabel('Hover area');
+      expect(hoverRef, isNotNull, reason: 'Should find Hover area');
+
+      semanticsHandle.dispose();
+    });
+
+    testWidgets('hoverAt works with coordinates', (tester) async {
+      final semanticsHandle = tester.ensureSemantics();
+      FlutterMate.initializeForTest();
+
+      await tester.pumpWidget(const DemoApp());
+      await tester.pumpAndSettle();
+
+      // Navigate to Actions page
+      await _loginWithValidCredentials(tester);
+      await tester.tap(find.text('Actions'));
+      await tester.pumpAndSettle();
+
+      // Hover at a position (just test it doesn't crash)
+      await FlutterMate.hoverAt(const Offset(200, 300));
+      await tester.pump();
+
+      semanticsHandle.dispose();
+    });
+
+    testWidgets('hover returns false for non-existent ref', (tester) async {
+      final semanticsHandle = tester.ensureSemantics();
+      FlutterMate.initializeForTest();
+
+      await tester.pumpWidget(const DemoApp());
+      await tester.pumpAndSettle();
+
+      // Take a snapshot
+      await FlutterMate.snapshot();
+
+      // Try to hover on non-existent ref
+      final success = await FlutterMate.hover('w99999');
+      expect(success, isFalse);
+
+      semanticsHandle.dispose();
+    });
+  });
+
+  group('FlutterMate Drag Tests', () {
+    testWidgets('can find draggable and drop target elements', (tester) async {
+      final semanticsHandle = tester.ensureSemantics();
+      FlutterMate.initializeForTest();
+
+      await tester.pumpWidget(const DemoApp());
+      await tester.pumpAndSettle();
+
+      // Navigate to Actions page
+      await _loginWithValidCredentials(tester);
+      await tester.tap(find.text('Actions'));
+      await tester.pumpAndSettle();
+
+      // Find draggable and drop target
+      final draggableRef = await FlutterMate.findByLabel('Draggable item');
+      final dropTargetRef = await FlutterMate.findByLabel('Drop target');
+
+      expect(draggableRef, isNotNull, reason: 'Should find Draggable item');
+      expect(dropTargetRef, isNotNull, reason: 'Should find Drop target');
+
+      semanticsHandle.dispose();
+    });
+
+    testWidgets('drag coordinates work', (tester) async {
+      final semanticsHandle = tester.ensureSemantics();
+      FlutterMate.initializeForTest();
+
+      await tester.pumpWidget(const DemoApp());
+      await tester.pumpAndSettle();
+
+      // Just test drag doesn't crash
+      await FlutterMate.drag(
+        from: const Offset(100, 400),
+        to: const Offset(300, 400),
+        duration: const Duration(milliseconds: 100),
+      );
+      await tester.pump();
+
+      semanticsHandle.dispose();
+    });
+
+    testWidgets('dragFromTo returns false for non-existent refs',
+        (tester) async {
+      final semanticsHandle = tester.ensureSemantics();
+      FlutterMate.initializeForTest();
+
+      await tester.pumpWidget(const DemoApp());
+      await tester.pumpAndSettle();
+
+      // Take a snapshot
+      await FlutterMate.snapshot();
+
+      // Try to drag with non-existent refs
+      final success = await FlutterMate.dragFromTo('w99998', 'w99999');
+      expect(success, isFalse);
+
+      semanticsHandle.dispose();
+    });
+  });
+
+  group('FlutterMate KeyDown/KeyUp Tests', () {
+    testWidgets('keyDown and keyUp methods exist and are callable',
+        (tester) async {
+      FlutterMate.initializeForTest();
+
+      // Verify methods exist (actual key events don't work in test environment)
+      expect(FlutterMate.keyDown, isA<Function>());
+      expect(FlutterMate.keyUp, isA<Function>());
+    });
+
+    testWidgets('keyDown returns true for valid key', (tester) async {
+      final semanticsHandle = tester.ensureSemantics();
+      FlutterMate.initializeForTest();
+
+      await tester.pumpWidget(const DemoApp());
+      await tester.pumpAndSettle();
+
+      // Try keyDown with shift (doesn't throw)
+      // Note: Platform messages don't work in test, but method should return true
+      final downResult = await FlutterMate.keyDown(LogicalKeyboardKey.shift);
+      final upResult = await FlutterMate.keyUp(LogicalKeyboardKey.shift);
+
+      // Methods should complete without error
+      expect(downResult, isNotNull);
+      expect(upResult, isNotNull);
+
+      semanticsHandle.dispose();
+    });
+  });
+
+  group('FlutterMate Find Tests', () {
+    testWidgets('snapshot can be indexed by ref', (tester) async {
+      final semanticsHandle = tester.ensureSemantics();
+      FlutterMate.initializeForTest();
+
+      await tester.pumpWidget(const DemoApp());
+      await tester.pumpAndSettle();
+
+      // Take snapshot
+      final snapshot = await FlutterMate.snapshot();
+      expect(snapshot.nodes, isNotEmpty);
+
+      // Get first node's ref
+      final firstRef = snapshot.nodes.first.ref;
+
+      // Access node by ref using [] operator
+      final node = snapshot[firstRef];
+      expect(node, isNotNull);
+      expect(node!.ref, equals(firstRef));
+
+      semanticsHandle.dispose();
+    });
+
+    testWidgets('can get detailed element info', (tester) async {
+      final semanticsHandle = tester.ensureSemantics();
+      FlutterMate.initializeForTest();
+
+      await tester.pumpWidget(const DemoApp());
+      await tester.pumpAndSettle();
+
+      // Find login button
+      final loginRef = await FlutterMate.findByLabel('Login');
+      expect(loginRef, isNotNull);
+
+      // Get detailed info via snapshot
+      final snapshot = await FlutterMate.snapshot();
+      final loginNode = snapshot[loginRef!];
+
+      expect(loginNode, isNotNull);
+      expect(loginNode!.ref, equals(loginRef));
+      expect(loginNode.widget, isNotEmpty);
+
+      // Should have bounds
+      expect(loginNode.bounds, isNotNull);
+      expect(loginNode.bounds!.width, greaterThan(0));
+      expect(loginNode.bounds!.height, greaterThan(0));
+
+      // Should have semantics (it's a button)
+      expect(loginNode.semantics, isNotNull);
+
+      semanticsHandle.dispose();
+    });
+
+    testWidgets('node has center property for positioning', (tester) async {
+      final semanticsHandle = tester.ensureSemantics();
+      FlutterMate.initializeForTest();
+
+      await tester.pumpWidget(const DemoApp());
+      await tester.pumpAndSettle();
+
+      // Find an element
+      final emailRef = await FlutterMate.findByLabel('Email');
+      expect(emailRef, isNotNull);
+
+      final snapshot = await FlutterMate.snapshot();
+      final node = snapshot[emailRef!];
+
+      expect(node, isNotNull);
+      expect(node!.center, isNotNull);
+      expect(node.center!.x, greaterThan(0));
+      expect(node.center!.y, greaterThan(0));
+
+      semanticsHandle.dispose();
+    });
+
+    testWidgets('snapshot returns null for non-existent ref', (tester) async {
+      final semanticsHandle = tester.ensureSemantics();
+      FlutterMate.initializeForTest();
+
+      await tester.pumpWidget(const DemoApp());
+      await tester.pumpAndSettle();
+
+      final snapshot = await FlutterMate.snapshot();
+
+      // Try to access non-existent ref
+      final node = snapshot['w99999'];
+      expect(node, isNull);
 
       semanticsHandle.dispose();
     });

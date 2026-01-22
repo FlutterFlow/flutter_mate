@@ -33,8 +33,9 @@ class SnapshotService {
   static Future<CombinedSnapshot> snapshot({bool compact = false}) async {
     FlutterMate.ensureInitialized();
 
-    // Clear the offstage cache for fresh detection
+    // Clear caches for fresh detection
     _offstageCache.clear();
+    _onstageCache.clear();
 
     // Wait for first frame if needed
     final rootElement = WidgetsBinding.instance.rootElement;
@@ -437,71 +438,68 @@ class SnapshotService {
   /// Cleared at the start of each snapshot
   static final Set<RenderObject> _offstageCache = {};
 
+  /// Cache of known onstage RenderObjects to avoid re-checking
+  static final Set<RenderObject> _onstageCache = {};
+
   /// Check if an element is offstage (not being painted)
   ///
-  /// Uses caching to achieve O(1) amortized complexity:
-  /// - First check if any ancestor is in the cache (O(depth), but usually hits early)
-  /// - If not cached, do the expensive check once and cache the result
-  /// - Future descendants will find the cached ancestor immediately
+  /// Uses caching to achieve O(1) amortized complexity for both
+  /// offstage AND onstage elements.
   ///
   /// This detects:
   /// - Widgets from previous routes (after navigation)
   /// - Offstage widgets
-  /// - Widgets outside paint clips
+  /// - Unattached render objects
   static bool _isElementOffstage(Element element) {
     try {
-      // Find the render object for this element
+      // Get the render object directly if available
       RenderObject? ro;
       if (element is RenderObjectElement) {
         ro = element.renderObject;
-      } else {
-        // Walk down to find the first RenderObject
-        void findRenderObject(Element el) {
-          if (ro != null) return;
-          if (el is RenderObjectElement) {
-            ro = el.renderObject;
-            return;
-          }
-          el.visitChildren(findRenderObject);
-        }
-
-        findRenderObject(element);
       }
 
+      // No render object = can't determine, assume onstage
       if (ro == null) return false;
 
-      // Check if this RenderObject is attached
-      if (!ro!.attached) return true;
+      // Check if unattached
+      if (!ro.attached) return true;
 
-      // Fast path: check if any ancestor is already in the offstage cache
-      // This is O(depth) but usually hits very early for offstage subtrees
-      RenderObject? current = ro;
+      // Fast path: check caches first (O(1))
+      if (_offstageCache.contains(ro)) return true;
+      if (_onstageCache.contains(ro)) return false;
+
+      // Check ancestors in cache (usually hits within 1-2 levels)
+      RenderObject? current = ro.parent;
       while (current != null) {
         if (_offstageCache.contains(current)) {
+          _offstageCache.add(ro); // Cache this one too
           return true;
+        }
+        if (_onstageCache.contains(current)) {
+          _onstageCache.add(ro); // Cache this one too
+          return false;
         }
         current = current.parent;
       }
 
-      // Slow path: walk up checking diagnostics style
-      // This only runs once per unique offstage ancestor
+      // Slow path: check for Offstage widget specifically
+      // This is much cheaper than debugDescribeChildren()
       current = ro;
       while (current != null) {
-        final parent = current.parent;
-        if (parent != null) {
-          final children = parent.debugDescribeChildren();
-          for (final child in children) {
-            if (child.value == current &&
-                child.style == DiagnosticsTreeStyle.offstage) {
-              // Cache this offstage RenderObject for future O(1) lookups
-              _offstageCache.add(current);
-              return true;
-            }
+        // Check for RenderOffstage (the actual Offstage widget's render object)
+        if (current.runtimeType.toString() == 'RenderOffstage') {
+          // ignore: invalid_use_of_protected_member
+          final offstage = (current as dynamic).offstage as bool?;
+          if (offstage == true) {
+            _offstageCache.add(ro);
+            return true;
           }
         }
-        current = parent;
+        current = current.parent;
       }
 
+      // No offstage ancestor found - cache as onstage
+      _onstageCache.add(ro);
       return false;
     } catch (_) {
       // If we can't determine, assume it's onstage

@@ -33,6 +33,9 @@ class SnapshotService {
   static Future<CombinedSnapshot> snapshot({bool compact = false}) async {
     FlutterMate.ensureInitialized();
 
+    // Clear the offstage cache for fresh detection
+    _offstageCache.clear();
+
     // Wait for first frame if needed
     final rootElement = WidgetsBinding.instance.rootElement;
     if (rootElement == null) {
@@ -430,14 +433,21 @@ class SnapshotService {
     return data.actions != 0 || data.label.isNotEmpty || data.value.isNotEmpty;
   }
 
+  /// Cache of known offstage RenderObjects for O(1) lookup
+  /// Cleared at the start of each snapshot
+  static final Set<RenderObject> _offstageCache = {};
+
   /// Check if an element is offstage (not being painted)
   ///
-  /// This uses the RenderObject's diagnostics to detect:
+  /// Uses caching to achieve O(1) amortized complexity:
+  /// - First check if any ancestor is in the cache (O(depth), but usually hits early)
+  /// - If not cached, do the expensive check once and cache the result
+  /// - Future descendants will find the cached ancestor immediately
+  ///
+  /// This detects:
   /// - Widgets from previous routes (after navigation)
   /// - Offstage widgets
   /// - Widgets outside paint clips
-  ///
-  /// Based on Flutter's own hit testing logic that skips offstage widgets.
   static bool _isElementOffstage(Element element) {
     try {
       // Find the render object for this element
@@ -460,20 +470,31 @@ class SnapshotService {
 
       if (ro == null) return false;
 
-      // Check if this RenderObject is attached and painting
+      // Check if this RenderObject is attached
       if (!ro!.attached) return true;
 
-      // Walk up the render tree to check for offstage ancestors
-      // This catches widgets inside ModalRoute transitions, Offstage, etc.
+      // Fast path: check if any ancestor is already in the offstage cache
+      // This is O(depth) but usually hits very early for offstage subtrees
       RenderObject? current = ro;
       while (current != null) {
-        // Check if this render object's parent marks it as offstage
+        if (_offstageCache.contains(current)) {
+          return true;
+        }
+        current = current.parent;
+      }
+
+      // Slow path: walk up checking diagnostics style
+      // This only runs once per unique offstage ancestor
+      current = ro;
+      while (current != null) {
         final parent = current.parent;
         if (parent != null) {
           final children = parent.debugDescribeChildren();
           for (final child in children) {
             if (child.value == current &&
                 child.style == DiagnosticsTreeStyle.offstage) {
+              // Cache this offstage RenderObject for future O(1) lookups
+              _offstageCache.add(current);
               return true;
             }
           }

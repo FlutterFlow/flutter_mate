@@ -260,8 +260,14 @@ List<CollapsedEntry> collapseNodes(Map<String, CombinedNode> nodeMap) {
 // ============================================================================
 
 /// Check if a collapsed entry has any meaningful info beyond just widget type.
-/// Returns true if it has text, semantics, actions, flags, etc.
+/// Returns true if it has text, semantics, actions, flags, keys, etc.
 bool hasAdditionalInfo(CollapsedEntry entry) {
+  // Any widget in the chain has a key (e.g., "-[<'database-icon'>]")
+  // Keys often contain semantic meaning
+  for (final item in entry.chain) {
+    if (item.widget.contains('-[')) return true;
+  }
+
   // Has text content
   if (entry.textContent?.isNotEmpty == true) return true;
 

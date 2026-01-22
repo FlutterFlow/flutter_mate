@@ -99,6 +99,10 @@ class CombinedNode {
   /// Whether this node has any meaningful info beyond just widget type.
   /// Used for compact mode filtering.
   bool get hasAdditionalInfo {
+    // Widget name contains a key (e.g., "-[<'database-icon'>]" or "-[GlobalKey#...]")
+    // These keys often contain semantic meaning
+    if (widget.contains('-[')) return true;
+
     // Has text content
     if (textContent?.isNotEmpty == true) return true;
 

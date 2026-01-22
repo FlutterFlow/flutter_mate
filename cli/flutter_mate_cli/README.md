@@ -1,0 +1,118 @@
+# flutter_mate_cli
+
+Command-line interface and MCP server for Flutter Mate.
+
+## Installation
+
+```bash
+cd cli/flutter_mate_cli
+dart pub get
+
+# Run directly
+dart run bin/flutter_mate.dart --help
+
+# Or install globally
+dart pub global activate --source path .
+flutter_mate --help
+```
+
+## CLI Usage
+
+```bash
+# Get the VM Service URI from Flutter console when running your app:
+#   A Dart VM Service on macOS is available at: http://127.0.0.1:12345/abc=/
+
+# Convert to WebSocket URI and use:
+flutter_mate --uri ws://127.0.0.1:12345/abc=/ws snapshot
+
+# Compact mode (only widgets with meaningful info)
+flutter_mate --uri ws://127.0.0.1:12345/abc=/ws -c snapshot
+
+# Interact with elements
+flutter_mate --uri ws://... tap w10
+flutter_mate --uri ws://... setText w5 "hello@example.com"
+flutter_mate --uri ws://... scroll w15 down
+
+# Interactive REPL mode
+flutter_mate --uri ws://... attach
+flutter_mate> snapshot
+flutter_mate> sc              # compact snapshot
+flutter_mate> tap w10
+flutter_mate> help
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `snapshot` | Get UI tree (add `-c` for compact mode) |
+| `tap <ref>` | Tap element |
+| `doubleTap <ref>` | Double tap element |
+| `longPress <ref>` | Long press element |
+| `hover <ref>` | Hover over element |
+| `drag <from> <to>` | Drag between elements |
+| `setText <ref> <text>` | Set text (semantic action) |
+| `typeText <ref> <text>` | Type text (keyboard simulation) |
+| `clear <ref>` | Clear text field |
+| `scroll <ref> [dir]` | Scroll element |
+| `swipe <dir>` | Swipe gesture |
+| `focus <ref>` | Focus element |
+| `pressKey <key>` | Press keyboard key |
+| `keyDown <key>` | Press key down |
+| `keyUp <key>` | Release key |
+| `find <ref>` | Get detailed element info |
+| `getText <ref>` | Get element text |
+| `wait <ms>` | Wait milliseconds |
+| `extensions` | List service extensions |
+| `attach` | Interactive REPL mode |
+
+## MCP Server
+
+For AI agent integration with Cursor, Claude, or other MCP clients:
+
+```bash
+# Run the MCP server
+dart run bin/mcp_server.dart
+
+# Or with a pre-configured URI
+FLUTTER_MATE_URI=ws://127.0.0.1:12345/abc=/ws dart run bin/mcp_server.dart
+```
+
+### Cursor Configuration
+
+Add to `~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "flutter_mate": {
+      "command": "dart",
+      "args": ["run", "/path/to/flutter_mate_cli/bin/mcp_server.dart"],
+      "env": {
+        "FLUTTER_MATE_URI": "ws://127.0.0.1:12345/abc=/ws"
+      }
+    }
+  }
+}
+```
+
+## Snapshot Format
+
+The snapshot shows a collapsed widget tree:
+
+```
+• [w1] MyApp → [w2] MaterialApp → [w3] LoginScreen
+  • [w6] Column
+    • [w9] TextField (Email) {valid, type: email} [tap, focus] (TextField, Focusable)
+    • [w15] TextField (Password) value = "****" [tap, focus] (Obscured)
+    • [w20] ElevatedButton (Submit) [tap] (Button, Enabled)
+```
+
+Format: `[ref] Widget (text) value="..." {state} [actions] (flags)`
+
+- **ref** - Use with commands like `tap w9`
+- **text** - Semantic label, hint, or text content
+- **value** - Typed text in fields
+- **state** - Validation, input type, etc.
+- **actions** - Available semantic actions
+- **flags** - Widget properties (Button, TextField, etc.)

@@ -800,51 +800,10 @@ and children. Useful for inspecting a specific element after taking a snapshot.'
       );
     }
 
-    final output = StringBuffer();
-    output.writeln('Element: ${element['ref']} ${element['widget']}');
-    output.writeln('');
-
-    final bounds = element['bounds'];
-    if (bounds != null) {
-      output.writeln('Bounds:');
-      output.writeln(
-          '  x: ${bounds['x']}, y: ${bounds['y']}, w: ${bounds['width']}, h: ${bounds['height']}');
-    }
-
-    final textContent = element['textContent'];
-    if (textContent != null && textContent.toString().isNotEmpty) {
-      output.writeln('Text: "$textContent"');
-    }
-
-    final semantics = element['semantics'];
-    if (semantics != null) {
-      output.writeln('Semantics:');
-      if (semantics['label'] != null) {
-        output.writeln('  label: "${semantics['label']}"');
-      }
-      if (semantics['value'] != null) {
-        output.writeln('  value: "${semantics['value']}"');
-      }
-      if (semantics['hint'] != null) {
-        output.writeln('  hint: "${semantics['hint']}"');
-      }
-      final actions = semantics['actions'] as List?;
-      if (actions != null && actions.isNotEmpty) {
-        output.writeln('  actions: ${actions.join(', ')}');
-      }
-      final flags = semantics['flags'] as List?;
-      if (flags != null && flags.isNotEmpty) {
-        output.writeln('  flags: ${flags.join(', ')}');
-      }
-    }
-
-    final children = element['children'] as List?;
-    if (children != null && children.isNotEmpty) {
-      output.writeln('Children: ${children.join(', ')}');
-    }
-
+    // Use shared formatter for consistent output
+    final lines = formatElementDetails(element);
     return CallToolResult(
-      content: [TextContent(text: output.toString())],
+      content: [TextContent(text: lines.join('\n'))],
     );
   }
 

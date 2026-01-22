@@ -19,26 +19,37 @@
 /// await FlutterMate.tap('w10');
 /// ```
 ///
-/// ## AI Agent Integration
+/// ## Available Actions
 ///
-/// For AI agents, use the action system for structured command execution:
+/// **Touch:**
+/// - [FlutterMate.tap] - Tap element (semantic → gesture fallback)
+/// - [FlutterMate.doubleTap] - Double tap element
+/// - [FlutterMate.longPress] - Long press element
+/// - [FlutterMate.hover] - Hover over element (trigger onHover)
+/// - [FlutterMate.drag] - Drag gesture between points
+/// - [FlutterMate.dragFromTo] - Drag from one element to another
 ///
-/// ```dart
-/// // Get tool definitions for your LLM
-/// final tools = MateAction.toolDefinitions;
+/// **Text Input:**
+/// - [FlutterMate.setText] - Set text via semantic action
+/// - [FlutterMate.typeText] - Type text via keyboard simulation
+/// - [FlutterMate.clearText] - Clear focused text field
 ///
-/// // Execute actions from agent output
-/// final result = await ActionExecutor.execute({
-///   'action': 'tap',
-///   'ref': 'w5',
-/// });
-/// ```
+/// **Keyboard:**
+/// - [FlutterMate.pressKey] - Press a key (down + up)
+/// - [FlutterMate.keyDown] / [FlutterMate.keyUp] - Fine-grained control
+/// - [FlutterMate.pressEnter], [FlutterMate.pressTab], etc.
+///
+/// **Navigation:**
+/// - [FlutterMate.scroll] - Scroll element
+/// - [FlutterMate.focus] - Focus element
+/// - [FlutterMate.waitFor] - Wait for element to appear
 ///
 /// ## External Control via CLI
 ///
 /// ```bash
 /// flutter_mate --uri ws://127.0.0.1:12345/abc=/ws snapshot
 /// flutter_mate --uri ws://127.0.0.1:12345/abc=/ws tap w10
+/// flutter_mate --uri ws://127.0.0.1:12345/abc=/ws -c snapshot  # compact mode
 /// ```
 ///
 /// See the README for more examples and API documentation.

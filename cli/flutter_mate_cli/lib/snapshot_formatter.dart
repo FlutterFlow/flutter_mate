@@ -260,49 +260,13 @@ List<CollapsedEntry> collapseNodes(Map<String, CombinedNode> nodeMap) {
 // ============================================================================
 
 /// Check if a collapsed entry has any meaningful info beyond just widget type.
-/// Returns true if it has text, semantics, actions, flags, keys, etc.
-bool hasAdditionalInfo(CollapsedEntry entry) {
-  // Any widget in the chain has a key (e.g., "-[<'database-icon'>]")
-  // Keys often contain semantic meaning
+/// Uses [CombinedNode.hasAdditionalInfo] from flutter_mate_types.
+bool hasAdditionalInfo(CollapsedEntry entry, Map<String, CombinedNode> nodeMap) {
+  // Check if any node in the chain has additional info
   for (final item in entry.chain) {
-    if (item.widget.contains('-[')) return true;
+    final node = nodeMap[item.ref];
+    if (node != null && node.hasAdditionalInfo) return true;
   }
-
-  // Has text content
-  if (entry.textContent?.isNotEmpty == true) return true;
-
-  final sem = entry.semantics;
-  if (sem == null) return false;
-
-  // Has semantic label, value, or hint
-  if (sem.label?.isNotEmpty == true) return true;
-  if (sem.value?.isNotEmpty == true) return true;
-  if (sem.hint?.isNotEmpty == true) return true;
-
-  // Has actions
-  if (sem.actions.isNotEmpty) return true;
-
-  // Has meaningful flags
-  if (sem.flags.isNotEmpty) return true;
-
-  // Has validation state
-  if (sem.validationResult != null) return true;
-
-  // Has scroll info
-  if (sem.scrollPosition != null) return true;
-
-  // Has tooltip
-  if (sem.tooltip?.isNotEmpty == true) return true;
-
-  // Has heading level
-  if (sem.headingLevel != null && sem.headingLevel! > 0) return true;
-
-  // Has link
-  if (sem.linkUrl?.isNotEmpty == true) return true;
-
-  // Has input type
-  if (sem.inputType != null && sem.inputType != 'none') return true;
-
   return false;
 }
 
@@ -456,11 +420,76 @@ List<String> formatSnapshot(List<dynamic> rawNodes, {bool compact = false}) {
 
   if (compact) {
     // Filter to only entries with additional info, show just last widget
-    final meaningful = collapsed.where(hasAdditionalInfo).toList();
+    final meaningful =
+        collapsed.where((e) => hasAdditionalInfo(e, nodeMap)).toList();
     return meaningful
         .map((e) => formatCollapsedEntry(e, compact: true))
         .toList();
   }
 
   return collapsed.map(formatCollapsedEntry).toList();
+}
+
+// ============================================================================
+// Element Details Formatting
+// ============================================================================
+
+/// Format detailed element info for display.
+///
+/// Returns a list of lines for the element details, with box drawing characters.
+/// Used by both CLI `find` command and MCP `find` tool.
+List<String> formatElementDetails(Map<String, dynamic> element) {
+  final lines = <String>[];
+  final ref = element['ref'] ?? 'unknown';
+  final widget = element['widget'] ?? 'unknown';
+  final bounds = element['bounds'];
+  final semantics = element['semantics'];
+  final textContent = element['textContent'];
+  final children = element['children'] as List?;
+
+  lines.add('┌─────────────────────────────────────────');
+  lines.add('│ [$ref] $widget');
+  lines.add('├─────────────────────────────────────────');
+
+  if (bounds != null) {
+    lines.add('│ Bounds:');
+    lines.add('│   x: ${bounds['x']}, y: ${bounds['y']}');
+    lines.add('│   width: ${bounds['width']}, height: ${bounds['height']}');
+  }
+
+  if (textContent != null && textContent.toString().isNotEmpty) {
+    lines.add('│ Text: "$textContent"');
+  }
+
+  if (semantics != null) {
+    lines.add('│ Semantics:');
+    if (semantics['label'] != null) {
+      lines.add('│   label: "${semantics['label']}"');
+    }
+    if (semantics['value'] != null) {
+      lines.add('│   value: "${semantics['value']}"');
+    }
+    if (semantics['hint'] != null) {
+      lines.add('│   hint: "${semantics['hint']}"');
+    }
+    final actions = semantics['actions'] as List?;
+    if (actions != null && actions.isNotEmpty) {
+      lines.add('│   actions: ${actions.join(', ')}');
+    }
+    final flags = semantics['flags'] as List?;
+    if (flags != null && flags.isNotEmpty) {
+      lines.add('│   flags: ${flags.join(', ')}');
+    }
+    final validationResult = semantics['validationResult'];
+    if (validationResult != null && validationResult != 'none') {
+      lines.add('│   validation: $validationResult');
+    }
+  }
+
+  if (children != null && children.isNotEmpty) {
+    lines.add('│ Children: ${children.length} (${children.join(', ')})');
+  }
+
+  lines.add('└─────────────────────────────────────────');
+  return lines;
 }

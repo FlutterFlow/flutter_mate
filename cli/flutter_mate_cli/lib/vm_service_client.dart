@@ -276,38 +276,13 @@ class VmServiceClient {
   /// Cache of semantics nodes for ref lookup
   List<Map<String, dynamic>>? _cachedNodes;
 
-  /// Refresh snapshot cache
+  /// Refresh snapshot cache (used by waitFor for polling)
   Future<void> _refreshSnapshot() async {
     final result = await getSnapshot();
     if (result['success'] == true) {
       _cachedNodes =
           (result['nodes'] as List<dynamic>?)?.cast<Map<String, dynamic>>();
     }
-  }
-
-  /// Find a semantics node by ref
-  Future<Map<String, dynamic>?> _findNodeByRef(String ref) async {
-    if (_cachedNodes == null) {
-      await _refreshSnapshot();
-    }
-
-    // Clean ref: "s5" -> look for ref "s5" or id 5
-    final cleanRef = ref.startsWith('@') ? ref.substring(1) : ref;
-
-    for (final node in _cachedNodes ?? []) {
-      if (node['ref'] == cleanRef) return node;
-      // Also try matching by id
-      final id = node['id'];
-      if (id != null && 's$id' == cleanRef) return node;
-    }
-
-    // Refresh and try again
-    await _refreshSnapshot();
-    for (final node in _cachedNodes ?? []) {
-      if (node['ref'] == cleanRef) return node;
-    }
-
-    return null;
   }
 
   /// Tap on an element by ref.
@@ -362,27 +337,33 @@ class VmServiceClient {
     return callExtension('ext.flutter_mate.find', args: {'ref': ref});
   }
 
-  /// Get text from an element by ref
+  /// Get text from an element by ref.
+  ///
+  /// Uses the `find` extension to get fresh data from the app.
+  /// Returns textContent, semantic label, and semantic value.
   Future<Map<String, dynamic>> getText(String ref) async {
-    try {
-      final node = await _findNodeByRef(ref);
-      if (node == null) {
-        return {'success': false, 'error': 'Node not found: $ref'};
-      }
-
-      // Return the label or value from the cached node
-      final label = node['label'] as String?;
-      final value = node['value'] as String?;
-
-      return {
-        'success': true,
-        'text': label ?? value ?? '',
-        'label': label,
-        'value': value,
-      };
-    } catch (e) {
-      return {'success': false, 'error': e.toString()};
+    final result = await find(ref);
+    if (result['success'] != true) {
+      return result;
     }
+
+    final element = result['result']?['element'] as Map<String, dynamic>?;
+    if (element == null) {
+      return {'success': false, 'error': 'Element not found: $ref'};
+    }
+
+    final textContent = element['textContent'] as String?;
+    final semantics = element['semantics'] as Map<String, dynamic>?;
+    final label = semantics?['label'] as String?;
+    final value = semantics?['value'] as String?;
+
+    return {
+      'success': true,
+      'text': textContent ?? label ?? value ?? '',
+      'textContent': textContent,
+      'label': label,
+      'value': value,
+    };
   }
 
   /// Wait for an element with matching text to appear.

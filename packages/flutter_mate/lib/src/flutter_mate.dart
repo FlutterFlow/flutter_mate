@@ -97,10 +97,6 @@ class FlutterMate {
   /// Focus on an element by ref
   static Future<bool> focus(String ref) => semantic.SemanticActions.focus(ref);
 
-  /// Alias for [setText] for backwards compatibility
-  @Deprecated('Use setText instead')
-  static Future<bool> fill(String ref, String text) => setText(ref, text);
-
   // === Gesture Actions ===
 
   /// Double tap on an element by ref

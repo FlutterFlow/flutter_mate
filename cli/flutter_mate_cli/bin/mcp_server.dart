@@ -26,13 +26,33 @@
 ///
 /// ## Available Tools
 ///
-/// - `connect` - Connect to a Flutter app
-/// - `snapshot` - Get UI tree with element refs
+/// **Connection:**
+/// - `connect` - Connect to a Flutter app via VM Service URI
+///
+/// **Inspection:**
+/// - `snapshot` - Get UI tree with element refs (supports compact mode)
+/// - `find` - Get detailed info about a specific element
+///
+/// **Touch Actions:**
 /// - `tap`, `doubleTap`, `longPress` - Tap actions
-/// - `fill`, `typeText`, `clear` - Text input
-/// - `scroll`, `focus` - Navigation
-/// - `pressKey` - Keyboard input
-/// - `waitFor` - Wait for element to appear
+/// - `hover` - Hover over element (trigger onHover)
+/// - `drag` - Drag from one element to another
+///
+/// **Text Input:**
+/// - `setText` - Set text via semantic action
+/// - `typeText` - Type text via keyboard simulation
+/// - `clear` - Clear text field
+///
+/// **Navigation:**
+/// - `scroll` - Scroll element in a direction
+/// - `focus` - Focus element
+///
+/// **Keyboard:**
+/// - `pressKey` - Press a keyboard key
+/// - `keyDown`, `keyUp` - Fine-grained key control
+///
+/// **Wait:**
+/// - `waitFor` - Wait for element matching pattern to appear
 library;
 
 import 'dart:io' as io;

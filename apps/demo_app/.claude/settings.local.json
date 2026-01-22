@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__flutter_mate__connect",
+      "mcp__flutter_mate__snapshot",
+      "mcp__flutter_mate__tap",
+      "mcp__flutter_mate__waitFor"
+    ]
+  }
+}

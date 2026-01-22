@@ -135,7 +135,6 @@ Future<void> _executeCommand({
         _printResult('tap', tapResult, jsonOutput);
         break;
       case 'setText':
-      case 'fill': // deprecated alias
         if (args.length < 2) {
           stderr.writeln(
               'Error: setText requires ref and text (e.g., setText w5 "hello")');
@@ -378,58 +377,12 @@ void _printSnapshot(Map<String, dynamic> data, {bool compact = false}) {
   }
 }
 
-/// Print detailed info about an element
+/// Print detailed info about an element using shared formatter
 void _printElementDetails(Map element) {
-  final ref = element['ref'] ?? 'unknown';
-  final widget = element['widget'] ?? 'unknown';
-  final bounds = element['bounds'];
-  final semantics = element['semantics'];
-  final textContent = element['textContent'];
-  final children = element['children'] as List?;
-
-  print('┌─────────────────────────────────────────');
-  print('│ [$ref] $widget');
-  print('├─────────────────────────────────────────');
-
-  if (bounds != null) {
-    print('│ Bounds:');
-    print('│   x: ${bounds['x']}, y: ${bounds['y']}');
-    print('│   width: ${bounds['width']}, height: ${bounds['height']}');
+  final lines = formatElementDetails(Map<String, dynamic>.from(element));
+  for (final line in lines) {
+    print(line);
   }
-
-  if (textContent != null && textContent.toString().isNotEmpty) {
-    print('│ Text: "$textContent"');
-  }
-
-  if (semantics != null) {
-    print('│ Semantics:');
-    if (semantics['label'] != null) {
-      print('│   label: "${semantics['label']}"');
-    }
-    if (semantics['value'] != null) {
-      print('│   value: "${semantics['value']}"');
-    }
-    if (semantics['hint'] != null) {
-      print('│   hint: "${semantics['hint']}"');
-    }
-    final actions = semantics['actions'] as List?;
-    if (actions != null && actions.isNotEmpty) {
-      print('│   actions: ${actions.join(', ')}');
-    }
-    final flags = semantics['flags'] as List?;
-    if (flags != null && flags.isNotEmpty) {
-      print('│   flags: ${flags.join(', ')}');
-    }
-    if (semantics['isValid'] == false) {
-      print('│   validation: invalid');
-    }
-  }
-
-  if (children != null && children.isNotEmpty) {
-    print('│ Children: ${children.length} (${children.join(', ')})');
-  }
-
-  print('└─────────────────────────────────────────');
 }
 
 Future<void> _listExtensions(VmServiceClient client) async {
@@ -537,8 +490,6 @@ Future<void> _interactiveMode(VmServiceClient client) async {
           break;
         case 'setText':
         case 'settext':
-        case 'fill': // deprecated alias
-        case 'f':
           if (args.length < 2) {
             print('Usage: setText <ref> <text>');
           } else {
@@ -710,7 +661,7 @@ Future<void> _interactiveMode(VmServiceClient client) async {
           print('  longPress, lp <ref> - Long press element');
           print('  hover, h <ref>   - Hover over element (trigger onHover)');
           print('  drag <from> <to> - Drag from one element to another');
-          print('  setText, f <ref> <text> - Set text (semantic action)');
+          print('  setText <ref> <text> - Set text (semantic action)');
           print('  typeText <ref> <text> - Type text (keyboard simulation)');
           print('  clear <ref>      - Clear text field');
           print('  scroll <ref> [dir] - Scroll element');
@@ -759,7 +710,7 @@ Commands:
   longPress <ref>       Long press element
   hover <ref>           Hover over element (trigger onHover/onEnter)
   drag <from> <to>      Drag from one element to another
-  fill <ref> <text>     Fill text field via semantic setText (e.g., fill w9 "text")
+  setText <ref> <text>  Set text field via semantic action (e.g., setText w9 "text")
   typeText <ref> <text> Type text via keyboard simulation (e.g., typeText w10 "text")
   clear <ref>           Clear text field
   pressKey <key>        Press keyboard key (enter, tab, escape, etc.)

@@ -274,16 +274,24 @@ Most actions try Tier 1 first, then fall back to Tier 2:
 flutter_mate --uri <ws://...> <command> [args]
 
 Commands:
-  snapshot              Get UI tree (-i for interactive only, -m combined for widget tree)
+  snapshot              Get UI tree (collapsed format)
+  snapshot -c           Compact mode: only widgets with info
   tap <ref>             Tap element (semantic → gesture fallback)
-  doubleTap <ref>       Double tap element (gesture)
-  longPress <ref>       Long press (semantic → gesture)
+  doubleTap <ref>       Double tap element
+  longPress <ref>       Long press element
+  hover <ref>           Hover over element (trigger onHover)
+  drag <from> <to>      Drag from one element to another
   setText <ref> <text>  Set text (semantic action)
-  clear <ref>           Clear text field
   typeText <ref> <text> Type text (keyboard simulation)
+  clear <ref>           Clear text field
+  scroll <ref> [dir]    Scroll element (up/down/left/right)
+  swipe <dir>           Swipe gesture from center
+  focus <ref>           Focus element
   pressKey <key>        Press keyboard key (enter, tab, escape, etc.)
-  scroll <ref> [dir]    Scroll (semantic → gesture fallback)
-  focus <ref>           Focus element (semantic)
+  keyDown <key>         Press key down (hold)
+  keyUp <key>           Release key
+  find <ref>            Get detailed element info
+  getText <ref>         Get text content from element
   wait <ms>             Wait milliseconds
   extensions            List available service extensions
   attach                Interactive REPL mode
@@ -291,6 +299,7 @@ Commands:
 Options:
   --uri, -u             VM Service WebSocket URI (required)
   --json, -j            Output as JSON
+  --compact, -c         Compact snapshot mode
   --help, -h            Show help
 ```
 
@@ -303,17 +312,22 @@ When using the MCP server, the following tools are available:
 | Tool | Description |
 |------|-------------|
 | `connect` | Connect to a Flutter app by VM Service URI |
-| `snapshot` | Get UI tree with element refs |
+| `snapshot` | Get UI tree with element refs (supports `compact` mode) |
+| `find` | Get detailed element info by ref |
 | `tap` | Tap element by ref |
 | `doubleTap` | Double tap element |
-| `longPress` | Long press (semantic → gesture) |
-| `setText` | Set text (semantic action) |
+| `longPress` | Long press element |
+| `hover` | Hover over element (trigger onHover) |
+| `drag` | Drag from one element to another |
+| `setText` | Set text via semantic action |
+| `typeText` | Type text via keyboard simulation |
 | `clear` | Clear text field |
-| `typeText` | Type text (keyboard simulation) |
-| `pressKey` | Press keyboard key |
-| `scroll` | Scroll element |
+| `scroll` | Scroll element in a direction |
 | `focus` | Focus element |
-| `wait` | Wait for duration |
+| `pressKey` | Press keyboard key |
+| `keyDown` | Press key down (hold) |
+| `keyUp` | Release key |
+| `waitFor` | Wait for element matching pattern to appear |
 
 ---
 
@@ -470,25 +484,18 @@ Service extensions (`ext.flutter_mate.*`) expose the SDK functionality via VM Se
 ```
 flutter_mate/
 ├── packages/
-│   └── flutter_mate/               # Dart SDK
+│   ├── flutter_mate/               # Flutter SDK
+│   │   └── lib/
+│   │       ├── flutter_mate.dart   # Public API exports
+│   │       └── src/
+│   │           ├── core/           # Initialization & service extensions
+│   │           ├── snapshot/       # UI tree capture
+│   │           ├── actions/        # Semantic, gesture, keyboard actions
+│   │           ├── protocol.dart   # Command schemas
+│   │           └── actions.dart    # Action types
+│   └── flutter_mate_types/         # Shared types (pure Dart, no Flutter)
 │       └── lib/
-│           ├── flutter_mate.dart   # Public API exports
-│           └── src/
-│               ├── core/           # Initialization & utilities
-│               │   ├── flutter_mate.dart
-│               │   ├── service_extensions.dart
-│               │   └── semantics_utils.dart
-│               ├── snapshot/       # UI tree capture
-│               │   ├── snapshot.dart
-│               │   └── combined_snapshot.dart
-│               ├── actions/        # Interaction methods
-│               │   ├── semantic_actions.dart
-│               │   ├── gesture_actions.dart
-│               │   ├── keyboard_actions.dart
-│               │   └── helpers.dart
-│               ├── protocol.dart   # Command definitions
-│               ├── command_executor.dart
-│               └── actions.dart    # Action types
+│           └── src/snapshot.dart   # CombinedSnapshot, CombinedNode, etc.
 ├── apps/
 │   └── demo_app/                   # Demo Flutter app
 └── cli/
@@ -498,7 +505,8 @@ flutter_mate/
         │   └── mcp_server.dart     # MCP server
         └── lib/
             ├── vm_service_client.dart
-            └── flutter_mate_mcp.dart
+            ├── flutter_mate_mcp.dart
+            └── snapshot_formatter.dart
 ```
 
 ---

@@ -517,10 +517,10 @@ Returns the ref of the found element.''',
 
     if (result['success'] == true) {
       final ref = result['ref'];
-      final label = result['label'] ?? result['value'];
+      final matchedText = result['matchedText'];
       return CallToolResult(
         content: [
-          TextContent(text: 'Found element: $ref (matched: "$label")'),
+          TextContent(text: 'Found element: $ref (matched: "$matchedText")'),
         ],
       );
     }

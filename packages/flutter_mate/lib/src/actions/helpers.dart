@@ -95,6 +95,18 @@ Future<List<String>> findAllByLabel(String labelPattern) async {
 /// Wait for an element to appear
 ///
 /// Returns the ref if found, null if timeout.
+/// Wait for an element with matching text to appear.
+///
+/// Polls the snapshot until an element with text matching the pattern
+/// is found, or timeout is reached.
+///
+/// Searches (in order):
+/// - `textContent` (from Text/RichText widgets)
+/// - `semantics.label`
+/// - `semantics.value`
+/// - `semantics.hint`
+///
+/// Returns the element's ref if found, null if timeout.
 Future<String?> waitFor(
   String labelPattern, {
   Duration timeout = const Duration(seconds: 5),
@@ -108,12 +120,25 @@ Future<String?> waitFor(
   while (DateTime.now().isBefore(deadline)) {
     final snap = await SnapshotService.snapshot();
     for (final node in snap.nodes) {
+      // Check textContent first (from Text/RichText widgets)
+      final textContent = node.textContent;
+      if (textContent != null && pattern.hasMatch(textContent)) {
+        return node.ref;
+      }
+
+      // Check semantics fields
       final label = node.semantics?.label;
-      final value = node.semantics?.value;
       if (label != null && pattern.hasMatch(label)) {
         return node.ref;
       }
+
+      final value = node.semantics?.value;
       if (value != null && pattern.hasMatch(value)) {
+        return node.ref;
+      }
+
+      final hint = node.semantics?.hint;
+      if (hint != null && pattern.hasMatch(hint)) {
         return node.ref;
       }
     }

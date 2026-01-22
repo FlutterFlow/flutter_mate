@@ -304,12 +304,18 @@ class VmServiceClient {
     }
   }
 
-  /// Wait for an element with matching label to appear
+  /// Wait for an element with matching text to appear.
   ///
-  /// Polls the semantics tree until an element with a label matching
-  /// the pattern is found, or timeout is reached.
+  /// Polls the snapshot until an element with text matching the pattern
+  /// is found, or timeout is reached.
   ///
-  /// Returns the ref if found, null if timeout.
+  /// Searches (in order):
+  /// - `textContent` (from Text/RichText widgets)
+  /// - `semantics.label`
+  /// - `semantics.value`
+  /// - `semantics.hint`
+  ///
+  /// Returns `{success: true, ref, matchedText}` or `{success: false, error}`.
   Future<Map<String, dynamic>> waitFor(
     String labelPattern, {
     Duration timeout = const Duration(seconds: 5),
@@ -321,19 +327,36 @@ class VmServiceClient {
     final deadline = DateTime.now().add(timeout);
 
     while (DateTime.now().isBefore(deadline)) {
-      // Refresh semantics cache
+      // Refresh snapshot cache
       await _refreshSnapshot();
 
       // Search for matching node
       for (final node in _cachedNodes ?? []) {
-        final label = node['label'] as String?;
-        final value = node['value'] as String?;
+        final ref = node['ref'] as String?;
 
-        if (label != null && pattern.hasMatch(label)) {
-          return {'success': true, 'ref': node['ref'], 'label': label};
+        // Check textContent first (text from Text/RichText widgets)
+        final textContent = node['textContent'] as String?;
+        if (textContent != null && pattern.hasMatch(textContent)) {
+          return {'success': true, 'ref': ref, 'matchedText': textContent};
         }
-        if (value != null && pattern.hasMatch(value)) {
-          return {'success': true, 'ref': node['ref'], 'value': value};
+
+        // Check semantics fields
+        final semantics = node['semantics'] as Map<String, dynamic>?;
+        if (semantics != null) {
+          final label = semantics['label'] as String?;
+          if (label != null && pattern.hasMatch(label)) {
+            return {'success': true, 'ref': ref, 'matchedText': label};
+          }
+
+          final value = semantics['value'] as String?;
+          if (value != null && pattern.hasMatch(value)) {
+            return {'success': true, 'ref': ref, 'matchedText': value};
+          }
+
+          final hint = semantics['hint'] as String?;
+          if (hint != null && pattern.hasMatch(hint)) {
+            return {'success': true, 'ref': ref, 'matchedText': hint};
+          }
         }
       }
 

@@ -379,109 +379,11 @@ class SnapshotService {
         }
       }
 
-      // Third pass: look for IconData (for Icon widgets)
-      for (final prop in properties) {
-        if (prop is DiagnosticsProperty) {
-          final value = prop.value;
-          if (value is IconData) {
-            // Try to get icon name from known icon sets
-            final iconName = _getIconName(value);
-            if (iconName != null) return iconName;
-          }
-        }
-      }
     } catch (_) {
       // Diagnostics can fail for some widgets
     }
     return null;
   }
-
-  /// Try to get a human-readable name for an IconData.
-  /// Checks common icon sets (Material, Cupertino).
-  static String? _getIconName(IconData icon) {
-    // Check if it's a Material Icon by matching against known icons
-    // We use a reverse lookup approach
-    final materialIcons = _getMaterialIconsMap();
-    final name = materialIcons[icon.codePoint];
-    if (name != null) {
-      return name;
-    }
-
-    // Fallback: return code point info if font family suggests it's a known set
-    if (icon.fontFamily == 'MaterialIcons') {
-      return 'MaterialIcon(0x${icon.codePoint.toRadixString(16)})';
-    }
-    if (icon.fontFamily == 'CupertinoIcons') {
-      return 'CupertinoIcon(0x${icon.codePoint.toRadixString(16)})';
-    }
-
-    return null;
-  }
-
-  /// Get a map of Material Icon code points to names.
-  /// This is a subset of common icons for quick lookup.
-  static Map<int, String> _getMaterialIconsMap() {
-    // Cache the map since Icons class has many icons
-    return _materialIconsCache ??= {
-      Icons.home.codePoint: 'home',
-      Icons.settings.codePoint: 'settings',
-      Icons.search.codePoint: 'search',
-      Icons.add.codePoint: 'add',
-      Icons.close.codePoint: 'close',
-      Icons.menu.codePoint: 'menu',
-      Icons.arrow_back.codePoint: 'arrow_back',
-      Icons.arrow_forward.codePoint: 'arrow_forward',
-      Icons.check.codePoint: 'check',
-      Icons.delete.codePoint: 'delete',
-      Icons.edit.codePoint: 'edit',
-      Icons.person.codePoint: 'person',
-      Icons.email.codePoint: 'email',
-      Icons.phone.codePoint: 'phone',
-      Icons.lock.codePoint: 'lock',
-      Icons.visibility.codePoint: 'visibility',
-      Icons.visibility_off.codePoint: 'visibility_off',
-      Icons.notifications.codePoint: 'notifications',
-      Icons.favorite.codePoint: 'favorite',
-      Icons.star.codePoint: 'star',
-      Icons.info.codePoint: 'info',
-      Icons.warning.codePoint: 'warning',
-      Icons.error.codePoint: 'error',
-      Icons.help.codePoint: 'help',
-      Icons.refresh.codePoint: 'refresh',
-      Icons.download.codePoint: 'download',
-      Icons.upload.codePoint: 'upload',
-      Icons.share.codePoint: 'share',
-      Icons.copy.codePoint: 'copy',
-      Icons.save.codePoint: 'save',
-      Icons.send.codePoint: 'send',
-      Icons.play_arrow.codePoint: 'play_arrow',
-      Icons.pause.codePoint: 'pause',
-      Icons.stop.codePoint: 'stop',
-      Icons.camera.codePoint: 'camera',
-      Icons.photo.codePoint: 'photo',
-      Icons.mic.codePoint: 'mic',
-      Icons.volume_up.codePoint: 'volume_up',
-      Icons.volume_off.codePoint: 'volume_off',
-      Icons.brightness_high.codePoint: 'brightness_high',
-      Icons.dark_mode.codePoint: 'dark_mode',
-      Icons.light_mode.codePoint: 'light_mode',
-      Icons.storage.codePoint: 'storage',
-      Icons.cloud.codePoint: 'cloud',
-      Icons.folder.codePoint: 'folder',
-      Icons.file_copy.codePoint: 'file_copy',
-      Icons.code.codePoint: 'code',
-      Icons.terminal.codePoint: 'terminal',
-      Icons.bug_report.codePoint: 'bug_report',
-      Icons.build.codePoint: 'build',
-      Icons.extension.codePoint: 'extension',
-      Icons.widgets.codePoint: 'widgets',
-      Icons.dashboard.codePoint: 'dashboard',
-      Icons.analytics.codePoint: 'analytics',
-      Icons.healing.codePoint: 'healing',
-    };
-  }
-
-  static Map<int, String>? _materialIconsCache;
 
   /// Extract plain text from an InlineSpan tree (TextSpan, WidgetSpan, etc.)
   static String _extractTextFromSpan(InlineSpan span) {

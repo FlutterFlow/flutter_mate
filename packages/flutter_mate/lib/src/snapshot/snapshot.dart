@@ -109,50 +109,11 @@ class SnapshotService {
             // ignore: invalid_use_of_protected_member
             final obj = service.toObject(valueId, groupName);
             if (obj is Element) {
-              // Find the RenderObject first to check if it's painting
-              if (obj is RenderObjectElement) {
-                ro = obj.renderObject;
-              } else {
-                void findRenderObject(Element el) {
-                  if (ro != null) return;
-                  if (el is RenderObjectElement) {
-                    ro = el.renderObject;
-                    return;
-                  }
-                  el.visitChildren(findRenderObject);
-                }
-
-                findRenderObject(obj);
-              }
-
-              // Skip elements from previous routes (e.g., after navigation)
-              // These have RenderObjects that are off-screen (animated out)
-              if (ro != null && ro is RenderBox) {
-                final box = ro as RenderBox;
-                if (box.hasSize && box.attached) {
-                  try {
-                    final topLeft = box.localToGlobal(Offset.zero);
-                    // Skip elements that are significantly off-screen (previous routes)
-                    // Use a threshold to allow for minor overflow
-                    if (topLeft.dx < -box.size.width ||
-                        topLeft.dy < -box.size.height) {
-                      // Skip this element but continue processing children
-                      // (in case some children are on-screen overlays)
-                      for (final childJson in childrenJson) {
-                        if (childJson is Map<String, dynamic>) {
-                          walkInspectorNode(childJson, depth + 1);
-                        }
-                      }
-                      return;
-                    }
-                    bounds = CombinedRect(
-                      x: topLeft.dx,
-                      y: topLeft.dy,
-                      width: box.size.width,
-                      height: box.size.height,
-                    );
-                  } catch (_) {}
-                }
+              // Check if this element is offstage (not being painted)
+              // This catches widgets from previous routes, Offstage widgets, etc.
+              if (_isElementOffstage(obj)) {
+                // Skip offstage elements entirely (don't process children either)
+                return;
               }
 
               // Cache the Element for ref lookup
@@ -171,6 +132,37 @@ class SnapshotService {
                 }
               } catch (_) {
                 // Text extraction can fail during navigation transitions
+              }
+
+              // Find the RenderObject
+              if (obj is RenderObjectElement) {
+                ro = obj.renderObject;
+              } else {
+                void findRenderObject(Element el) {
+                  if (ro != null) return;
+                  if (el is RenderObjectElement) {
+                    ro = el.renderObject;
+                    return;
+                  }
+                  el.visitChildren(findRenderObject);
+                }
+
+                findRenderObject(obj);
+              }
+
+              if (ro != null && ro is RenderBox) {
+                final box = ro as RenderBox;
+                if (box.hasSize) {
+                  try {
+                    final topLeft = box.localToGlobal(Offset.zero);
+                    bounds = CombinedRect(
+                      x: topLeft.dx,
+                      y: topLeft.dy,
+                      width: box.size.width,
+                      height: box.size.height,
+                    );
+                  } catch (_) {}
+                }
               }
             }
           } catch (e) {
@@ -438,6 +430,64 @@ class SnapshotService {
     return data.actions != 0 || data.label.isNotEmpty || data.value.isNotEmpty;
   }
 
+  /// Check if an element is offstage (not being painted)
+  ///
+  /// This uses the RenderObject's diagnostics to detect:
+  /// - Widgets from previous routes (after navigation)
+  /// - Offstage widgets
+  /// - Widgets outside paint clips
+  ///
+  /// Based on Flutter's own hit testing logic that skips offstage widgets.
+  static bool _isElementOffstage(Element element) {
+    try {
+      // Find the render object for this element
+      RenderObject? ro;
+      if (element is RenderObjectElement) {
+        ro = element.renderObject;
+      } else {
+        // Walk down to find the first RenderObject
+        void findRenderObject(Element el) {
+          if (ro != null) return;
+          if (el is RenderObjectElement) {
+            ro = el.renderObject;
+            return;
+          }
+          el.visitChildren(findRenderObject);
+        }
+
+        findRenderObject(element);
+      }
+
+      if (ro == null) return false;
+
+      // Check if this RenderObject is attached and painting
+      if (!ro!.attached) return true;
+
+      // Walk up the render tree to check for offstage ancestors
+      // This catches widgets inside ModalRoute transitions, Offstage, etc.
+      RenderObject? current = ro;
+      while (current != null) {
+        // Check if this render object's parent marks it as offstage
+        final parent = current.parent;
+        if (parent != null) {
+          final children = parent.debugDescribeChildren();
+          for (final child in children) {
+            if (child.value == current &&
+                child.style == DiagnosticsTreeStyle.offstage) {
+              return true;
+            }
+          }
+        }
+        current = parent;
+      }
+
+      return false;
+    } catch (_) {
+      // If we can't determine, assume it's onstage
+      return false;
+    }
+  }
+
   /// Collect ALL text content from an element subtree
   /// Returns all text found, not just the first
   static List<String> _collectAllTextInSubtree(Element element) {
@@ -446,6 +496,11 @@ class SnapshotService {
 
     void visit(Element child) {
       try {
+        // Skip offstage elements (previous routes, Offstage widgets, etc.)
+        if (_isElementOffstage(child)) {
+          return;
+        }
+
         // Try to extract text from this widget
         final content = _extractWidgetContent(child.widget);
         if (content != null && content.isNotEmpty && !seen.contains(content)) {

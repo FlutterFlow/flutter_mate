@@ -72,8 +72,6 @@ class SnapshotService {
       // Track used semantics node IDs to avoid duplication
       final usedSemanticsIds = <int>{};
 
-      // Track used text content to avoid bubbling up to parents
-      final usedTextContent = <String>{};
 
       // Parse the inspector tree and attach semantics using toObject
       final nodes = <CombinedNode>[];
@@ -232,26 +230,55 @@ class SnapshotService {
             .trim();
       }
 
+      // Build a map of ref -> node for quick lookup
+      final nodeMap = {for (final n in nodes) n.ref: n};
+
+      // Helper to get all descendants of a node (transitively)
+      Set<String> getDescendants(String ref) {
+        final result = <String>{};
+        final node = nodeMap[ref];
+        if (node == null) return result;
+        for (final childRef in node.children) {
+          result.add(childRef);
+          result.addAll(getDescendants(childRef));
+        }
+        return result;
+      }
+
+      // Track which node ref claimed each text: normalizedText -> claimingNodeRef
+      final textClaimant = <String, String>{};
+
       // Deduplicate text: process in REVERSE order so children claim text first
-      // Then filter parent text to exclude text claimed by descendants
-      // This includes BOTH textContent AND semantics.label
+      // Only filter text if it was claimed by a DESCENDANT of the current node
+      // This prevents unrelated nodes from affecting each other
       for (var i = nodes.length - 1; i >= 0; i--) {
         final node = nodes[i];
         String? newTextContent = node.textContent;
         SemanticsInfo? newSemantics = node.semantics;
         bool changed = false;
 
+        // Get all descendants of this node once
+        final descendants = getDescendants(node.ref);
+
         // Process textContent
         if (node.textContent != null && node.textContent!.isNotEmpty) {
           // Split the text content back into individual texts
           final texts = node.textContent!.split(' | ');
-          // Filter out texts already claimed by children (using normalized keys)
+          // Filter out texts claimed by DESCENDANTS only (not unrelated nodes)
           final newTexts = texts.where((t) {
             final key = normalizeText(t);
-            return key.isNotEmpty && !usedTextContent.contains(key);
+            if (key.isEmpty) return false;
+            final claimant = textClaimant[key];
+            // Keep if no claimant OR claimant is not a descendant
+            return claimant == null || !descendants.contains(claimant);
           }).toList();
-          // Claim these texts (using normalized keys)
-          usedTextContent.addAll(newTexts.map(normalizeText));
+          // Claim texts that weren't filtered (this node claims them)
+          for (final t in newTexts) {
+            final key = normalizeText(t);
+            if (key.isNotEmpty && !textClaimant.containsKey(key)) {
+              textClaimant[key] = node.ref;
+            }
+          }
           // Update textContent if filtered
           if (newTexts.isEmpty) {
             newTextContent = null;
@@ -262,11 +289,14 @@ class SnapshotService {
           }
         }
 
-        // Process semantics.label - also deduplicate it
+        // Process semantics.label - also deduplicate if claimed by descendant
         if (node.semantics != null && node.semantics!.label != null) {
           final labelKey = normalizeText(node.semantics!.label!);
-          if (labelKey.isNotEmpty && usedTextContent.contains(labelKey)) {
-            // Label is already claimed by a descendant - clear it
+          final claimant = textClaimant[labelKey];
+          if (labelKey.isNotEmpty &&
+              claimant != null &&
+              descendants.contains(claimant)) {
+            // Label is claimed by a descendant - clear it
             newSemantics = SemanticsInfo(
               id: node.semantics!.id,
               identifier: node.semantics!.identifier,
@@ -297,9 +327,9 @@ class SnapshotService {
               scrollExtentMin: node.semantics!.scrollExtentMin,
             );
             changed = true;
-          } else if (labelKey.isNotEmpty) {
+          } else if (labelKey.isNotEmpty && !textClaimant.containsKey(labelKey)) {
             // Claim this label
-            usedTextContent.add(labelKey);
+            textClaimant[labelKey] = node.ref;
           }
         }
 

@@ -72,7 +72,6 @@ class SnapshotService {
       // Track used semantics node IDs to avoid duplication
       final usedSemanticsIds = <int>{};
 
-
       // Parse the inspector tree and attach semantics using toObject
       final nodes = <CombinedNode>[];
       int refCounter = 0;
@@ -327,7 +326,8 @@ class SnapshotService {
               scrollExtentMin: node.semantics!.scrollExtentMin,
             );
             changed = true;
-          } else if (labelKey.isNotEmpty && !textClaimant.containsKey(labelKey)) {
+          } else if (labelKey.isNotEmpty &&
+              !textClaimant.containsKey(labelKey)) {
             // Claim this label
             textClaimant[labelKey] = node.ref;
           }

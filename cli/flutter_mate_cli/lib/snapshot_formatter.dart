@@ -340,13 +340,18 @@ String formatCollapsedEntry(CollapsedEntry entry, {bool compact = false}) {
   // Build info parts
   final parts = <String>[];
 
-  // Collect all text from textContent and semantics label
+  // Collect all text from textContent and semantics label (deduplicated)
   final allTexts = <String>[];
+  final seenTexts = <String>{}; // For deduplication (normalized keys)
 
   void addText(String? text) {
     if (text == null || text.trim().isEmpty) return;
     // Skip single-character icon glyphs (Private Use Area)
     if (text.length == 1 && text.codeUnitAt(0) >= 0xE000) return;
+    // Deduplicate using lowercase trimmed key
+    final key = text.trim().toLowerCase();
+    if (seenTexts.contains(key)) return;
+    seenTexts.add(key);
     // Escape special characters for cleaner display
     allTexts.add(escapeString(text.trim(), escapeDollar: false));
   }

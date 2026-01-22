@@ -62,6 +62,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.2"
+  flutter_mate_types:
+    dependency: "direct main"
+    description:
+      path: "../flutter_mate_types"
+      relative: true
+    source: path
+    version: "0.1.0"
   flutter_test:
     dependency: "direct dev"
     description: flutter

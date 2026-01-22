@@ -74,6 +74,12 @@
       "languageVersion": "3.0"
     },
     {
+      "name": "flutter_mate_types",
+      "rootUri": "../../../packages/flutter_mate_types",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    },
+    {
       "name": "frontend_server_client",
       "rootUri": "file:///Users/wenkaifan/.pub-cache/hosted/pub.dev/frontend_server_client-4.0.0",
       "packageUri": "lib/",

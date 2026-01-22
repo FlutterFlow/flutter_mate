@@ -1,0 +1,8 @@
+name: flutter_mate_types
+description: Shared types for Flutter Mate - used by both SDK and CLI
+version: 0.1.0
+
+environment:
+  sdk: ^3.0.0
+
+# No Flutter dependency - pure Dart package

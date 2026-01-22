@@ -1,186 +1,11 @@
 /// Shared snapshot formatting utilities for CLI and MCP server.
 ///
-/// Extracts common logic for collapsing widget nodes and formatting
-/// the snapshot output.
+/// Uses types from flutter_mate_types for type-safe snapshot handling.
 
-// ============================================================================
-// Typed classes for snapshot data
-// ============================================================================
+import 'package:flutter_mate_types/flutter_mate_types.dart';
 
-/// Bounds of a widget in the UI.
-class NodeBounds {
-  final double x;
-  final double y;
-  final double width;
-  final double height;
-
-  const NodeBounds({
-    required this.x,
-    required this.y,
-    required this.width,
-    required this.height,
-  });
-
-  factory NodeBounds.fromJson(Map<String, dynamic> json) {
-    return NodeBounds(
-      x: (json['x'] as num?)?.toDouble() ?? 0,
-      y: (json['y'] as num?)?.toDouble() ?? 0,
-      width: (json['width'] as num?)?.toDouble() ?? 0,
-      height: (json['height'] as num?)?.toDouble() ?? 0,
-    );
-  }
-
-  bool sameBoundsAs(NodeBounds other, {double tolerance = 1.0}) {
-    return (x - other.x).abs() <= tolerance &&
-        (y - other.y).abs() <= tolerance &&
-        (width - other.width).abs() <= tolerance &&
-        (height - other.height).abs() <= tolerance;
-  }
-
-  bool get isZeroArea => width < 2 || height < 2;
-}
-
-/// Semantics information for a widget.
-class NodeSemantics {
-  final int? id;
-  final String? label;
-  final String? value;
-  final String? hint;
-  final String? tooltip;
-  final String? validationResult;
-  final int? headingLevel;
-  final String? linkUrl;
-  final String? role;
-  final String? inputType;
-  final double? scrollPosition;
-  final double? scrollExtentMax;
-  final List<String> actions;
-  final List<String> flags;
-
-  const NodeSemantics({
-    this.id,
-    this.label,
-    this.value,
-    this.hint,
-    this.tooltip,
-    this.validationResult,
-    this.headingLevel,
-    this.linkUrl,
-    this.role,
-    this.inputType,
-    this.scrollPosition,
-    this.scrollExtentMax,
-    this.actions = const [],
-    this.flags = const [],
-  });
-
-  factory NodeSemantics.fromJson(Map<String, dynamic> json) {
-    return NodeSemantics(
-      id: json['id'] as int?,
-      label: json['label'] as String?,
-      value: json['value'] as String?,
-      hint: json['hint'] as String?,
-      tooltip: json['tooltip'] as String?,
-      validationResult: json['validationResult'] as String?,
-      headingLevel: json['headingLevel'] as int?,
-      linkUrl: json['linkUrl'] as String?,
-      role: json['role'] as String?,
-      inputType: json['inputType'] as String?,
-      scrollPosition: (json['scrollPosition'] as num?)?.toDouble(),
-      scrollExtentMax: (json['scrollExtentMax'] as num?)?.toDouble(),
-      actions: (json['actions'] as List<dynamic>?)?.cast<String>() ?? [],
-      flags: (json['flags'] as List<dynamic>?)?.cast<String>() ?? [],
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        if (id != null) 'id': id,
-        if (label != null) 'label': label,
-        if (value != null) 'value': value,
-        if (hint != null) 'hint': hint,
-        if (tooltip != null) 'tooltip': tooltip,
-        if (validationResult != null) 'validationResult': validationResult,
-        if (headingLevel != null) 'headingLevel': headingLevel,
-        if (linkUrl != null) 'linkUrl': linkUrl,
-        if (role != null) 'role': role,
-        if (inputType != null) 'inputType': inputType,
-        if (scrollPosition != null) 'scrollPosition': scrollPosition,
-        if (scrollExtentMax != null) 'scrollExtentMax': scrollExtentMax,
-        if (actions.isNotEmpty) 'actions': actions,
-        if (flags.isNotEmpty) 'flags': flags,
-      };
-}
-
-/// A node in the snapshot tree.
-class SnapshotNode {
-  final String ref;
-  final String widget;
-  final int depth;
-  final NodeBounds? bounds;
-  final NodeSemantics? semantics;
-  final String? textContent;
-  final List<String> children;
-
-  const SnapshotNode({
-    required this.ref,
-    required this.widget,
-    required this.depth,
-    this.bounds,
-    this.semantics,
-    this.textContent,
-    this.children = const [],
-  });
-
-  factory SnapshotNode.fromJson(Map<String, dynamic> json) {
-    return SnapshotNode(
-      ref: json['ref'] as String? ?? '',
-      widget: json['widget'] as String? ?? '?',
-      depth: json['depth'] as int? ?? 0,
-      bounds: json['bounds'] != null
-          ? NodeBounds.fromJson(json['bounds'] as Map<String, dynamic>)
-          : null,
-      semantics: json['semantics'] != null
-          ? NodeSemantics.fromJson(json['semantics'] as Map<String, dynamic>)
-          : null,
-      textContent: json['textContent'] as String?,
-      children: (json['children'] as List<dynamic>?)?.cast<String>() ?? [],
-    );
-  }
-
-  bool get isHiddenSpacer {
-    if (widget != 'SizedBox' && widget != 'Spacer') return false;
-    return bounds?.isZeroArea ?? true;
-  }
-
-  bool get isSiblingSpacerCandidate {
-    return siblingSpacers.contains(widget) && children.isEmpty;
-  }
-}
-
-/// A chain item in a collapsed entry (ref + widget name).
-class ChainItem {
-  final String ref;
-  final String widget;
-
-  const ChainItem({required this.ref, required this.widget});
-}
-
-/// A collapsed entry for display (chain of widgets + aggregated info).
-class CollapsedEntry {
-  final List<ChainItem> chain;
-  final int depth;
-  final NodeSemantics? semantics;
-  final String? textContent;
-  final List<String> children;
-
-  const CollapsedEntry({
-    required this.chain,
-    required this.depth,
-    this.semantics,
-    this.textContent,
-    this.children = const [],
-  });
-}
+// Re-export types for convenience
+export 'package:flutter_mate_types/flutter_mate_types.dart';
 
 // ============================================================================
 // Constants
@@ -272,29 +97,64 @@ const siblingSpacers = {
 };
 
 // ============================================================================
+// Collapsed entry for display
+// ============================================================================
+
+/// A chain item in a collapsed entry (ref + widget name).
+class ChainItem {
+  final String ref;
+  final String widget;
+
+  const ChainItem({required this.ref, required this.widget});
+}
+
+/// A collapsed entry for display (chain of widgets + aggregated info).
+class CollapsedEntry {
+  final List<ChainItem> chain;
+  final int depth;
+  final SemanticsInfo? semantics;
+  final String? textContent;
+  final List<String> children;
+
+  const CollapsedEntry({
+    required this.chain,
+    required this.depth,
+    this.semantics,
+    this.textContent,
+    this.children = const [],
+  });
+}
+
+// ============================================================================
 // Collapsing logic
 // ============================================================================
 
-/// Parse raw JSON nodes into typed [SnapshotNode] objects.
-Map<String, SnapshotNode> parseNodes(List<dynamic> rawNodes) {
-  final nodeMap = <String, SnapshotNode>{};
+/// Parse raw JSON nodes into typed [CombinedNode] objects.
+Map<String, CombinedNode> parseNodes(List<dynamic> rawNodes) {
+  final nodeMap = <String, CombinedNode>{};
   for (final raw in rawNodes) {
-    final node = SnapshotNode.fromJson(raw as Map<String, dynamic>);
+    final node = CombinedNode.fromJson(raw as Map<String, dynamic>);
     nodeMap[node.ref] = node;
   }
   return nodeMap;
 }
 
+/// Check if a node is a hidden spacer (zero-area).
+bool _isHiddenSpacer(CombinedNode node) {
+  if (node.widget != 'SizedBox' && node.widget != 'Spacer') return false;
+  return node.bounds?.isZeroArea ?? true;
+}
+
 /// Collapse nodes with same bounds into chains for cleaner display.
-List<CollapsedEntry> collapseNodes(Map<String, SnapshotNode> nodeMap) {
+List<CollapsedEntry> collapseNodes(Map<String, CombinedNode> nodeMap) {
   final result = <CollapsedEntry>[];
   final visited = <String>{};
 
-  void processNode(SnapshotNode node, int displayDepth) {
+  void processNode(CombinedNode node, int displayDepth) {
     if (visited.contains(node.ref)) return;
 
     // Skip zero-area spacers
-    if (node.isHiddenSpacer) {
+    if (_isHiddenSpacer(node)) {
       visited.add(node.ref);
       return;
     }
@@ -302,7 +162,7 @@ List<CollapsedEntry> collapseNodes(Map<String, SnapshotNode> nodeMap) {
     // Start a chain with this node
     final chain = <ChainItem>[];
     var current = node;
-    NodeSemantics? aggregatedSemantics;
+    SemanticsInfo? aggregatedSemantics;
     String? aggregatedText;
 
     while (true) {
@@ -329,7 +189,7 @@ List<CollapsedEntry> collapseNodes(Map<String, SnapshotNode> nodeMap) {
       if (child == null) break;
 
       // Skip hidden spacers
-      if (child.isHiddenSpacer) {
+      if (_isHiddenSpacer(child)) {
         visited.add(childRef);
         break;
       }
@@ -371,7 +231,9 @@ List<CollapsedEntry> collapseNodes(Map<String, SnapshotNode> nodeMap) {
       if (child == null || visited.contains(childRef)) continue;
 
       // Skip spacer widgets between siblings (only if they have no children)
-      if (hasMultipleSiblings && child.isSiblingSpacerCandidate) {
+      if (hasMultipleSiblings &&
+          siblingSpacers.contains(child.widget) &&
+          child.children.isEmpty) {
         visited.add(childRef);
         continue;
       }

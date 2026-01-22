@@ -1,0 +1,14 @@
+{
+  "roots": [
+    "flutter_mate_types"
+  ],
+  "packages": [
+    {
+      "name": "flutter_mate_types",
+      "version": "0.1.0",
+      "dependencies": [],
+      "devDependencies": []
+    }
+  ],
+  "configVersion": 1
+}

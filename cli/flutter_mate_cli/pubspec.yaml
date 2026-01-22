@@ -8,6 +8,8 @@ environment:
 dependencies:
   args: ^2.4.2
   dart_mcp: ^0.4.0
+  flutter_mate_types:
+    path: ../../packages/flutter_mate_types
   http: ^1.1.0
   vm_service: ^14.0.0
   web_socket_channel: ^2.4.0

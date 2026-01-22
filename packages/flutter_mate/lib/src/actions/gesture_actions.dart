@@ -31,13 +31,13 @@ class GestureActions {
       return false;
     }
 
-    final center = nodeInfo.center;
-    if (center == null) {
+    final centerPoint = nodeInfo.center;
+    if (centerPoint == null) {
       debugPrint('FlutterMate: Node has no bounds: $ref');
       return false;
     }
 
-    await doubleTapAt(center);
+    await doubleTapAt(Offset(centerPoint.x, centerPoint.y));
     return true;
   }
 
@@ -97,13 +97,13 @@ class GestureActions {
     }
 
     // Calculate center of element
-    final center = nodeInfo.center;
-    if (center == null) {
+    final centerPoint = nodeInfo.center;
+    if (centerPoint == null) {
       debugPrint('FlutterMate: Node has no bounds: $ref');
       return false;
     }
 
-    await longPressAt(center);
+    await longPressAt(Offset(centerPoint.x, centerPoint.y));
     return true;
   }
 
@@ -292,12 +292,13 @@ class GestureActions {
       return false;
     }
 
-    final center = node.center;
-    if (center == null) {
+    final centerPoint = node.center;
+    if (centerPoint == null) {
       debugPrint('FlutterMate: scrollGesture - Node has no bounds: $ref');
       return false;
     }
 
+    final center = Offset(centerPoint.x, centerPoint.y);
     debugPrint(
         'FlutterMate: scrollGesture from $center delta $delta (to ${center + delta})');
 

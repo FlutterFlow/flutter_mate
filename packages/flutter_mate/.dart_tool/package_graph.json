@@ -7,7 +7,8 @@
       "name": "flutter_mate",
       "version": "0.1.0",
       "dependencies": [
-        "flutter"
+        "flutter",
+        "flutter_mate_types"
       ],
       "devDependencies": [
         "flutter_lints",
@@ -38,6 +39,11 @@
         "test_api",
         "vector_math"
       ]
+    },
+    {
+      "name": "flutter_mate_types",
+      "version": "0.1.0",
+      "dependencies": []
     },
     {
       "name": "flutter",

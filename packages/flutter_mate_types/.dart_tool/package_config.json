@@ -1,0 +1,16 @@
+{
+  "configVersion": 2,
+  "packages": [
+    {
+      "name": "flutter_mate_types",
+      "rootUri": "../",
+      "packageUri": "lib/",
+      "languageVersion": "3.0"
+    }
+  ],
+  "generator": "pub",
+  "generatorVersion": "3.10.4",
+  "flutterRoot": "file:///Users/wenkaifan/Development/flutter",
+  "flutterVersion": "3.38.5",
+  "pubCache": "file:///Users/wenkaifan/.pub-cache"
+}

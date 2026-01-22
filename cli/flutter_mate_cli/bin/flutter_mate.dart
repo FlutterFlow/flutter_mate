@@ -308,7 +308,7 @@ Future<void> _executeCommand({
         await _listExtensions(client);
         break;
       case 'attach':
-        await _interactiveMode(client, compact: compact);
+        await _interactiveMode(client);
         break;
       default:
         stderr.writeln('Unknown command: $command');
@@ -496,9 +496,8 @@ Future<void> _screenshot(VmServiceClient client, String? path) async {
   print('✅ Screenshot saved to $outputPath');
 }
 
-Future<void> _interactiveMode(VmServiceClient client,
-    {bool compact = false}) async {
-  print('🎮 Flutter Mate Interactive Mode${compact ? ' (compact)' : ''}');
+Future<void> _interactiveMode(VmServiceClient client) async {
+  print('🎮 Flutter Mate Interactive Mode');
   print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   print('Type "help" for commands, "quit" to exit');
   print('');
@@ -522,8 +521,7 @@ Future<void> _interactiveMode(VmServiceClient client,
         case 'snapshot':
         case 's':
           // Check for -c flag in args
-          final useCompact = compact || args.contains('-c');
-          await _snapshot(client, useCompact);
+          await _snapshot(client, args.contains('-c'));
           break;
         case 'sc': // Shortcut for compact snapshot
           await _snapshot(client, true);
@@ -728,10 +726,6 @@ Future<void> _interactiveMode(VmServiceClient client,
           print('  screenshot, ss   - Take screenshot');
           print('  extensions, ext  - List extensions');
           print('  quit             - Exit');
-          if (compact) {
-            print('');
-            print('Note: Running in compact mode (-c flag)');
-          }
           break;
         default:
           print('Unknown command: $cmd (type "help" for commands)');

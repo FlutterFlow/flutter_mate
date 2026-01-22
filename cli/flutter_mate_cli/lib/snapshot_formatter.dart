@@ -276,7 +276,9 @@ String formatCollapsedEntry(CollapsedEntry entry) {
     if (text == null || text.trim().isEmpty) return;
     // Skip single-character icon glyphs (Private Use Area)
     if (text.length == 1 && text.codeUnitAt(0) >= 0xE000) return;
-    allTexts.add(text.trim());
+    // Escape newlines for cleaner display
+    final escaped = text.trim().replaceAll('\n', '\\n').replaceAll('\r', '\\r');
+    allTexts.add(escaped);
   }
 
   // Add textContent parts (split by |)

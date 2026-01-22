@@ -69,6 +69,13 @@ packages:
       relative: true
     source: path
     version: "0.1.0"
+  flutter_mate_types:
+    dependency: transitive
+    description:
+      path: "../../packages/flutter_mate_types"
+      relative: true
+    source: path
+    version: "0.1.0"
   flutter_test:
     dependency: "direct dev"
     description: flutter

@@ -103,7 +103,7 @@ Once configured, ask Cursor/Claude to:
 dependencies:
   flutter_mate:
     git:
-      url: https://github.com/user/flutter_mate
+      url: https://github.com/FlutterFlow/flutter_mate
       path: packages/flutter_mate
 ```
 

@@ -76,10 +76,6 @@ class SnapshotService {
       // Track used semantics node IDs to avoid duplication
       final usedSemanticsIds = <int>{};
 
-      // Track claimed text for deduplication (children claim first)
-      // Key: normalized text, Value: true (we only need to know if claimed)
-      final claimedText = <String>{};
-
       // Normalize text for comparison
       String normalizeText(String s) {
         return s
@@ -94,7 +90,8 @@ class SnapshotService {
       final nodes = <CombinedNode>[];
       int refCounter = 0;
 
-      void walkInspectorNode(Map<String, dynamic> node, int depth) {
+      // Returns the set of claimed text from this subtree (for parent deduplication)
+      Set<String> walkInspectorNode(Map<String, dynamic> node, int depth) {
         final description = node['description'] as String? ?? '';
         final widgetType = _extractWidgetType(description);
         final valueId = node['valueId'] as String?;
@@ -117,28 +114,13 @@ class SnapshotService {
               // This catches widgets from previous routes, Offstage widgets, etc.
               if (_isElementOffstage(obj)) {
                 // Skip offstage elements entirely (don't process children either)
-                return;
+                return <String>{};
               }
 
               // Cache the Element for ref lookup
               FlutterMate.cachedElements[ref] = obj;
 
-              // Extract text content from the widget itself
-              try {
-                textContent = _extractWidgetContent(obj.widget);
-
-                // If no direct text, collect ALL text from element subtree
-                if (textContent == null) {
-                  final allTexts = _collectAllTextInSubtree(obj);
-                  if (allTexts.isNotEmpty) {
-                    textContent = allTexts.join(' | ');
-                  }
-                }
-              } catch (_) {
-                // Text extraction can fail during navigation transitions
-              }
-
-              // Find the RenderObject
+              // Find the RenderObject first (needed for text extraction and bounds)
               if (obj is RenderObjectElement) {
                 ro = obj.renderObject;
               } else {
@@ -152,6 +134,21 @@ class SnapshotService {
                 }
 
                 findRenderObject(obj);
+              }
+
+              // Extract text content from the render tree (only actual rendered text)
+              try {
+                textContent = _extractTextFromRenderObject(ro);
+
+                // If no direct text, collect ALL text from element subtree
+                if (textContent == null) {
+                  final allTexts = _collectAllTextInSubtree(obj);
+                  if (allTexts.isNotEmpty) {
+                    textContent = allTexts.join(' | ');
+                  }
+                }
+              } catch (_) {
+                // Text extraction can fail during navigation transitions
               }
 
               if (ro != null && ro is RenderBox) {
@@ -175,28 +172,33 @@ class SnapshotService {
         }
 
         // Process children FIRST - they claim their text and semantics
+        // Collect all text claimed by descendants (for THIS node's deduplication only)
         final childRefs = <String>[];
         final childStartRef = refCounter;
+        final descendantClaims = <String>{};
 
         for (final childJson in childrenJson) {
           if (childJson is Map<String, dynamic>) {
             final beforeCount = refCounter;
-            walkInspectorNode(childJson, depth + 1);
+            final childClaims = walkInspectorNode(childJson, depth + 1);
+            descendantClaims.addAll(childClaims);
             if (refCounter > beforeCount) {
               childRefs.add('w$beforeCount');
             }
           }
         }
 
-        // NOW deduplicate text - children have already claimed theirs
-        // Filter out text that was already claimed by children
+        // This node's own claims (text it displays that wasn't claimed by children)
+        final myClaims = <String>{};
+
+        // NOW deduplicate text - only against MY children's claims, not siblings'
         if (textContent != null && textContent.isNotEmpty) {
           final texts = textContent.split(' | ');
           final newTexts = <String>[];
           for (final t in texts) {
             final key = normalizeText(t);
-            if (key.isNotEmpty && !claimedText.contains(key)) {
-              claimedText.add(key); // Claim this text
+            if (key.isNotEmpty && !descendantClaims.contains(key)) {
+              myClaims.add(key); // Claim this text
               newTexts.add(t);
             }
           }
@@ -210,10 +212,10 @@ class SnapshotService {
             usedSemanticsIds.add(sn.id);
             var sem = _extractSemanticsInfo(sn);
 
-            // Also deduplicate semantics.label against claimed text
+            // Also deduplicate semantics.label against MY children's claims only
             if (sem.label != null) {
               final labelKey = normalizeText(sem.label!);
-              if (labelKey.isNotEmpty && claimedText.contains(labelKey)) {
+              if (labelKey.isNotEmpty && descendantClaims.contains(labelKey)) {
                 // Label was claimed by a child - clear it
                 sem = SemanticsInfo(
                   id: sem.id,
@@ -245,7 +247,7 @@ class SnapshotService {
                   scrollExtentMin: sem.scrollExtentMin,
                 );
               } else if (labelKey.isNotEmpty) {
-                claimedText.add(labelKey); // Claim this label
+                myClaims.add(labelKey); // Claim this label
               }
             }
             semantics = sem;
@@ -266,6 +268,9 @@ class SnapshotService {
             textContent: textContent,
           ),
         );
+
+        // Return all claims from this subtree (my claims + descendants' claims)
+        return myClaims..addAll(descendantClaims);
       }
 
       walkInspectorNode(treeJson, 0);
@@ -349,38 +354,33 @@ class SnapshotService {
     return description;
   }
 
-  /// Extract text content from a widget using Flutter's diagnostics system.
+  /// Extract text content from a RenderObject using the render tree.
   ///
-  /// Uses DiagnosticsNode to find text in ANY widget's properties,
-  /// without needing to know specific widget types or property names.
-  /// Also extracts icon information for Icon widgets.
-  static String? _extractWidgetContent(Widget widget) {
-    try {
-      final node = widget.toDiagnosticsNode();
-      final properties = node.getProperties();
+  /// This extracts ONLY actually rendered text by checking:
+  /// - RenderParagraph: The render object for Text/RichText widgets
+  /// - RenderEditable: The render object for TextField content
+  ///
+  /// This is more accurate than diagnostics-based extraction because it
+  /// only returns text that is actually painted to screen.
+  static String? _extractTextFromRenderObject(RenderObject? ro) {
+    if (ro == null) return null;
 
-      // First pass: look for string properties (most common for text)
-      for (final prop in properties) {
-        if (prop is StringProperty) {
-          final value = prop.value;
-          if (value != null && value.trim().isNotEmpty) {
-            return value.trim();
-          }
-        }
+    try {
+      // RenderParagraph is what paints Text/RichText widgets
+      if (ro is RenderParagraph) {
+        final text = _extractTextFromSpan(ro.text);
+        if (text.isNotEmpty) return text;
       }
 
-      // Second pass: look for InlineSpan properties (TextSpan, etc.)
-      for (final prop in properties) {
-        if (prop is DiagnosticsProperty) {
-          final value = prop.value;
-          if (value is InlineSpan) {
-            final text = _extractTextFromSpan(value);
-            if (text.isNotEmpty) return text;
-          }
+      // RenderEditable is what paints TextField/TextFormField content
+      if (ro is RenderEditable) {
+        final text = ro.text?.toPlainText();
+        if (text != null && text.trim().isNotEmpty) {
+          return text.trim();
         }
       }
     } catch (_) {
-      // Diagnostics can fail for some widgets
+      // Render object may be in invalid state
     }
     return null;
   }
@@ -440,8 +440,8 @@ class SnapshotService {
 
   /// Cache of parent -> children diagnostics to avoid repeated calls
   /// This is the expensive call we want to minimize
-  static final Map<RenderObject, Map<RenderObject, bool>> _parentChildOffstageMap =
-      {};
+  static final Map<RenderObject, Map<RenderObject, bool>>
+      _parentChildOffstageMap = {};
 
   /// Check if an element is offstage (not being painted)
   ///
@@ -513,8 +513,9 @@ class SnapshotService {
     }
   }
 
-  /// Collect ALL text content from an element subtree
-  /// Returns all text found, not just the first
+  /// Collect ALL text content from an element subtree using the render tree.
+  /// Returns all text found, not just the first.
+  /// Only extracts actually rendered text (RenderParagraph, RenderEditable).
   static List<String> _collectAllTextInSubtree(Element element) {
     final texts = <String>[];
     final seen = <String>{}; // Avoid duplicates
@@ -526,11 +527,13 @@ class SnapshotService {
           return;
         }
 
-        // Try to extract text from this widget
-        final content = _extractWidgetContent(child.widget);
-        if (content != null && content.isNotEmpty && !seen.contains(content)) {
-          seen.add(content);
-          texts.add(content);
+        // Try to extract text from the render object (not widget diagnostics)
+        if (child is RenderObjectElement) {
+          final content = _extractTextFromRenderObject(child.renderObject);
+          if (content != null && content.isNotEmpty && !seen.contains(content)) {
+            seen.add(content);
+            texts.add(content);
+          }
         }
 
         // Continue to ALL children (don't stop on first find)

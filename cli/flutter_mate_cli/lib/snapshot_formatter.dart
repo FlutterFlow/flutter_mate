@@ -79,35 +79,14 @@ const layoutWrappers = {
   'DefaultTextEditingShortcuts',
 };
 
-/// Widgets that should be skipped when they appear as siblings (spacers between items).
-/// These are only skipped when they have no meaningful content (no text, no semantics).
+/// Widgets to skip when they appear as siblings (spacers between items).
 const siblingSpacers = {
   'SizedBox',
   'Spacer',
   'Divider',
   'VerticalDivider',
-  'Gap', // Common spacing package
+  'Gap',
 };
-
-/// Check if a node is a meaningless spacer that can be skipped as a sibling.
-bool isMeaninglessSpacer(Map<String, dynamic> node) {
-  final widget = node['widget'] as String? ?? '';
-  if (!siblingSpacers.contains(widget)) return false;
-
-  // Has semantics? Keep it
-  final semantics = node['semantics'] as Map<String, dynamic>?;
-  if (semantics != null) return false;
-
-  // Has text content? Keep it
-  final text = node['textContent'] as String?;
-  if (text != null && text.isNotEmpty) return false;
-
-  // Has children? Keep it (might be a container)
-  final children = node['children'] as List<dynamic>? ?? [];
-  if (children.isNotEmpty) return false;
-
-  return true;
-}
 
 /// Collapse nodes with same bounds into chains for cleaner display.
 List<Map<String, dynamic>> collapseNodes(
@@ -207,8 +186,9 @@ List<Map<String, dynamic>> collapseNodes(
       final child = nodeMap[ref];
       if (child == null || visited.contains(ref)) continue;
 
-      // Skip meaningless spacers between siblings
-      if (hasMultipleSiblings && isMeaninglessSpacer(child)) {
+      // Skip spacer widgets between siblings
+      final widgetType = child['widget'] as String? ?? '';
+      if (hasMultipleSiblings && siblingSpacers.contains(widgetType)) {
         visited.add(ref);
         continue;
       }

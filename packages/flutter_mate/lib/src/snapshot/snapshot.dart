@@ -348,67 +348,37 @@ class SnapshotService {
     return description;
   }
 
-  /// Extract text content from a widget.
+  /// Extract text content from a widget using Flutter's diagnostics system.
   ///
-  /// Handles:
-  /// - `Text` widget: extracts `data` property
-  /// - `SelectableText` widget: extracts `data` property
-  /// - `RichText` widget: extracts text from `TextSpan` tree
+  /// Uses DiagnosticsNode to find text in ANY widget's properties,
+  /// without needing to know specific widget types or property names.
   static String? _extractWidgetContent(Widget widget) {
     try {
-      // Handle Text widget directly
-      if (widget is Text) {
-        final data = widget.data;
-        if (data != null && data.trim().isNotEmpty) {
-          return data.trim();
+      final node = widget.toDiagnosticsNode();
+      final properties = node.getProperties();
+
+      // First pass: look for string properties (most common for text)
+      for (final prop in properties) {
+        if (prop is StringProperty) {
+          final value = prop.value;
+          if (value != null && value.trim().isNotEmpty) {
+            return value.trim();
+          }
         }
-        // Text can also have textSpan
-        final span = widget.textSpan;
-        if (span != null) {
-          final text = _extractTextFromSpan(span);
-          if (text.isNotEmpty) return text;
-        }
-        return null;
       }
 
-      // Handle SelectableText widget (has same 'data' property as Text)
-      if (widget is SelectableText) {
-        final data = widget.data;
-        if (data != null && data.trim().isNotEmpty) {
-          return data.trim();
-        }
-        // SelectableText can also have textSpan
-        final span = widget.textSpan;
-        if (span != null) {
-          final text = _extractTextFromSpan(span);
-          if (text.isNotEmpty) return text;
-        }
-        return null;
-      }
-
-      // Handle RichText widget
-      if (widget is RichText) {
-        final text = _extractTextFromSpan(widget.text);
-        if (text.isNotEmpty) return text;
-        return null;
-      }
-
-      // Fallback: try toString() for other text-like widgets
-      final typeName = widget.runtimeType.toString();
-      if (!typeName.contains('Text')) {
-        return null;
-      }
-
-      final str = widget.toString();
-      final quoteMatch = RegExp(r'"([^"]*)"').firstMatch(str);
-      if (quoteMatch != null) {
-        final content = quoteMatch.group(1)?.trim();
-        if (content != null && content.isNotEmpty) {
-          return content;
+      // Second pass: look for InlineSpan properties (TextSpan, etc.)
+      for (final prop in properties) {
+        if (prop is DiagnosticsProperty) {
+          final value = prop.value;
+          if (value is InlineSpan) {
+            final text = _extractTextFromSpan(value);
+            if (text.isNotEmpty) return text;
+          }
         }
       }
     } catch (_) {
-      // Property access can fail for some widgets
+      // Diagnostics can fail for some widgets
     }
     return null;
   }

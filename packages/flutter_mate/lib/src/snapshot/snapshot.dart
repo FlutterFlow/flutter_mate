@@ -325,20 +325,42 @@ class SnapshotService {
     return description;
   }
 
-  /// Extract content from widget using toString()
-  /// Only extracts quoted strings - actual text content, not debug properties.
+  /// Extract text content from a widget.
+  ///
+  /// Handles:
+  /// - `Text` widget: extracts `data` property
+  /// - `RichText` widget: extracts text from `TextSpan` tree
   static String? _extractWidgetContent(Widget widget) {
     try {
-      final str = widget.toString();
-      final typeName = widget.runtimeType.toString();
-
-      // Only extract from actual text display widgets
-      // This prevents extracting widget names like "EditableText" or "Semantics"
-      if (!typeName.contains('Text') && !typeName.contains('RichText')) {
+      // Handle Text widget directly
+      if (widget is Text) {
+        final data = widget.data;
+        if (data != null && data.trim().isNotEmpty) {
+          return data.trim();
+        }
+        // Text can also have textSpan
+        final span = widget.textSpan;
+        if (span != null) {
+          final text = _extractTextFromSpan(span);
+          if (text.isNotEmpty) return text;
+        }
         return null;
       }
 
-      // Extract content in quotes: Text("Hello") → "Hello"
+      // Handle RichText widget
+      if (widget is RichText) {
+        final text = _extractTextFromSpan(widget.text);
+        if (text.isNotEmpty) return text;
+        return null;
+      }
+
+      // Fallback: try toString() for other text-like widgets
+      final typeName = widget.runtimeType.toString();
+      if (!typeName.contains('Text')) {
+        return null;
+      }
+
+      final str = widget.toString();
       final quoteMatch = RegExp(r'"([^"]*)"').firstMatch(str);
       if (quoteMatch != null) {
         final content = quoteMatch.group(1)?.trim();
@@ -347,9 +369,27 @@ class SnapshotService {
         }
       }
     } catch (_) {
-      // toString can fail for some widgets
+      // Property access can fail for some widgets
     }
     return null;
+  }
+
+  /// Extract plain text from an InlineSpan tree (TextSpan, WidgetSpan, etc.)
+  static String _extractTextFromSpan(InlineSpan span) {
+    final buffer = StringBuffer();
+
+    void visit(InlineSpan s) {
+      if (s is TextSpan) {
+        if (s.text != null) {
+          buffer.write(s.text);
+        }
+        s.children?.forEach(visit);
+      }
+      // WidgetSpan and other spans don't have extractable text
+    }
+
+    visit(span);
+    return buffer.toString().trim();
   }
 
   /// Find the best semantics node in the render tree

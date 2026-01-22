@@ -114,9 +114,6 @@ Future<void> _executeCommand({
       case 'snapshot':
         await _snapshot(client, jsonOutput);
         break;
-      case 'debug-trees':
-        await _debugTrees(client, jsonOutput);
-        break;
       case 'tap':
         if (args.isEmpty) {
           stderr.writeln('Error: tap requires a ref (e.g., tap w123)');
@@ -286,102 +283,7 @@ Future<void> _snapshot(VmServiceClient client, bool jsonOutput) async {
   }
 }
 
-/// Debug: Get both inspector tree and semantics tree for comparison
-Future<void> _debugTrees(VmServiceClient client, bool jsonOutput) async {
-  try {
-    final result = await client.callExtension(
-      'ext.flutter_mate.debugTrees',
-      args: {},
-    );
-
-    if (jsonOutput) {
-      print(const JsonEncoder.withIndent('  ').convert(result));
-      return;
-    }
-
-    // Print inspector tree
-    print('\n${'=' * 60}');
-    print('📱 INSPECTOR TREE (DevTools structure)');
-    print('=' * 60);
-
-    final inspectorTree = result['inspectorTree'] as Map<String, dynamic>?;
-    if (inspectorTree != null) {
-      void printInspectorNode(Map<String, dynamic> node, int depth) {
-        final indent = '  ' * depth;
-        final description = node['description'] as String? ?? '';
-        final valueId = node['valueId'] as String?;
-        final widgetRuntimeType = node['widgetRuntimeType'] as String?;
-
-        print('$indent• $description');
-        if (valueId != null) print('$indent  valueId: $valueId');
-        if (widgetRuntimeType != null) {
-          print('$indent  widgetRuntimeType: $widgetRuntimeType');
-        }
-
-        final children = node['children'] as List<dynamic>? ?? [];
-        for (final child in children) {
-          if (child is Map<String, dynamic>) {
-            printInspectorNode(child, depth + 1);
-          }
-        }
-      }
-
-      printInspectorNode(inspectorTree, 0);
-    }
-
-    // Print semantics tree
-    print('\n${'=' * 60}');
-    print('🔤 SEMANTICS TREE (Interactive elements)');
-    print('=' * 60);
-
-    final semanticsNodes = result['semanticsNodes'] as List<dynamic>? ?? [];
-    for (final node in semanticsNodes) {
-      final nodeMap = node as Map<String, dynamic>;
-      final id = nodeMap['id'];
-      final depth = nodeMap['depth'] as int? ?? 0;
-      final label = nodeMap['label'] as String?;
-      final value = nodeMap['value'] as String?;
-      final rect = nodeMap['rect'] as Map<String, dynamic>?;
-      final actions =
-          (nodeMap['actions'] as List<dynamic>?)?.cast<String>() ?? [];
-      final flags = (nodeMap['flags'] as List<dynamic>?)?.cast<String>() ?? [];
-
-      final indent = '  ' * depth;
-      final displayLabel = label ?? value ?? '(no label)';
-      final actionsStr = actions.isNotEmpty ? ' [${actions.join(', ')}]' : '';
-      final flagsStr = flags.where((f) => f.startsWith('is')).join(', ');
-
-      print('$indent• s$id: $displayLabel$actionsStr');
-      if (rect != null) {
-        print(
-            '$indent  bounds: (${rect['x']?.toStringAsFixed(0)}, ${rect['y']?.toStringAsFixed(0)}) ${rect['width']?.toStringAsFixed(0)}x${rect['height']?.toStringAsFixed(0)}');
-      }
-      if (flagsStr.isNotEmpty) print('$indent  flags: $flagsStr');
-    }
-
-    print('\n${'-' * 60}');
-    print(
-        'Inspector nodes: ${_countInspectorNodes(inspectorTree)}, Semantics nodes: ${semanticsNodes.length}');
-  } catch (e, stack) {
-    stderr.writeln('Error getting debug trees: $e');
-    stderr.writeln(stack);
-    exit(1);
-  }
-}
-
-int _countInspectorNodes(Map<String, dynamic>? node) {
-  if (node == null) return 0;
-  int count = 1;
-  final children = node['children'] as List<dynamic>? ?? [];
-  for (final child in children) {
-    if (child is Map<String, dynamic>) {
-      count += _countInspectorNodes(child);
-    }
-  }
-  return count;
-}
-
-/// Print result from pure VM method call
+/// Print result from action method call.
 void _printResult(
     String command, Map<String, dynamic> result, bool jsonOutput) {
   if (jsonOutput) {

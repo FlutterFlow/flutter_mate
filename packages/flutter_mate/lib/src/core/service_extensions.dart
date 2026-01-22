@@ -1,14 +1,12 @@
 import 'dart:convert';
 import 'dart:developer';
 
-import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import '../actions/semantic_actions.dart';
 import '../actions/gesture_actions.dart';
 import '../actions/keyboard_actions.dart';
 import '../snapshot/snapshot.dart';
-import 'semantics_utils.dart';
 
 /// VM Service extensions for external control via CLI/MCP.
 ///
@@ -41,7 +39,6 @@ import 'semantics_utils.dart';
 ///
 /// **Utilities:**
 /// - `ext.flutter_mate.ensureSemantics` - Enable semantics tree
-/// - `ext.flutter_mate.debugTrees` - Get raw inspector + semantics trees
 class FlutterMateServiceExtensions {
   static bool _registered = false;
 
@@ -232,12 +229,6 @@ class FlutterMateServiceExtensions {
             jsonEncode({'success': success}));
       });
 
-      // ext.flutter_mate.debugTrees - Get both trees for debugging
-      registerExtension('ext.flutter_mate.debugTrees', (method, params) async {
-        final result = await _getDebugTrees();
-        return ServiceExtensionResponse.result(jsonEncode(result));
-      });
-
       // ext.flutter_mate.ensureSemantics - Ensure semantics tree is available
       registerExtension('ext.flutter_mate.ensureSemantics',
           (method, params) async {
@@ -315,60 +306,6 @@ class FlutterMateServiceExtensions {
       debugPrint('FlutterMate: Service extensions registered');
       return true;
     }());
-  }
-
-  /// Get both inspector tree and semantics tree for debugging/matching
-  static Future<Map<String, dynamic>> _getDebugTrees() async {
-    // Get inspector summary tree
-    final service = WidgetInspectorService.instance;
-    final inspectorJson =
-        service.getRootWidgetSummaryTree('flutter_mate_debug');
-    final inspectorTree = jsonDecode(inspectorJson) as Map<String, dynamic>?;
-
-    // Get semantics tree using shared utility
-    final semanticsNodes = <Map<String, dynamic>>[];
-    final rootNode = getRootSemanticsNode();
-
-    if (rootNode != null) {
-      void walkSemantics(SemanticsNode node, int depth) {
-        final data = node.getSemanticsData();
-        final rect = node.rect;
-        final transform = node.transform;
-
-        Offset? globalTopLeft;
-        if (transform != null) {
-          globalTopLeft = MatrixUtils.transformPoint(transform, rect.topLeft);
-        }
-
-        semanticsNodes.add({
-          'id': node.id,
-          'depth': depth,
-          'label': data.label.isNotEmpty ? data.label : null,
-          'value': data.value.isNotEmpty ? data.value : null,
-          'hint': data.hint.isNotEmpty ? data.hint : null,
-          'rect': {
-            'x': globalTopLeft?.dx ?? rect.left,
-            'y': globalTopLeft?.dy ?? rect.top,
-            'width': rect.width,
-            'height': rect.height,
-          },
-          'actions': getActionsFromData(data),
-          'flags': getFlagsFromData(data),
-        });
-
-        node.visitChildren((child) {
-          walkSemantics(child, depth + 1);
-          return true;
-        });
-      }
-
-      walkSemantics(rootNode, 0);
-    }
-
-    return {
-      'inspectorTree': inspectorTree,
-      'semanticsNodes': semanticsNodes,
-    };
   }
 }
 

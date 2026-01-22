@@ -10,10 +10,38 @@ import '../actions/keyboard_actions.dart';
 import '../snapshot/snapshot.dart';
 import 'semantics_utils.dart';
 
-/// VM Service extensions for external control via CLI
+/// VM Service extensions for external control via CLI/MCP.
 ///
-/// These extensions are registered with prefix `ext.flutter_mate.*`
-/// and allow external tools to control the app.
+/// Registers `ext.flutter_mate.*` service extensions that allow external
+/// tools to control Flutter apps through the Dart VM Service Protocol.
+///
+/// ## Available Extensions
+///
+/// **Snapshot:**
+/// - `ext.flutter_mate.snapshot` - Get UI tree with widget refs and semantics
+///
+/// **Ref-based actions (use widget ref from snapshot):**
+/// - `ext.flutter_mate.tap` - Tap element (semantic + gesture fallback)
+/// - `ext.flutter_mate.setText` - Set text via semantic action
+/// - `ext.flutter_mate.scroll` - Scroll element in a direction
+/// - `ext.flutter_mate.focus` - Focus element
+/// - `ext.flutter_mate.longPress` - Long press element
+/// - `ext.flutter_mate.doubleTap` - Double tap element
+/// - `ext.flutter_mate.typeText` - Type text via keyboard simulation
+///
+/// **Coordinate-based actions:**
+/// - `ext.flutter_mate.tapAt` - Tap at screen coordinates
+/// - `ext.flutter_mate.doubleTapAt` - Double tap at coordinates
+/// - `ext.flutter_mate.longPressAt` - Long press at coordinates
+/// - `ext.flutter_mate.swipe` - Swipe gesture from a start position
+///
+/// **Keyboard:**
+/// - `ext.flutter_mate.pressKey` - Press a keyboard key
+/// - `ext.flutter_mate.clearText` - Clear focused text field
+///
+/// **Utilities:**
+/// - `ext.flutter_mate.ensureSemantics` - Enable semantics tree
+/// - `ext.flutter_mate.debugTrees` - Get raw inspector + semantics trees
 class FlutterMateServiceExtensions {
   static bool _registered = false;
 
@@ -215,8 +243,7 @@ class FlutterMateServiceExtensions {
           (method, params) async {
         try {
           WidgetsBinding.instance.ensureSemantics();
-          return ServiceExtensionResponse.result(
-              jsonEncode({'success': true}));
+          return ServiceExtensionResponse.result(jsonEncode({'success': true}));
         } catch (e) {
           return ServiceExtensionResponse.result(
               jsonEncode({'success': false, 'error': e.toString()}));
@@ -233,9 +260,8 @@ class FlutterMateServiceExtensions {
             'Missing or invalid x/y coordinates',
           );
         }
-        final success = await GestureActions.tapAt(Offset(x, y));
-        return ServiceExtensionResponse.result(
-            jsonEncode({'success': success}));
+        await GestureActions.tapAt(Offset(x, y));
+        return ServiceExtensionResponse.result(jsonEncode({'success': true}));
       });
 
       // ext.flutter_mate.doubleTapAt - Double tap at screen coordinates
@@ -263,8 +289,7 @@ class FlutterMateServiceExtensions {
             'Missing or invalid x/y coordinates',
           );
         }
-        await GestureActions.longPressAt(
-            Offset(x, y),
+        await GestureActions.longPressAt(Offset(x, y),
             pressDuration: Duration(milliseconds: durationMs));
         return ServiceExtensionResponse.result(jsonEncode({'success': true}));
       });

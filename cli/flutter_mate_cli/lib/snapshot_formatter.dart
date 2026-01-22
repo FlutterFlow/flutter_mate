@@ -1,6 +1,9 @@
 /// Shared snapshot formatting utilities for CLI and MCP server.
 ///
-/// Uses types from flutter_mate_types for type-safe snapshot handling.
+/// Provides functions to parse, collapse, and format snapshot data
+/// for human-readable output. Uses types from flutter_mate_types
+/// for type-safe snapshot handling.
+library snapshot_formatter;
 
 import 'package:flutter_mate_types/flutter_mate_types.dart';
 

@@ -1,13 +1,15 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:vm_service/vm_service.dart';
 import 'package:vm_service/vm_service_io.dart';
 
-/// Client that connects to a Flutter app via VM Service Protocol
+/// Client that connects to a Flutter app via VM Service Protocol.
 ///
-/// This allows controlling Flutter apps externally through
-/// the Dart VM Service - NO code changes required in the app!
+/// Communicates with a running Flutter app through the Dart VM Service,
+/// calling FlutterMate service extensions to perform UI automation.
+///
+/// All actions (tap, scroll, type, etc.) are executed via registered
+/// `ext.flutter_mate.*` service extensions in the SDK.
 class VmServiceClient {
   VmService? _service;
   String? _mainIsolateId;
@@ -37,7 +39,6 @@ class VmServiceClient {
     if (_mainIsolateId == null) {
       throw Exception('No isolates found');
     }
-
   }
 
   /// Disconnect from the VM Service
@@ -100,7 +101,7 @@ class VmServiceClient {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // PURE VM SERVICE METHODS (No custom extensions needed!)
+  // COORDINATE-BASED ACTIONS
   // ══════════════════════════════════════════════════════════════════════════
 
   /// Ensure semantics tree is available (call once per session).
@@ -246,30 +247,18 @@ class VmServiceClient {
     return null;
   }
 
-  /// Tap on an element by ref (semantic action)
+  /// Tap on an element by ref.
+  ///
+  /// Tries semantic tap first, falls back to gesture-based tap if needed.
   Future<Map<String, dynamic>> tap(String ref) async {
     return callExtension('ext.flutter_mate.tap', args: {'ref': ref});
   }
 
-  /// Tap on an element by ref using pointer events (gesture-based)
-  /// Use this for widgets without semantic tap support (e.g., NavigationDestination)
-  /// @deprecated Use tap() instead - it now auto-falls back to gesture
-  @Deprecated('Use tap() instead')
-  Future<Map<String, dynamic>> tapGesture(String ref) async {
-    // Just call tap - it handles both semantic and gesture
-    return tap(ref);
-  }
-
-  /// Set text on a field by ref (semantic action)
+  /// Set text on a field by ref using semantic action.
   Future<Map<String, dynamic>> setText(String ref, String text) async {
     return callExtension('ext.flutter_mate.setText',
         args: {'ref': ref, 'text': text});
   }
-
-  /// @deprecated Use setText() instead
-  @Deprecated('Use setText() instead')
-  Future<Map<String, dynamic>> fill(String ref, String text) =>
-      setText(ref, text);
 
   /// Focus on an element by ref
   Future<Map<String, dynamic>> focus(String ref) async {
@@ -358,40 +347,8 @@ class VmServiceClient {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // HELPERS
+  // INTERNAL HELPERS
   // ══════════════════════════════════════════════════════════════════════════
-
-  /// Evaluate Dart expression in the app's context
-  Future<String?> evaluate(String expression) async {
-    _ensureConnected();
-
-    try {
-      final isolate = await _service!.getIsolate(_mainIsolateId!);
-
-      // Find the root library
-      final rootLib = isolate.rootLib;
-      if (rootLib == null) {
-        return null;
-      }
-
-      final result = await _service!.evaluate(
-        _mainIsolateId!,
-        rootLib.id!,
-        expression,
-      );
-
-      if (result is InstanceRef) {
-        return result.valueAsString;
-      }
-      if (result is ErrorRef) {
-        throw Exception(result.message);
-      }
-      return result.toString();
-    } catch (e) {
-      print('Evaluate error: $e');
-      rethrow;
-    }
-  }
 
   void _ensureConnected() {
     if (_service == null) {

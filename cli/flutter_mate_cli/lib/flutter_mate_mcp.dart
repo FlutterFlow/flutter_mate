@@ -22,13 +22,13 @@
 /// The snapshot uses a collapsed tree format that:
 /// - Chains widgets with same bounds using →
 /// - Hides layout wrappers (Padding, Container, etc.)
-/// - Shows text content and semantic info inline
+/// - Shows text content, semantic info, and validation state inline
 ///
 /// ```
 /// • [w1] DemoApp → [w2] MaterialApp → [w3] LoginPage
 ///   • [w6] Column
-///     • [w9] Semantics "Email" [tap, focus, setText] (TextField)
-///       • [w10] TextField
+///     • [w9] TextField (Email, Enter your email) {valid} [tap, focus] (TextField, Focusable)
+///     • [w15] ElevatedButton (Submit) [tap] (Button, Enabled)
 /// ```
 ///
 /// ## Usage with Cursor

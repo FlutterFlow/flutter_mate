@@ -87,6 +87,7 @@ class SnapshotService {
         CombinedRect? bounds;
         SemanticsInfo? semantics;
         String? textContent;
+        RenderObject? ro;
 
         // Use toObject to get the actual Element from valueId
         if (valueId != null) {
@@ -125,7 +126,6 @@ class SnapshotService {
                 }
               }
               // Find the RenderObject
-              RenderObject? ro;
               if (obj is RenderObjectElement) {
                 ro = obj.renderObject;
               } else {
@@ -160,17 +160,7 @@ class SnapshotService {
                     }
                   }
                 }
-
-                // Try to find semantics for ANY widget (not just Semantics widgets)
-                // This allows TextField, Button, etc. to show their semantics
-                if (ro != null) {
-                  SemanticsNode? sn = _findSemanticsInRenderTree(ro!);
-                  if (sn != null && !usedSemanticsIds.contains(sn.id)) {
-                    // Mark this semantics ID as used to avoid duplication
-                    usedSemanticsIds.add(sn.id);
-                    semantics = _extractSemanticsInfo(sn);
-                  }
-                }
+                // NOTE: Semantics extraction moved to AFTER children processing
               }
             }
           } catch (e) {
@@ -179,7 +169,8 @@ class SnapshotService {
           }
         }
 
-        // Collect children refs
+        // Process children FIRST so they claim their semantics
+        // This prevents parent from stealing child semantics when searching down
         final childRefs = <String>[];
         final childStartRef = refCounter;
 
@@ -190,6 +181,17 @@ class SnapshotService {
             if (refCounter > beforeCount) {
               childRefs.add('w$beforeCount');
             }
+          }
+        }
+
+        // NOW extract semantics - children have already claimed theirs
+        // Search down to find semantics in internal widgets (not in inspector tree)
+        // but skip already-used IDs (claimed by children in inspector tree)
+        if (ro != null) {
+          SemanticsNode? sn = _findSemanticsInRenderTree(ro!);
+          if (sn != null && !usedSemanticsIds.contains(sn.id)) {
+            usedSemanticsIds.add(sn.id);
+            semantics = _extractSemanticsInfo(sn);
           }
         }
 
@@ -486,12 +488,35 @@ class SnapshotService {
     return buffer.toString().trim();
   }
 
-  /// Get semantics directly attached to this render object
-  /// Does NOT traverse down - each widget should only show its own semantics
+  /// Find semantics in the render tree, searching down if needed
+  /// This finds semantics in internal widgets (like _InkResponse inside ElevatedButton)
+  /// that are not in the inspector tree. Already-used IDs are skipped by the caller.
   static SemanticsNode? _findSemanticsInRenderTree(RenderObject ro) {
-    // Only use semantics directly attached to this render object
-    // Don't traverse down - children will claim their own semantics
-    return ro.debugSemantics;
+    // First check if this render object has direct semantics
+    SemanticsNode? best = ro.debugSemantics;
+
+    // If no direct semantics or it has no meaningful content, search children
+    if (best == null || !_hasMeaningfulSemantics(best)) {
+      void visitRenderObject(RenderObject child) {
+        if (best != null && _hasMeaningfulSemantics(best!)) return;
+        final sn = child.debugSemantics;
+        if (sn != null && _hasMeaningfulSemantics(sn)) {
+          best = sn;
+          return;
+        }
+        child.visitChildren(visitRenderObject);
+      }
+
+      ro.visitChildren(visitRenderObject);
+    }
+
+    return best;
+  }
+
+  /// Check if a semantics node has meaningful content (actions, label, or value)
+  static bool _hasMeaningfulSemantics(SemanticsNode node) {
+    final data = node.getSemanticsData();
+    return data.actions != 0 || data.label.isNotEmpty || data.value.isNotEmpty;
   }
 
   /// Collect ALL text content from an element subtree

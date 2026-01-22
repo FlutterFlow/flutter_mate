@@ -300,10 +300,41 @@ class SnapshotService {
         }
       }
 
-      // Filter nodes in compact mode (only nodes with meaningful info)
-      final filteredNodes = compact
-          ? nodes.where((n) => n.hasAdditionalInfo).toList()
-          : nodes;
+      // Filter nodes in compact mode (keep meaningful nodes + their ancestors)
+      List<CombinedNode> filteredNodes;
+      if (compact) {
+        // Find all meaningful nodes
+        final meaningfulRefs = <String>{};
+        for (final node in nodes) {
+          if (node.hasAdditionalInfo) {
+            meaningfulRefs.add(node.ref);
+          }
+        }
+
+        // Build parent map (child -> parent)
+        final parentMap = <String, String>{};
+        for (final node in nodes) {
+          for (final childRef in node.children) {
+            parentMap[childRef] = node.ref;
+          }
+        }
+
+        // For each meaningful node, add all ancestors to keep set
+        final keepRefs = <String>{...meaningfulRefs};
+        for (final ref in meaningfulRefs) {
+          var current = ref;
+          while (parentMap.containsKey(current)) {
+            final parent = parentMap[current]!;
+            keepRefs.add(parent);
+            current = parent;
+          }
+        }
+
+        // Filter but keep ancestors (preserves tree structure)
+        filteredNodes = nodes.where((n) => keepRefs.contains(n.ref)).toList();
+      } else {
+        filteredNodes = nodes;
+      }
 
       final snapshot = CombinedSnapshot(
         success: true,

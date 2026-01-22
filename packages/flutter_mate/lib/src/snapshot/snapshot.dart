@@ -1,7 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/widgets.dart';
 
 import '../core/flutter_mate.dart';
 import '../core/semantics_utils.dart';
@@ -149,6 +149,7 @@ class SnapshotService {
                   }
                   el.visitChildren(findRenderObject);
                 }
+
                 findRenderObject(obj);
               }
 
@@ -351,6 +352,7 @@ class SnapshotService {
   ///
   /// Handles:
   /// - `Text` widget: extracts `data` property
+  /// - `SelectableText` widget: extracts `data` property
   /// - `RichText` widget: extracts text from `TextSpan` tree
   static String? _extractWidgetContent(Widget widget) {
     try {
@@ -361,6 +363,21 @@ class SnapshotService {
           return data.trim();
         }
         // Text can also have textSpan
+        final span = widget.textSpan;
+        if (span != null) {
+          final text = _extractTextFromSpan(span);
+          if (text.isNotEmpty) return text;
+        }
+        return null;
+      }
+
+      // Handle SelectableText widget (has same 'data' property as Text)
+      if (widget is SelectableText) {
+        final data = widget.data;
+        if (data != null && data.trim().isNotEmpty) {
+          return data.trim();
+        }
+        // SelectableText can also have textSpan
         final span = widget.textSpan;
         if (span != null) {
           final text = _extractTextFromSpan(span);

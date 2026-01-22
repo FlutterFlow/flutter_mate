@@ -138,8 +138,10 @@ class FlutterMateServiceExtensions {
       });
 
       // ext.flutter_mate.snapshot - Get UI snapshot (widget tree + semantics)
+      // Optional: compact=true to filter to only nodes with meaningful info
       registerExtension('ext.flutter_mate.snapshot', (method, params) async {
-        final snap = await SnapshotService.snapshot();
+        final compact = params['compact'] == 'true';
+        final snap = await SnapshotService.snapshot(compact: compact);
         return ServiceExtensionResponse.result(jsonEncode(snap.toJson()));
       });
 

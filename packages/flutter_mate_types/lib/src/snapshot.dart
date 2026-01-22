@@ -96,6 +96,47 @@ class CombinedNode {
   /// Get center point for gesture interactions
   ({double x, double y})? get center => bounds?.center;
 
+  /// Whether this node has any meaningful info beyond just widget type.
+  /// Used for compact mode filtering.
+  bool get hasAdditionalInfo {
+    // Has text content
+    if (textContent?.isNotEmpty == true) return true;
+
+    final sem = semantics;
+    if (sem == null) return false;
+
+    // Has semantic label, value, or hint
+    if (sem.label?.isNotEmpty == true) return true;
+    if (sem.value?.isNotEmpty == true) return true;
+    if (sem.hint?.isNotEmpty == true) return true;
+
+    // Has actions
+    if (sem.actions.isNotEmpty) return true;
+
+    // Has meaningful flags
+    if (sem.flags.isNotEmpty) return true;
+
+    // Has validation state
+    if (sem.validationResult != null) return true;
+
+    // Has scroll info
+    if (sem.scrollPosition != null) return true;
+
+    // Has tooltip
+    if (sem.tooltip?.isNotEmpty == true) return true;
+
+    // Has heading level
+    if (sem.headingLevel != null && sem.headingLevel! > 0) return true;
+
+    // Has link
+    if (sem.linkUrl?.isNotEmpty == true) return true;
+
+    // Has input type
+    if (sem.inputType != null && sem.inputType != 'none') return true;
+
+    return false;
+  }
+
   /// Create from JSON
   factory CombinedNode.fromJson(Map<String, dynamic> json) {
     return CombinedNode(

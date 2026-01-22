@@ -116,10 +116,16 @@ class VmServiceClient {
   /// Get UI snapshot via FlutterMate service extension
   ///
   /// Returns widget tree with semantics. Requires FlutterMate.initialize() in the app.
-  Future<Map<String, dynamic>> getSnapshot() async {
+  ///
+  /// If [compact] is true, only returns nodes with meaningful info (text,
+  /// semantics, actions, flags). This significantly reduces response size.
+  Future<Map<String, dynamic>> getSnapshot({bool compact = false}) async {
     _ensureConnected();
 
-    final result = await callExtension('ext.flutter_mate.snapshot');
+    final result = await callExtension(
+      'ext.flutter_mate.snapshot',
+      args: compact ? {'compact': 'true'} : null,
+    );
 
     if (result['success'] == true) {
       final data = result['result'];

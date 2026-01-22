@@ -268,7 +268,8 @@ Future<void> _snapshot(
 }) async {
   try {
     // Get snapshot via FlutterMate service extension
-    final result = await client.getSnapshot();
+    // Pass compact to SDK for server-side filtering (much faster for large UIs)
+    final result = await client.getSnapshot(compact: compact);
     if (result['success'] != true) {
       stderr.writeln('Error: ${result['error']}');
       exit(1);

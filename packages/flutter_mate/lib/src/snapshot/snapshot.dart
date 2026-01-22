@@ -20,11 +20,17 @@ class SnapshotService {
   /// Uses Flutter's WidgetInspectorService to get the same tree that DevTools
   /// shows - only user-created widgets, not framework internals.
   ///
+  /// If [compact] is true, filters to only nodes with meaningful info
+  /// (text, semantics, actions, flags). This reduces output size significantly.
+  ///
   /// ```dart
   /// final snapshot = await SnapshotService.snapshot();
   /// print(snapshot);
+  ///
+  /// // Compact mode - only nodes with info
+  /// final compact = await SnapshotService.snapshot(compact: true);
   /// ```
-  static Future<CombinedSnapshot> snapshot() async {
+  static Future<CombinedSnapshot> snapshot({bool compact = false}) async {
     FlutterMate.ensureInitialized();
 
     // Wait for first frame if needed
@@ -294,14 +300,24 @@ class SnapshotService {
         }
       }
 
+      // Filter nodes in compact mode (only nodes with meaningful info)
+      final filteredNodes = compact
+          ? nodes.where((n) => n.hasAdditionalInfo).toList()
+          : nodes;
+
       final snapshot = CombinedSnapshot(
+        success: true,
+        timestamp: DateTime.now(),
+        nodes: filteredNodes,
+      );
+
+      // Cache full snapshot for ref -> semantics ID translation in actions
+      // (even in compact mode, we need full data for interactions)
+      FlutterMate.lastSnapshot = CombinedSnapshot(
         success: true,
         timestamp: DateTime.now(),
         nodes: nodes,
       );
-
-      // Cache for ref -> semantics ID translation in actions
-      FlutterMate.lastSnapshot = snapshot;
 
       return snapshot;
     } catch (e, stack) {

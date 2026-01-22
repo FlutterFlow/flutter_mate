@@ -408,7 +408,11 @@ Returns the ref of the found element and what text matched.''',
   Future<CallToolResult> _handleSnapshot(CallToolRequest request) async {
     final compact = request.arguments?['compact'] as bool? ?? false;
 
-    final result = await _callExtension('ext.flutter_mate.snapshot');
+    // Pass compact to SDK for server-side filtering (much faster for large UIs)
+    final result = await _callExtension(
+      'ext.flutter_mate.snapshot',
+      args: compact ? {'compact': 'true'} : null,
+    );
 
     if (result['success'] != true) {
       return CallToolResult(

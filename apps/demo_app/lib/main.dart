@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_mate/flutter_mate.dart';
 
 void main() async {
@@ -483,6 +484,18 @@ class _ActionsPageState extends State<ActionsPage> {
   int _tapCount = 0;
   int _doubleTapCount = 0;
   int _longPressCount = 0;
+  int _swipeCount = 0;
+  String _lastSwipeDirection = '';
+  double _sliderValue = 50;
+  final FocusNode _keyboardFocusNode = FocusNode();
+  String _lastKeyPressed = 'None';
+  int _keyPressCount = 0;
+
+  @override
+  void dispose() {
+    _keyboardFocusNode.dispose();
+    super.dispose();
+  }
 
   void _showAction(String action) {
     setState(() => _lastAction = action);
@@ -520,8 +533,17 @@ class _ActionsPageState extends State<ActionsPage> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                        'Taps: $_tapCount | Double-taps: $_doubleTapCount | Long-presses: $_longPressCount'),
+                    Semantics(
+                      label: 'Gesture counts',
+                      child: Text(
+                          'Taps: $_tapCount | Double-taps: $_doubleTapCount | Long-presses: $_longPressCount'),
+                    ),
+                    const SizedBox(height: 4),
+                    Semantics(
+                      label: 'Swipe and key counts',
+                      child: Text(
+                          'Swipes: $_swipeCount ($_lastSwipeDirection) | Keys: $_keyPressCount ($_lastKeyPressed)'),
+                    ),
                   ],
                 ),
               ),
@@ -756,6 +778,198 @@ class _ActionsPageState extends State<ActionsPage> {
                 ],
               ),
             ),
+            const SizedBox(height: 24),
+
+            // ────────────────────────────────────────────────────────────
+            // Swipe gesture area
+            // ────────────────────────────────────────────────────────────
+            Text('Swipe Gestures',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Semantics(
+              label: 'Swipe area',
+              child: GestureDetector(
+                onHorizontalDragEnd: (details) {
+                  final velocity = details.primaryVelocity ?? 0;
+                  if (velocity > 100) {
+                    setState(() {
+                      _swipeCount++;
+                      _lastSwipeDirection = 'right';
+                    });
+                    _showAction('Swiped right!');
+                  } else if (velocity < -100) {
+                    setState(() {
+                      _swipeCount++;
+                      _lastSwipeDirection = 'left';
+                    });
+                    _showAction('Swiped left!');
+                  }
+                },
+                onVerticalDragEnd: (details) {
+                  final velocity = details.primaryVelocity ?? 0;
+                  if (velocity > 100) {
+                    setState(() {
+                      _swipeCount++;
+                      _lastSwipeDirection = 'down';
+                    });
+                    _showAction('Swiped down!');
+                  } else if (velocity < -100) {
+                    setState(() {
+                      _swipeCount++;
+                      _lastSwipeDirection = 'up';
+                    });
+                    _showAction('Swiped up!');
+                  }
+                },
+                child: Container(
+                  height: 120,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.cyan.shade100, Colors.cyan.shade300],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.cyan, width: 2),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.swipe, size: 48, color: Colors.cyan),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Swipe in any direction',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.cyan.shade800,
+                          ),
+                        ),
+                        if (_lastSwipeDirection.isNotEmpty)
+                          Text(
+                            'Last: $_lastSwipeDirection',
+                            style: TextStyle(color: Colors.cyan.shade700),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // ────────────────────────────────────────────────────────────
+            // Keyboard input area
+            // ────────────────────────────────────────────────────────────
+            Text('Keyboard Input',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Semantics(
+              label: 'Keyboard input area',
+              focusable: true,
+              child: Focus(
+                focusNode: _keyboardFocusNode,
+                onKeyEvent: (node, event) {
+                  if (event is KeyDownEvent) {
+                    setState(() {
+                      _keyPressCount++;
+                      _lastKeyPressed = event.logicalKey.keyLabel;
+                    });
+                    _showAction('Key pressed: ${event.logicalKey.keyLabel}');
+                    return KeyEventResult.handled;
+                  }
+                  return KeyEventResult.ignored;
+                },
+                child: Builder(
+                  builder: (context) {
+                    final hasFocus = Focus.of(context).hasFocus;
+                    return GestureDetector(
+                      onTap: () => _keyboardFocusNode.requestFocus(),
+                      child: Container(
+                        height: 100,
+                        decoration: BoxDecoration(
+                          color: hasFocus
+                              ? Colors.indigo.shade200
+                              : Colors.indigo.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color:
+                                hasFocus ? Colors.indigo : Colors.indigo.shade300,
+                            width: hasFocus ? 3 : 2,
+                          ),
+                        ),
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                hasFocus ? Icons.keyboard : Icons.keyboard_alt,
+                                size: 36,
+                                color: Colors.indigo,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                hasFocus
+                                    ? 'Type any key!'
+                                    : 'Click to focus, then type',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.indigo.shade800,
+                                ),
+                              ),
+                              if (_lastKeyPressed != 'None')
+                                Text(
+                                  'Last key: $_lastKeyPressed',
+                                  style: TextStyle(color: Colors.indigo.shade600),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // ────────────────────────────────────────────────────────────
+            // Slider interaction
+            // ────────────────────────────────────────────────────────────
+            Text('Slider Interaction',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Semantics(
+              label: 'Value slider',
+              slider: true,
+              value: '${_sliderValue.round()}%',
+              child: Slider(
+                value: _sliderValue,
+                min: 0,
+                max: 100,
+                divisions: 20,
+                label: '${_sliderValue.round()}%',
+                onChanged: (value) {
+                  setState(() => _sliderValue = value);
+                  if (value == 0 || value == 50 || value == 100) {
+                    _showAction('Slider at ${value.round()}%');
+                  }
+                },
+              ),
+            ),
+            Center(
+              child: Text(
+                'Value: ${_sliderValue.round()}%',
+                style: TextStyle(
+                  fontSize: 18,
+                  color: Colors.deepPurple,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
           ],
         ),
       ),

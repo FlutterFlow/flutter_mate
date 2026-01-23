@@ -303,6 +303,9 @@ class SnapshotService {
       // All filtering is applied AFTER the walk to keep refs stable
       List<CombinedNode> filteredNodes = nodes;
 
+      // Track the base depth for relative depth calculations
+      int baseDepth = 0;
+
       // Apply fromRef filter - keep only the subtree rooted at fromRef
       if (fromRef != null) {
         // Find all descendants of fromRef
@@ -318,6 +321,9 @@ class SnapshotService {
             nodes: [],
           );
         }
+
+        // Get the base depth from the root node
+        baseDepth = nodeMap[fromRef]!.depth;
 
         // BFS to find all descendants
         final queue = [fromRef];
@@ -339,11 +345,12 @@ class SnapshotService {
       }
 
       // Apply depth filter (if specified)
-      // Note: depth is relative to root, so when using fromRef, you might want
-      // to combine with depth to limit how deep into the subtree to show
+      // When using fromRef, depth is relative to the subtree root
+      // e.g., --from w19 --depth 1 shows w19 and its direct children
       if (maxDepth != null) {
+        final absoluteMaxDepth = baseDepth + maxDepth;
         filteredNodes =
-            filteredNodes.where((n) => n.depth <= maxDepth).toList();
+            filteredNodes.where((n) => n.depth <= absoluteMaxDepth).toList();
       }
 
       // Apply compact filter (keep meaningful nodes + their ancestors)

@@ -245,10 +245,17 @@ List<CollapsedEntry> collapseNodes(Map<String, CombinedNode> nodeMap) {
     }
   }
 
-  // Find and process root nodes (depth 0)
+  // Find the minimum depth in the tree (root nodes)
+  // This handles both full snapshots (root at depth 0) and subtree snapshots
+  // where the root might be at a different depth (e.g., --from w19)
+  int minDepth = nodeMap.values.isEmpty
+      ? 0
+      : nodeMap.values.map((n) => n.depth).reduce((a, b) => a < b ? a : b);
+
+  // Find and process root nodes (at minimum depth)
   for (final node in nodeMap.values) {
-    if (node.depth == 0) {
-      processNode(node, 0);
+    if (node.depth == minDepth) {
+      processNode(node, 0); // Display depth starts at 0 for formatting
     }
   }
 

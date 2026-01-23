@@ -102,68 +102,13 @@ class SnapshotService {
       final nodes = <CombinedNode>[];
       int refCounter = 0;
 
-      // If fromRef is provided, we need to find the subtree for that element
-      // IMPORTANT: Look up the element BEFORE clearing the cache
-      Map<String, dynamic>? startNode = treeJson;
-      int startDepth = 0;
-
-      if (fromRef != null) {
-        // Find the inspector node that corresponds to this ref
-        // We need to walk the tree to find the matching element
-        final targetElement = FlutterMate.cachedElements[fromRef];
-        if (targetElement == null) {
-          return CombinedSnapshot(
-            success: false,
-            error: 'Element not found: $fromRef. Take a snapshot first.',
-            timestamp: DateTime.now(),
-            nodes: [],
-          );
-        }
-
-        // Find the inspector node matching this element
-        Map<String, dynamic>? findNodeForElement(
-            Map<String, dynamic> node, Element target) {
-          final valueId = node['valueId'] as String?;
-          if (valueId != null) {
-            try {
-              // ignore: invalid_use_of_protected_member
-              final obj = service.toObject(valueId, groupName);
-              if (obj == target) {
-                return node;
-              }
-            } catch (_) {}
-          }
-
-          final children = node['children'] as List<dynamic>? ?? [];
-          for (final child in children) {
-            if (child is Map<String, dynamic>) {
-              final found = findNodeForElement(child, target);
-              if (found != null) return found;
-            }
-          }
-          return null;
-        }
-
-        startNode = findNodeForElement(treeJson, targetElement);
-        if (startNode == null) {
-          return CombinedSnapshot(
-            success: false,
-            error: 'Could not find inspector node for: $fromRef',
-            timestamp: DateTime.now(),
-            nodes: [],
-          );
-        }
-      }
-
-      // Clear cached elements for fresh snapshot (after fromRef lookup)
+      // Clear cached elements for fresh snapshot
       FlutterMate.cachedElements.clear();
 
       // Returns the set of claimed text from this subtree (for parent deduplication)
+      // Note: We always walk the full tree to keep refs stable.
+      // Depth filtering is applied AFTER the walk to preserve ref numbering.
       Set<String> walkInspectorNode(Map<String, dynamic> node, int depth) {
-        // Respect maxDepth limit
-        if (maxDepth != null && depth > maxDepth) {
-          return <String>{};
-        }
         final description = node['description'] as String? ?? '';
         final widgetType = _extractWidgetType(description);
         final valueId = node['valueId'] as String?;
@@ -345,7 +290,7 @@ class SnapshotService {
         return myClaims..addAll(descendantClaims);
       }
 
-      walkInspectorNode(startNode, startDepth);
+      walkInspectorNode(treeJson, 0);
 
       // Reorder nodes to be in depth-first order (parents before children)
       nodes.sort((a, b) {
@@ -354,12 +299,58 @@ class SnapshotService {
         return refA.compareTo(refB);
       });
 
-      // Filter nodes in compact mode (keep meaningful nodes + their ancestors)
-      List<CombinedNode> filteredNodes;
+      // Apply filters (fromRef, depth, and compact mode)
+      // All filtering is applied AFTER the walk to keep refs stable
+      List<CombinedNode> filteredNodes = nodes;
+
+      // Apply fromRef filter - keep only the subtree rooted at fromRef
+      if (fromRef != null) {
+        // Find all descendants of fromRef
+        final descendantRefs = <String>{fromRef};
+        final nodeMap = {for (final n in nodes) n.ref: n};
+
+        // Check if fromRef exists
+        if (!nodeMap.containsKey(fromRef)) {
+          return CombinedSnapshot(
+            success: false,
+            error: 'Element not found: $fromRef',
+            timestamp: DateTime.now(),
+            nodes: [],
+          );
+        }
+
+        // BFS to find all descendants
+        final queue = [fromRef];
+        while (queue.isNotEmpty) {
+          final current = queue.removeAt(0);
+          final node = nodeMap[current];
+          if (node != null) {
+            for (final childRef in node.children) {
+              if (!descendantRefs.contains(childRef)) {
+                descendantRefs.add(childRef);
+                queue.add(childRef);
+              }
+            }
+          }
+        }
+
+        filteredNodes =
+            filteredNodes.where((n) => descendantRefs.contains(n.ref)).toList();
+      }
+
+      // Apply depth filter (if specified)
+      // Note: depth is relative to root, so when using fromRef, you might want
+      // to combine with depth to limit how deep into the subtree to show
+      if (maxDepth != null) {
+        filteredNodes =
+            filteredNodes.where((n) => n.depth <= maxDepth).toList();
+      }
+
+      // Apply compact filter (keep meaningful nodes + their ancestors)
       if (compact) {
         // Find all meaningful nodes
         final meaningfulRefs = <String>{};
-        for (final node in nodes) {
+        for (final node in filteredNodes) {
           if (node.hasAdditionalInfo) {
             meaningfulRefs.add(node.ref);
           }
@@ -367,7 +358,7 @@ class SnapshotService {
 
         // Build parent map (child -> parent)
         final parentMap = <String, String>{};
-        for (final node in nodes) {
+        for (final node in filteredNodes) {
           for (final childRef in node.children) {
             parentMap[childRef] = node.ref;
           }
@@ -385,9 +376,8 @@ class SnapshotService {
         }
 
         // Filter but keep ancestors (preserves tree structure)
-        filteredNodes = nodes.where((n) => keepRefs.contains(n.ref)).toList();
-      } else {
-        filteredNodes = nodes;
+        filteredNodes =
+            filteredNodes.where((n) => keepRefs.contains(n.ref)).toList();
       }
 
       final snapshot = CombinedSnapshot(

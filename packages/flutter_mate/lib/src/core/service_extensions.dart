@@ -146,10 +146,21 @@ class FlutterMateServiceExtensions {
       });
 
       // ext.flutter_mate.snapshot - Get UI snapshot (widget tree + semantics)
-      // Optional: compact=true to filter to only nodes with meaningful info
+      // Options:
+      //   compact=true - filter to only nodes with meaningful info
+      //   depth=N - limit tree depth
+      //   fromRef=wX - start from specific element as root
       registerExtension('ext.flutter_mate.snapshot', (method, params) async {
         final compact = params['compact'] == 'true';
-        final snap = await SnapshotService.snapshot(compact: compact);
+        final depthStr = params['depth'];
+        final maxDepth = depthStr != null ? int.tryParse(depthStr) : null;
+        final fromRef = params['fromRef'];
+        
+        final snap = await SnapshotService.snapshot(
+          compact: compact,
+          maxDepth: maxDepth,
+          fromRef: fromRef,
+        );
         return ServiceExtensionResponse.result(jsonEncode(snap.toJson()));
       });
 

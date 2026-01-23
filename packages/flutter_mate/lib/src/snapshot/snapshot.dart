@@ -20,8 +20,13 @@ class SnapshotService {
   /// Uses Flutter's WidgetInspectorService to get the same tree that DevTools
   /// shows - only user-created widgets, not framework internals.
   ///
-  /// If [compact] is true, filters to only nodes with meaningful info
-  /// (text, semantics, actions, flags). This reduces output size significantly.
+  /// Options:
+  /// - [compact]: If true, filters to only nodes with meaningful info
+  ///   (text, semantics, actions, flags). This reduces output size significantly.
+  /// - [maxDepth]: If provided, limits tree traversal to this depth. Useful for
+  ///   large UIs where you only need the top-level structure.
+  /// - [fromRef]: If provided, starts the snapshot from this element as root.
+  ///   Requires a previous snapshot to have been taken to map refs to elements.
   ///
   /// ```dart
   /// final snapshot = await SnapshotService.snapshot();
@@ -29,8 +34,18 @@ class SnapshotService {
   ///
   /// // Compact mode - only nodes with info
   /// final compact = await SnapshotService.snapshot(compact: true);
+  ///
+  /// // Limited depth - only top 3 levels
+  /// final shallow = await SnapshotService.snapshot(maxDepth: 3);
+  ///
+  /// // Subtree from specific element
+  /// final subtree = await SnapshotService.snapshot(fromRef: 'w15');
   /// ```
-  static Future<CombinedSnapshot> snapshot({bool compact = false}) async {
+  static Future<CombinedSnapshot> snapshot({
+    bool compact = false,
+    int? maxDepth,
+    String? fromRef,
+  }) async {
     FlutterMate.ensureInitialized();
 
     // Clear caches for fresh detection
@@ -70,9 +85,6 @@ class SnapshotService {
         );
       }
 
-      // Clear cached elements for fresh snapshot
-      FlutterMate.cachedElements.clear();
-
       // Track used semantics node IDs to avoid duplication
       final usedSemanticsIds = <int>{};
 
@@ -90,8 +102,68 @@ class SnapshotService {
       final nodes = <CombinedNode>[];
       int refCounter = 0;
 
+      // If fromRef is provided, we need to find the subtree for that element
+      // IMPORTANT: Look up the element BEFORE clearing the cache
+      Map<String, dynamic>? startNode = treeJson;
+      int startDepth = 0;
+
+      if (fromRef != null) {
+        // Find the inspector node that corresponds to this ref
+        // We need to walk the tree to find the matching element
+        final targetElement = FlutterMate.cachedElements[fromRef];
+        if (targetElement == null) {
+          return CombinedSnapshot(
+            success: false,
+            error: 'Element not found: $fromRef. Take a snapshot first.',
+            timestamp: DateTime.now(),
+            nodes: [],
+          );
+        }
+
+        // Find the inspector node matching this element
+        Map<String, dynamic>? findNodeForElement(
+            Map<String, dynamic> node, Element target) {
+          final valueId = node['valueId'] as String?;
+          if (valueId != null) {
+            try {
+              // ignore: invalid_use_of_protected_member
+              final obj = service.toObject(valueId, groupName);
+              if (obj == target) {
+                return node;
+              }
+            } catch (_) {}
+          }
+
+          final children = node['children'] as List<dynamic>? ?? [];
+          for (final child in children) {
+            if (child is Map<String, dynamic>) {
+              final found = findNodeForElement(child, target);
+              if (found != null) return found;
+            }
+          }
+          return null;
+        }
+
+        startNode = findNodeForElement(treeJson, targetElement);
+        if (startNode == null) {
+          return CombinedSnapshot(
+            success: false,
+            error: 'Could not find inspector node for: $fromRef',
+            timestamp: DateTime.now(),
+            nodes: [],
+          );
+        }
+      }
+
+      // Clear cached elements for fresh snapshot (after fromRef lookup)
+      FlutterMate.cachedElements.clear();
+
       // Returns the set of claimed text from this subtree (for parent deduplication)
       Set<String> walkInspectorNode(Map<String, dynamic> node, int depth) {
+        // Respect maxDepth limit
+        if (maxDepth != null && depth > maxDepth) {
+          return <String>{};
+        }
         final description = node['description'] as String? ?? '';
         final widgetType = _extractWidgetType(description);
         final valueId = node['valueId'] as String?;
@@ -273,7 +345,7 @@ class SnapshotService {
         return myClaims..addAll(descendantClaims);
       }
 
-      walkInspectorNode(treeJson, 0);
+      walkInspectorNode(startNode, startDepth);
 
       // Reorder nodes to be in depth-first order (parents before children)
       nodes.sort((a, b) {

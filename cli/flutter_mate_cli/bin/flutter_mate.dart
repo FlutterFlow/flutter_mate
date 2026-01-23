@@ -16,7 +16,11 @@ void main(List<String> arguments) async {
     ..addFlag('compact',
         abbr: 'c',
         negatable: false,
-        help: 'Compact mode: only show widgets with info (text, actions, etc)');
+        help: 'Compact mode: only show widgets with info (text, actions, etc)')
+    ..addOption('depth',
+        abbr: 'd', help: 'Limit snapshot tree depth (e.g., --depth 3)')
+    ..addOption('from',
+        abbr: 'f', help: 'Start snapshot from specific ref (e.g., --from w15)');
 
   // Add subcommands
   parser.addCommand('snapshot');
@@ -58,6 +62,9 @@ void main(List<String> arguments) async {
     final wsUri = results['uri'] as String?;
     final jsonOutput = results['json'] as bool;
     final compact = results['compact'] as bool;
+    final depthStr = results['depth'] as String?;
+    final depth = depthStr != null ? int.tryParse(depthStr) : null;
+    final fromRef = results['from'] as String?;
 
     if (wsUri == null) {
       stderr.writeln('Error: --uri is required');
@@ -103,6 +110,8 @@ void main(List<String> arguments) async {
       wsUri: uri,
       jsonOutput: jsonOutput,
       compact: compact,
+      depth: depth,
+      fromRef: fromRef,
     );
   } catch (e) {
     stderr.writeln('Error: $e');
@@ -116,6 +125,8 @@ Future<void> _executeCommand({
   required String wsUri,
   required bool jsonOutput,
   required bool compact,
+  int? depth,
+  String? fromRef,
 }) async {
   final client = VmServiceClient(wsUri);
 
@@ -124,7 +135,8 @@ Future<void> _executeCommand({
 
     switch (command) {
       case 'snapshot':
-        await _snapshot(client, jsonOutput, compact: compact);
+        await _snapshot(client, jsonOutput,
+            compact: compact, depth: depth, fromRef: fromRef);
         break;
       case 'tap':
         if (args.isEmpty) {
@@ -322,11 +334,17 @@ Future<void> _snapshot(
   VmServiceClient client,
   bool jsonOutput, {
   bool compact = false,
+  int? depth,
+  String? fromRef,
 }) async {
   try {
     // Get snapshot via FlutterMate service extension
-    // Pass compact to SDK for server-side filtering (much faster for large UIs)
-    final result = await client.getSnapshot(compact: compact);
+    // Pass options to SDK for server-side filtering
+    final result = await client.getSnapshot(
+      compact: compact,
+      depth: depth,
+      fromRef: fromRef,
+    );
     if (result['success'] != true) {
       stderr.writeln('Error: ${result['error']}');
       exit(1);
@@ -720,6 +738,7 @@ Connection:
 
 Commands:
   snapshot              Get UI snapshot (widget tree + semantics)
+                        Options: --compact/-c, --depth/-d N, --from/-f wX
   find <ref>            Get detailed info about an element
   tap <ref>             Tap on element (e.g., tap w123)
   doubleTap <ref>       Double tap element

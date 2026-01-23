@@ -208,16 +208,25 @@ Each line: `[ref] Widget (text) value="..." {state} [actions] (flags)`
 - Layout wrappers hidden (Padding, Center, etc.)
 - Indentation shows parent-child hierarchy
 
-## Compact Mode
+## Options
 
-Set compact=true to only show widgets with meaningful info.
-Hides purely structural widgets like `[w123] Row` or `[w456] Column`.''',
+- **compact**: Only show widgets with meaningful info
+- **depth**: Limit tree depth (e.g., depth=3 for top 3 levels)
+- **fromRef**: Start from specific element as root (e.g., fromRef="w15")''',
     annotations: ToolAnnotations(title: 'UI Snapshot', readOnlyHint: true),
     inputSchema: Schema.object(
       properties: {
         'compact': Schema.bool(
           description:
               'Only show widgets with info (text, actions, flags). Hides structural-only widgets.',
+        ),
+        'depth': Schema.int(
+          description:
+              'Limit tree depth. Useful for large UIs where you only need top-level structure.',
+        ),
+        'fromRef': Schema.string(
+          description:
+              'Start snapshot from this element as root (e.g., "w15"). Requires prior snapshot.',
         ),
       },
     ),
@@ -526,11 +535,19 @@ The image is returned as base64 data that can be displayed or analyzed.''',
 
   Future<CallToolResult> _handleSnapshot(CallToolRequest request) async {
     final compact = request.arguments?['compact'] as bool? ?? false;
+    final depth = request.arguments?['depth'] as int?;
+    final fromRef = request.arguments?['fromRef'] as String?;
 
-    // Pass compact to SDK for server-side filtering (much faster for large UIs)
+    // Build args map
+    final args = <String, String>{};
+    if (compact) args['compact'] = 'true';
+    if (depth != null) args['depth'] = depth.toString();
+    if (fromRef != null) args['fromRef'] = fromRef;
+
+    // Pass options to SDK for server-side filtering
     final result = await _callExtension(
       'ext.flutter_mate.snapshot',
-      args: compact ? {'compact': 'true'} : null,
+      args: args.isNotEmpty ? args : null,
     );
 
     if (result['success'] != true) {

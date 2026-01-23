@@ -117,14 +117,26 @@ class VmServiceClient {
   ///
   /// Returns widget tree with semantics. Requires FlutterMate.initialize() in the app.
   ///
-  /// If [compact] is true, only returns nodes with meaningful info (text,
-  /// semantics, actions, flags). This significantly reduces response size.
-  Future<Map<String, dynamic>> getSnapshot({bool compact = false}) async {
+  /// Options:
+  /// - [compact]: Only returns nodes with meaningful info (text, semantics,
+  ///   actions, flags). This significantly reduces response size.
+  /// - [depth]: Limit tree depth. Useful for large UIs.
+  /// - [fromRef]: Start from specific element as root. Requires prior snapshot.
+  Future<Map<String, dynamic>> getSnapshot({
+    bool compact = false,
+    int? depth,
+    String? fromRef,
+  }) async {
     _ensureConnected();
+
+    final args = <String, String>{};
+    if (compact) args['compact'] = 'true';
+    if (depth != null) args['depth'] = depth.toString();
+    if (fromRef != null) args['fromRef'] = fromRef;
 
     final result = await callExtension(
       'ext.flutter_mate.snapshot',
-      args: compact ? {'compact': 'true'} : null,
+      args: args.isNotEmpty ? args : null,
     );
 
     if (result['success'] == true) {

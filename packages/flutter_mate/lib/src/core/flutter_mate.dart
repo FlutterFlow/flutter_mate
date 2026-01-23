@@ -91,7 +91,8 @@ class FlutterMate {
 
   /// Set the last snapshot (for internal use by other SDK modules)
   // ignore: unnecessary_getters_setters
-  static set lastSnapshot(CombinedSnapshot? value) => _lastSnapshotValue = value;
+  static set lastSnapshot(CombinedSnapshot? value) =>
+      _lastSnapshotValue = value;
 
   /// Register a TextEditingController for use with fillByName
   ///

@@ -261,7 +261,8 @@ List<CollapsedEntry> collapseNodes(Map<String, CombinedNode> nodeMap) {
 
 /// Check if a collapsed entry has any meaningful info beyond just widget type.
 /// Uses [CombinedNode.hasAdditionalInfo] from flutter_mate_types.
-bool hasAdditionalInfo(CollapsedEntry entry, Map<String, CombinedNode> nodeMap) {
+bool hasAdditionalInfo(
+    CollapsedEntry entry, Map<String, CombinedNode> nodeMap) {
   // Check if any node in the chain has additional info
   for (final item in entry.chain) {
     final node = nodeMap[item.ref];

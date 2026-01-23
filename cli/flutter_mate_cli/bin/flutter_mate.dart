@@ -16,7 +16,8 @@ void main(List<String> arguments) async {
 
   // Add subcommands with their own options
   final snapshotParser = ArgParser()
-    ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help for snapshot')
+    ..addFlag('help',
+        abbr: 'h', negatable: false, help: 'Show help for snapshot')
     ..addFlag('compact',
         abbr: 'c',
         negatable: false,
@@ -25,15 +26,18 @@ void main(List<String> arguments) async {
         abbr: 'd', help: 'Limit tree depth (e.g., --depth 3 for top 3 levels)')
     ..addOption('from',
         abbr: 'f',
-        help: 'Start from specific ref as root (e.g., --from w15). Requires prior snapshot.');
+        help:
+            'Start from specific ref as root (e.g., --from w15). Requires prior snapshot.');
   parser.addCommand('snapshot', snapshotParser);
 
   final screenshotParser = ArgParser()
-    ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help for screenshot')
+    ..addFlag('help',
+        abbr: 'h', negatable: false, help: 'Show help for screenshot')
     ..addOption('ref',
         abbr: 'r', help: 'Capture specific element only (e.g., --ref w10)')
     ..addOption('path',
-        abbr: 'p', help: 'Output file path (default: screenshot_<timestamp>.png)');
+        abbr: 'p',
+        help: 'Output file path (default: screenshot_<timestamp>.png)');
   parser.addCommand('screenshot', screenshotParser);
 
   final tapParser = ArgParser()
@@ -41,15 +45,18 @@ void main(List<String> arguments) async {
   parser.addCommand('tap', tapParser);
 
   final setTextParser = ArgParser()
-    ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help for setText');
+    ..addFlag('help',
+        abbr: 'h', negatable: false, help: 'Show help for setText');
   parser.addCommand('setText', setTextParser);
 
   final typeTextParser = ArgParser()
-    ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help for typeText');
+    ..addFlag('help',
+        abbr: 'h', negatable: false, help: 'Show help for typeText');
   parser.addCommand('typeText', typeTextParser);
 
   final scrollParser = ArgParser()
-    ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help for scroll');
+    ..addFlag('help',
+        abbr: 'h', negatable: false, help: 'Show help for scroll');
   parser.addCommand('scroll', scrollParser);
 
   final findParser = ArgParser()
@@ -365,8 +372,10 @@ Future<void> _executeCommand({
         break;
       case 'screenshot':
         // Use parsed options or fallback to positional args
-        final ref = screenshotRef ?? (args.isNotEmpty && args[0].startsWith('w') ? args[0] : null);
-        final path = screenshotPath ?? (args.isNotEmpty && !args[0].startsWith('w') ? args[0] : null);
+        final ref = screenshotRef ??
+            (args.isNotEmpty && args[0].startsWith('w') ? args[0] : null);
+        final path = screenshotPath ??
+            (args.isNotEmpty && !args[0].startsWith('w') ? args[0] : null);
         await _screenshot(client, ref: ref, path: path);
         break;
       case 'extensions':
@@ -491,11 +500,13 @@ Future<void> _listExtensions(VmServiceClient client) async {
   }
 }
 
-Future<void> _screenshot(VmServiceClient client, {String? ref, String? path}) async {
+Future<void> _screenshot(VmServiceClient client,
+    {String? ref, String? path}) async {
   final params = <String, String>{};
   if (ref != null) params['ref'] = ref;
 
-  final result = await client.callExtension('ext.flutter_mate.screenshot', args: params);
+  final result =
+      await client.callExtension('ext.flutter_mate.screenshot', args: params);
 
   if (result['success'] != true) {
     stderr.writeln('Screenshot failed: ${result['error']}');

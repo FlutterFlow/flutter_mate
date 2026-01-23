@@ -155,7 +155,7 @@ class FlutterMateServiceExtensions {
         final depthStr = params['depth'];
         final maxDepth = depthStr != null ? int.tryParse(depthStr) : null;
         final fromRef = params['fromRef'];
-        
+
         final snap = await SnapshotService.snapshot(
           compact: compact,
           maxDepth: maxDepth,
@@ -487,7 +487,8 @@ class FlutterMateServiceExtensions {
               pixelRatio: pixelRatio);
         } else {
           // Capture full screen
-          base64 = await ScreenshotService.captureAsBase64(pixelRatio: pixelRatio);
+          base64 =
+              await ScreenshotService.captureAsBase64(pixelRatio: pixelRatio);
         }
 
         if (base64 == null) {

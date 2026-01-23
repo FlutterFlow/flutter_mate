@@ -32,6 +32,7 @@
 /// **Inspection:**
 /// - `snapshot` - Get UI tree with element refs (supports compact mode)
 /// - `find` - Get detailed info about a specific element
+/// - `screenshot` - Capture screenshot (full screen or specific element)
 ///
 /// **Touch Actions:**
 /// - `tap`, `doubleTap`, `longPress` - Tap actions

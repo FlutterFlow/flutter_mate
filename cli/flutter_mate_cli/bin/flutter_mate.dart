@@ -419,8 +419,23 @@ Future<void> _listExtensions(VmServiceClient client) async {
   }
 }
 
-Future<void> _screenshot(VmServiceClient client, String? path) async {
-  final result = await client.callExtension('ext.flutter_mate.screenshot');
+Future<void> _screenshot(VmServiceClient client, String? refOrPath) async {
+  // If arg looks like a ref (starts with 'w'), pass it as ref
+  // Otherwise treat it as output path
+  String? ref;
+  String? path;
+  if (refOrPath != null) {
+    if (refOrPath.startsWith('w') && RegExp(r'^w\d+$').hasMatch(refOrPath)) {
+      ref = refOrPath;
+    } else {
+      path = refOrPath;
+    }
+  }
+
+  final params = <String, String>{};
+  if (ref != null) params['ref'] = ref;
+
+  final result = await client.callExtension('ext.flutter_mate.screenshot', args: params);
 
   if (result['success'] != true) {
     stderr.writeln('Screenshot failed: ${result['error']}');
@@ -435,18 +450,19 @@ Future<void> _screenshot(VmServiceClient client, String? path) async {
     parsed = data;
   }
 
-  if (parsed == null || parsed['data'] == null) {
+  // Support both 'data' (old) and 'image' (new) field names
+  final base64Data = parsed?['image'] ?? parsed?['data'];
+  if (base64Data == null) {
     stderr.writeln('Screenshot failed: no image data');
     return;
   }
 
-  final base64Data = parsed['data'] as String;
-  final bytes = base64Decode(base64Data);
+  final bytes = base64Decode(base64Data as String);
 
   final outputPath =
       path ?? 'screenshot_${DateTime.now().millisecondsSinceEpoch}.png';
   File(outputPath).writeAsBytesSync(bytes);
-  print('✅ Screenshot saved to $outputPath');
+  print('✅ Screenshot saved to $outputPath (${bytes.length} bytes)');
 }
 
 Future<void> _interactiveMode(VmServiceClient client) async {

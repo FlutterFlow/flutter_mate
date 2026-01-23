@@ -225,8 +225,18 @@ Most actions try Tier 1 first, then fall back to Tier 2:
 |--------|-------------|
 | `initialize()` | Initialize FlutterMate (call once at startup) |
 | `dispose()` | Clean up resources |
-| `snapshot()` | Get UI tree with refs, labels, actions |
+| `snapshot({compact, depth, fromRef})` | Get UI tree with refs, labels, actions |
+| `screenshot({ref})` | Capture screenshot (full screen or element) |
+| `annotatedScreenshot()` | Screenshot with ref labels overlaid |
 | `waitFor(pattern, {timeout})` | Wait for element matching pattern |
+
+#### Snapshot Options
+
+| Option | Description |
+|--------|-------------|
+| `compact: true` | Only show widgets with meaningful info |
+| `depth: 3` | Limit tree depth (for large UIs) |
+| `fromRef: "w15"` | Start tree from specific element as root |
 
 ### Actions (Automatic Tier Selection)
 
@@ -276,6 +286,11 @@ flutter_mate --uri <ws://...> <command> [args]
 Commands:
   snapshot              Get UI tree (collapsed format)
   snapshot -c           Compact mode: only widgets with info
+  snapshot --depth 3    Limit tree depth
+  snapshot --from w15   Start from specific element as root
+  screenshot            Capture full screenshot (saves to file)
+  screenshot <ref>      Capture element screenshot
+  screenshot -a         Annotated screenshot with ref labels
   tap <ref>             Tap element (semantic → gesture fallback)
   doubleTap <ref>       Double tap element
   longPress <ref>       Long press element
@@ -312,7 +327,9 @@ When using the MCP server, the following tools are available:
 | Tool | Description |
 |------|-------------|
 | `connect` | Connect to a Flutter app by VM Service URI |
-| `snapshot` | Get UI tree with element refs (supports `compact` mode) |
+| `snapshot` | Get UI tree with element refs (`compact`, `depth`, `fromRef` options) |
+| `screenshot` | Capture screenshot (full screen or specific element) |
+| `annotatedScreenshot` | Screenshot with ref labels overlaid for visual grounding |
 | `find` | Get detailed element info by ref |
 | `tap` | Tap element by ref |
 | `doubleTap` | Double tap element |
@@ -479,6 +496,38 @@ Service extensions (`ext.flutter_mate.*`) expose the SDK functionality via VM Se
 
 ---
 
+## Why Flutter Mate?
+
+Flutter apps render to a canvas, making them opaque to standard platform accessibility and automation tools. While Flutter has a semantics tree, it often doesn't work well with external agents:
+
+1. **Incomplete semantics** — Many widgets don't expose proper accessibility info
+2. **Broken control** — Platform accessibility actions often don't trigger Flutter handlers
+3. **Platform gaps** — Desktop platforms (macOS, Windows) have weaker accessibility bridges
+
+Flutter Mate bypasses these issues by connecting directly to Flutter's internals via VM Service, giving AI agents reliable access to the widget tree and control mechanisms.
+
+### Hybrid Agent Support
+
+For maximum reliability, Flutter Mate supports both **structured** and **visual** approaches:
+
+| Approach | Use Case |
+|----------|----------|
+| **Structured snapshot** | Precise interaction via refs, querying state, finding elements |
+| **Screenshot** | Visual verification, understanding context, handling custom paint |
+| **Annotated screenshot** | Visual grounding with ref labels for coordinate-free interaction |
+
+```dart
+// Structured: precise interaction
+final snapshot = await FlutterMate.snapshot();
+await FlutterMate.tap('w15');
+
+// Visual: verification and context
+final image = await FlutterMate.screenshot();
+final annotated = await FlutterMate.annotatedScreenshot();
+```
+
+---
+
 ## Project Structure
 
 ```
@@ -523,11 +572,13 @@ flutter_mate/
 - [x] MCP Server for AI agent integration
 - [x] Collapsed snapshot format (bounds-based, layout wrapper hiding)
 - [x] Text content extraction for widgets
-- [ ] Screenshot capture
+- [ ] Screenshot capture (full screen and element-level)
+- [ ] Annotated screenshots (ref labels overlaid for visual grounding)
+- [ ] Progressive snapshot options (depth limit, subtree from ref)
+- [ ] Hybrid agent support (structured + visual)
 - [ ] Record & replay
 - [ ] Test generation from recordings
 - [ ] Web platform JS injection (zero-code automation)
-- [ ] Visual element matching (fallback)
 
 ---
 

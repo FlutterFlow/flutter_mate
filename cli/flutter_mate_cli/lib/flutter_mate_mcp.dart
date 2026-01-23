@@ -7,6 +7,7 @@
 /// - `connect` - Connect to a running Flutter app via VM Service
 /// - `snapshot` - Capture UI tree with element refs (collapsed view)
 /// - `find` - Get detailed info about a specific element
+/// - `screenshot` - Capture screenshot (full screen or specific element)
 /// - `tap` - Tap element (tries semantic action, falls back to gesture)
 /// - `doubleTap` - Double tap an element
 /// - `longPress` - Long press an element
@@ -115,6 +116,7 @@ base mixin FlutterMateSupport on ToolsSupport {
     registerTool(_hoverTool, _handleHover);
     registerTool(_dragTool, _handleDrag);
     registerTool(_waitForTool, _handleWaitFor);
+    registerTool(_screenshotTool, _handleScreenshot);
 
     return super.initialize(request);
   }
@@ -462,6 +464,26 @@ and children. Useful for inspecting a specific element after taking a snapshot.'
     ),
   );
 
+  static final _screenshotTool = Tool(
+    name: 'screenshot',
+    description: '''Capture a screenshot of the Flutter app.
+
+Returns a base64-encoded PNG image. Can capture:
+- Full screen (no ref provided)
+- Specific element (provide ref)
+
+The image is returned as base64 data that can be displayed or analyzed.''',
+    annotations: ToolAnnotations(title: 'Screenshot', readOnlyHint: true),
+    inputSchema: Schema.object(
+      properties: {
+        'ref': Schema.string(
+          description:
+              'Optional element ref to capture. If omitted, captures full screen.',
+        ),
+      },
+    ),
+  );
+
   // ══════════════════════════════════════════════════════════════════════════
   // Tool Handlers
   // ══════════════════════════════════════════════════════════════════════════
@@ -804,6 +826,51 @@ and children. Useful for inspecting a specific element after taking a snapshot.'
     final lines = formatElementDetails(element);
     return CallToolResult(
       content: [TextContent(text: lines.join('\n'))],
+    );
+  }
+
+  Future<CallToolResult> _handleScreenshot(CallToolRequest request) async {
+    final ref = request.arguments?['ref'] as String?;
+
+    final args = <String, String>{};
+    if (ref != null && ref.isNotEmpty) {
+      args['ref'] = ref;
+    }
+
+    final result = await _callExtension(
+      'ext.flutter_mate.screenshot',
+      args: args.isNotEmpty ? args : null,
+    );
+
+    if (result['success'] != true) {
+      return CallToolResult(
+        content: [
+          TextContent(
+            text: '❌ Screenshot failed: ${result['error'] ?? 'Unknown error'}',
+          ),
+        ],
+        isError: true,
+      );
+    }
+
+    final data = _parseResult(result['result']);
+    final base64Image = data?['image'] as String?;
+
+    if (base64Image == null) {
+      return CallToolResult(
+        content: [TextContent(text: '❌ Screenshot failed: no image data')],
+        isError: true,
+      );
+    }
+
+    // Return as base64 image content
+    return CallToolResult(
+      content: [
+        ImageContent(
+          data: base64Image,
+          mimeType: 'image/png',
+        ),
+      ],
     );
   }
 

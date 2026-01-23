@@ -7,6 +7,7 @@ import '../actions/semantic_actions.dart';
 import '../actions/gesture_actions.dart';
 import '../actions/keyboard_actions.dart';
 import '../snapshot/snapshot.dart';
+import '../snapshot/screenshot.dart';
 
 /// VM Service extensions for external control via CLI/MCP.
 ///
@@ -459,6 +460,37 @@ class FlutterMateServiceExtensions {
         return ServiceExtensionResponse.result(jsonEncode({
           'success': true,
           'element': node.toJson(),
+        }));
+      });
+
+      // ext.flutter_mate.screenshot - Capture screenshot of entire app
+      registerExtension('ext.flutter_mate.screenshot', (method, params) async {
+        final ref = params['ref'];
+        final pixelRatio =
+            double.tryParse(params['pixelRatio'] ?? '1.0') ?? 1.0;
+
+        String? base64;
+        if (ref != null && ref.isNotEmpty) {
+          // Capture specific element
+          base64 = await ScreenshotService.captureElementAsBase64(ref,
+              pixelRatio: pixelRatio);
+        } else {
+          // Capture full screen
+          base64 = await ScreenshotService.captureAsBase64(pixelRatio: pixelRatio);
+        }
+
+        if (base64 == null) {
+          return ServiceExtensionResponse.result(jsonEncode({
+            'success': false,
+            'error': 'Screenshot capture failed',
+          }));
+        }
+
+        return ServiceExtensionResponse.result(jsonEncode({
+          'success': true,
+          'image': base64,
+          'format': 'png',
+          'encoding': 'base64',
         }));
       });
 

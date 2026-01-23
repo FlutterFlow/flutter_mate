@@ -63,6 +63,7 @@ export 'src/core/service_extensions.dart' show ScrollDirection;
 export 'src/snapshot/combined_snapshot.dart'
     show CombinedSnapshot, CombinedNode, SemanticsInfo, CombinedRect;
 export 'src/snapshot/snapshot.dart' show SnapshotService;
+export 'src/snapshot/screenshot.dart' show ScreenshotService;
 
 // Actions (also accessible via FlutterMate facade)
 export 'src/actions/semantic_actions.dart'

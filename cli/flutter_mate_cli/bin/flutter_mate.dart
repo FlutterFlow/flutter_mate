@@ -12,21 +12,52 @@ void main(List<String> arguments) async {
     ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help')
     ..addFlag('version', abbr: 'v', negatable: false, help: 'Show version')
     ..addOption('uri', abbr: 'u', help: 'VM Service WebSocket URI (ws://...)')
-    ..addFlag('json', abbr: 'j', negatable: false, help: 'Output as JSON')
+    ..addFlag('json', abbr: 'j', negatable: false, help: 'Output as JSON');
+
+  // Add subcommands with their own options
+  final snapshotParser = ArgParser()
+    ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help for snapshot')
     ..addFlag('compact',
         abbr: 'c',
         negatable: false,
-        help: 'Compact mode: only show widgets with info (text, actions, etc)')
+        help: 'Only show widgets with meaningful info (text, actions, flags)')
     ..addOption('depth',
-        abbr: 'd', help: 'Limit snapshot tree depth (e.g., --depth 3)')
+        abbr: 'd', help: 'Limit tree depth (e.g., --depth 3 for top 3 levels)')
     ..addOption('from',
-        abbr: 'f', help: 'Start snapshot from specific ref (e.g., --from w15)');
+        abbr: 'f',
+        help: 'Start from specific ref as root (e.g., --from w15). Requires prior snapshot.');
+  parser.addCommand('snapshot', snapshotParser);
 
-  // Add subcommands
-  parser.addCommand('snapshot');
-  parser.addCommand('tap');
+  final screenshotParser = ArgParser()
+    ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help for screenshot')
+    ..addOption('ref',
+        abbr: 'r', help: 'Capture specific element only (e.g., --ref w10)')
+    ..addOption('path',
+        abbr: 'p', help: 'Output file path (default: screenshot_<timestamp>.png)');
+  parser.addCommand('screenshot', screenshotParser);
+
+  final tapParser = ArgParser()
+    ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help for tap');
+  parser.addCommand('tap', tapParser);
+
+  final setTextParser = ArgParser()
+    ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help for setText');
+  parser.addCommand('setText', setTextParser);
+
+  final typeTextParser = ArgParser()
+    ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help for typeText');
+  parser.addCommand('typeText', typeTextParser);
+
+  final scrollParser = ArgParser()
+    ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help for scroll');
+  parser.addCommand('scroll', scrollParser);
+
+  final findParser = ArgParser()
+    ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help for find');
+  parser.addCommand('find', findParser);
+
+  // Simple commands without extra options
   parser.addCommand('fill');
-  parser.addCommand('scroll');
   parser.addCommand('focus');
   parser.addCommand('doubleTap');
   parser.addCommand('longPress');
@@ -34,17 +65,14 @@ void main(List<String> arguments) async {
   parser.addCommand('hover');
   parser.addCommand('drag');
   parser.addCommand('clear');
-  parser.addCommand('typeText');
   parser.addCommand('pressKey');
   parser.addCommand('keyDown');
   parser.addCommand('keyUp');
   parser.addCommand('back');
   parser.addCommand('wait');
   parser.addCommand('getText');
-  parser.addCommand('find');
-  parser.addCommand('screenshot');
-  parser.addCommand('extensions'); // List available extensions
-  parser.addCommand('attach'); // Interactive mode
+  parser.addCommand('extensions');
+  parser.addCommand('attach');
 
   try {
     final results = parser.parse(arguments);
@@ -61,10 +89,46 @@ void main(List<String> arguments) async {
 
     final wsUri = results['uri'] as String?;
     final jsonOutput = results['json'] as bool;
-    final compact = results['compact'] as bool;
-    final depthStr = results['depth'] as String?;
-    final depth = depthStr != null ? int.tryParse(depthStr) : null;
-    final fromRef = results['from'] as String?;
+
+    // Determine command first to check for subcommand help
+    String command;
+    List<String> cmdArgs;
+    ArgResults? cmdResults;
+
+    if (results.command != null) {
+      command = results.command!.name!;
+      cmdArgs = results.command!.rest;
+      cmdResults = results.command;
+    } else if (results.rest.isNotEmpty) {
+      command = results.rest[0];
+      cmdArgs = results.rest.skip(1).toList();
+    } else {
+      _printUsage(parser);
+      return;
+    }
+
+    // Check for subcommand help
+    if (cmdResults != null && cmdResults['help'] == true) {
+      _printCommandHelp(command, parser);
+      return;
+    }
+
+    // Parse command-specific options
+    bool compact = false;
+    int? depth;
+    String? fromRef;
+    String? screenshotRef;
+    String? screenshotPath;
+
+    if (command == 'snapshot' && cmdResults != null) {
+      compact = cmdResults['compact'] as bool? ?? false;
+      final depthStr = cmdResults['depth'] as String?;
+      depth = depthStr != null ? int.tryParse(depthStr) : null;
+      fromRef = cmdResults['from'] as String?;
+    } else if (command == 'screenshot' && cmdResults != null) {
+      screenshotRef = cmdResults['ref'] as String?;
+      screenshotPath = cmdResults['path'] as String?;
+    }
 
     if (wsUri == null) {
       stderr.writeln('Error: --uri is required');
@@ -89,29 +153,16 @@ void main(List<String> arguments) async {
       uri = uri.endsWith('/') ? '${uri}ws' : '$uri/ws';
     }
 
-    // Determine command
-    String command;
-    List<String> args;
-
-    if (results.command != null) {
-      command = results.command!.name!;
-      args = results.command!.rest;
-    } else if (results.rest.isNotEmpty) {
-      command = results.rest[0];
-      args = results.rest.skip(1).toList();
-    } else {
-      _printUsage(parser);
-      return;
-    }
-
     await _executeCommand(
       command: command,
-      args: args,
+      args: cmdArgs,
       wsUri: uri,
       jsonOutput: jsonOutput,
       compact: compact,
       depth: depth,
       fromRef: fromRef,
+      screenshotRef: screenshotRef,
+      screenshotPath: screenshotPath,
     );
   } catch (e) {
     stderr.writeln('Error: $e');
@@ -127,6 +178,8 @@ Future<void> _executeCommand({
   required bool compact,
   int? depth,
   String? fromRef,
+  String? screenshotRef,
+  String? screenshotPath,
 }) async {
   final client = VmServiceClient(wsUri);
 
@@ -311,9 +364,10 @@ Future<void> _executeCommand({
         }
         break;
       case 'screenshot':
-        // Screenshots require special handling - not pure VM
-        stderr.writeln('Note: screenshot requires FlutterMate extension');
-        await _screenshot(client, args.isNotEmpty ? args[0] : null);
+        // Use parsed options or fallback to positional args
+        final ref = screenshotRef ?? (args.isNotEmpty && args[0].startsWith('w') ? args[0] : null);
+        final path = screenshotPath ?? (args.isNotEmpty && !args[0].startsWith('w') ? args[0] : null);
+        await _screenshot(client, ref: ref, path: path);
         break;
       case 'extensions':
         await _listExtensions(client);
@@ -437,19 +491,7 @@ Future<void> _listExtensions(VmServiceClient client) async {
   }
 }
 
-Future<void> _screenshot(VmServiceClient client, String? refOrPath) async {
-  // If arg looks like a ref (starts with 'w'), pass it as ref
-  // Otherwise treat it as output path
-  String? ref;
-  String? path;
-  if (refOrPath != null) {
-    if (refOrPath.startsWith('w') && RegExp(r'^w\d+$').hasMatch(refOrPath)) {
-      ref = refOrPath;
-    } else {
-      path = refOrPath;
-    }
-  }
-
+Future<void> _screenshot(VmServiceClient client, {String? ref, String? path}) async {
   final params = <String, String>{};
   if (ref != null) params['ref'] = ref;
 
@@ -481,6 +523,145 @@ Future<void> _screenshot(VmServiceClient client, String? refOrPath) async {
       path ?? 'screenshot_${DateTime.now().millisecondsSinceEpoch}.png';
   File(outputPath).writeAsBytesSync(bytes);
   print('✅ Screenshot saved to $outputPath (${bytes.length} bytes)');
+}
+
+/// Print help for a specific command
+void _printCommandHelp(String command, ArgParser parser) {
+  switch (command) {
+    case 'snapshot':
+      print('''
+snapshot - Capture UI tree with element refs
+
+Usage: flutter_mate --uri <ws://...> snapshot [options]
+
+Options:
+${parser.commands['snapshot']!.usage}
+
+Examples:
+  # Full snapshot
+  flutter_mate --uri ws://... snapshot
+
+  # Compact mode - only widgets with text/actions
+  flutter_mate --uri ws://... snapshot -c
+
+  # Limit depth to 3 levels
+  flutter_mate --uri ws://... snapshot --depth 3
+
+  # Start from specific element (requires prior snapshot)
+  flutter_mate --uri ws://... snapshot --from w6
+
+  # Combine options
+  flutter_mate --uri ws://... snapshot -c --depth 2 --from w10
+''');
+      break;
+    case 'screenshot':
+      print('''
+screenshot - Capture screenshot of the Flutter app
+
+Usage: flutter_mate --uri <ws://...> screenshot [options]
+
+Options:
+${parser.commands['screenshot']!.usage}
+
+Examples:
+  # Full screen screenshot
+  flutter_mate --uri ws://... screenshot
+
+  # Save to specific file
+  flutter_mate --uri ws://... screenshot --path my_screenshot.png
+
+  # Capture specific element only
+  flutter_mate --uri ws://... screenshot --ref w10
+
+  # Combine options
+  flutter_mate --uri ws://... screenshot --ref w5 --path button.png
+''');
+      break;
+    case 'tap':
+      print('''
+tap - Tap on an element
+
+Usage: flutter_mate --uri <ws://...> tap <ref>
+
+Arguments:
+  ref    Element ref from snapshot (e.g., w5, w10)
+
+Behavior:
+  Tries semantic tap action first, falls back to gesture injection.
+
+Examples:
+  flutter_mate --uri ws://... tap w10
+  flutter_mate --uri ws://... tap w25
+''');
+      break;
+    case 'setText':
+      print('''
+setText - Set text field value via semantic action
+
+Usage: flutter_mate --uri <ws://...> setText <ref> <text>
+
+Arguments:
+  ref     Text field ref from snapshot
+  text    Text to set in the field
+
+Use for widgets with (TextField) flag. For keyboard simulation, use typeText.
+
+Examples:
+  flutter_mate --uri ws://... setText w5 "hello@example.com"
+  flutter_mate --uri ws://... setText w9 "my password"
+''');
+      break;
+    case 'typeText':
+      print('''
+typeText - Type text using keyboard simulation
+
+Usage: flutter_mate --uri <ws://...> typeText <ref> <text>
+
+Arguments:
+  ref     Element ref to type into
+  text    Text to type character by character
+
+Taps to focus first, then simulates keyboard input.
+Use when you need to trigger onChanged callbacks during typing.
+
+Examples:
+  flutter_mate --uri ws://... typeText w10 "hello world"
+''');
+      break;
+    case 'scroll':
+      print('''
+scroll - Scroll a scrollable element
+
+Usage: flutter_mate --uri <ws://...> scroll <ref> [direction]
+
+Arguments:
+  ref         Scrollable element ref
+  direction   up, down, left, right (default: down)
+
+Examples:
+  flutter_mate --uri ws://... scroll w15 down
+  flutter_mate --uri ws://... scroll w20 up
+''');
+      break;
+    case 'find':
+      print('''
+find - Get detailed info about an element
+
+Usage: flutter_mate --uri <ws://...> find <ref>
+
+Arguments:
+  ref    Element ref from snapshot
+
+Returns bounds, semantics, text content, and available actions.
+
+Examples:
+  flutter_mate --uri ws://... find w10
+''');
+      break;
+    default:
+      print('No detailed help available for: $command');
+      print('Use flutter_mate --help for general usage.');
+  }
 }
 
 Future<void> _interactiveMode(VmServiceClient client) async {
@@ -679,7 +860,7 @@ Future<void> _interactiveMode(VmServiceClient client) async {
           break;
         case 'screenshot':
         case 'ss':
-          await _screenshot(client, null);
+          await _screenshot(client);
           break;
         case 'extensions':
         case 'ext':

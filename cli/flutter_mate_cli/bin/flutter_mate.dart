@@ -63,6 +63,34 @@ void main(List<String> arguments) async {
     ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help for find');
   parser.addCommand('find', findParser);
 
+  // Wait commands with options
+  final waitForParser = ArgParser()
+    ..addFlag('help',
+        abbr: 'h', negatable: false, help: 'Show help for waitFor')
+    ..addOption('timeout',
+        abbr: 't', help: 'Timeout in milliseconds (default: 5000)')
+    ..addOption('poll',
+        abbr: 'p', help: 'Polling interval in milliseconds (default: 200)');
+  parser.addCommand('waitFor', waitForParser);
+
+  final waitForDisappearParser = ArgParser()
+    ..addFlag('help',
+        abbr: 'h', negatable: false, help: 'Show help for waitForDisappear')
+    ..addOption('timeout',
+        abbr: 't', help: 'Timeout in milliseconds (default: 5000)')
+    ..addOption('poll',
+        abbr: 'p', help: 'Polling interval in milliseconds (default: 200)');
+  parser.addCommand('waitForDisappear', waitForDisappearParser);
+
+  final waitForValueParser = ArgParser()
+    ..addFlag('help',
+        abbr: 'h', negatable: false, help: 'Show help for waitForValue')
+    ..addOption('timeout',
+        abbr: 't', help: 'Timeout in milliseconds (default: 5000)')
+    ..addOption('poll',
+        abbr: 'p', help: 'Polling interval in milliseconds (default: 200)');
+  parser.addCommand('waitForValue', waitForValueParser);
+
   // Simple commands without extra options
   parser.addCommand('fill');
   parser.addCommand('focus');
@@ -137,6 +165,19 @@ void main(List<String> arguments) async {
       screenshotPath = cmdResults['path'] as String?;
     }
 
+    // Parse wait command options
+    int? waitTimeout;
+    int? waitPoll;
+    if ((command == 'waitFor' ||
+            command == 'waitForDisappear' ||
+            command == 'waitForValue') &&
+        cmdResults != null) {
+      final timeoutStr = cmdResults['timeout'] as String?;
+      final pollStr = cmdResults['poll'] as String?;
+      waitTimeout = timeoutStr != null ? int.tryParse(timeoutStr) : null;
+      waitPoll = pollStr != null ? int.tryParse(pollStr) : null;
+    }
+
     if (wsUri == null) {
       stderr.writeln('Error: --uri is required');
       stderr.writeln('');
@@ -170,6 +211,8 @@ void main(List<String> arguments) async {
       fromRef: fromRef,
       screenshotRef: screenshotRef,
       screenshotPath: screenshotPath,
+      waitTimeout: waitTimeout,
+      waitPoll: waitPoll,
     );
   } catch (e) {
     stderr.writeln('Error: $e');
@@ -187,6 +230,8 @@ Future<void> _executeCommand({
   String? fromRef,
   String? screenshotRef,
   String? screenshotPath,
+  int? waitTimeout,
+  int? waitPoll,
 }) async {
   final client = VmServiceClient(wsUri);
 
@@ -341,6 +386,70 @@ Future<void> _executeCommand({
         }
         await Future.delayed(Duration(milliseconds: ms));
         print('✅ Waited ${ms}ms');
+        break;
+      case 'waitFor':
+        if (args.isEmpty) {
+          stderr.writeln(
+              'Error: waitFor requires a pattern (e.g., waitFor "Loading")');
+          exit(1);
+        }
+        final waitForResult = await client.waitFor(
+          args[0],
+          timeout: Duration(milliseconds: waitTimeout ?? 5000),
+          pollInterval: Duration(milliseconds: waitPoll ?? 200),
+        );
+        if (jsonOutput) {
+          print(const JsonEncoder.withIndent('  ').convert(waitForResult));
+        } else if (waitForResult['success'] == true) {
+          print(
+              '✅ Found: ${waitForResult['ref']} (matched: "${waitForResult['matchedText']}")');
+        } else {
+          stderr.writeln(
+              '❌ ${waitForResult['error'] ?? 'Element not found'}');
+        }
+        break;
+      case 'waitForDisappear':
+        if (args.isEmpty) {
+          stderr.writeln(
+              'Error: waitForDisappear requires a pattern (e.g., waitForDisappear "Loading")');
+          exit(1);
+        }
+        final waitForDisappearResult = await client.waitForDisappear(
+          args[0],
+          timeout: Duration(milliseconds: waitTimeout ?? 5000),
+          pollInterval: Duration(milliseconds: waitPoll ?? 200),
+        );
+        if (jsonOutput) {
+          print(const JsonEncoder.withIndent('  ')
+              .convert(waitForDisappearResult));
+        } else if (waitForDisappearResult['success'] == true) {
+          print('✅ Element disappeared');
+        } else {
+          stderr.writeln(
+              '❌ ${waitForDisappearResult['error'] ?? 'Element still present'}');
+        }
+        break;
+      case 'waitForValue':
+        if (args.length < 2) {
+          stderr.writeln(
+              'Error: waitForValue requires ref and pattern (e.g., waitForValue w10 "success")');
+          exit(1);
+        }
+        final waitForValueResult = await client.waitForValue(
+          args[0],
+          args[1],
+          timeout: Duration(milliseconds: waitTimeout ?? 5000),
+          pollInterval: Duration(milliseconds: waitPoll ?? 200),
+        );
+        if (jsonOutput) {
+          print(
+              const JsonEncoder.withIndent('  ').convert(waitForValueResult));
+        } else if (waitForValueResult['success'] == true) {
+          print('✅ Value matched: "${waitForValueResult['matchedText']}"');
+        } else {
+          stderr.writeln(
+              '❌ ${waitForValueResult['error'] ?? 'Value did not match'}');
+        }
         break;
       case 'getText':
         if (args.isEmpty) {
@@ -669,6 +778,82 @@ Examples:
   flutter_mate --uri ws://... find w10
 ''');
       break;
+    case 'waitFor':
+      print('''
+waitFor - Wait for an element to appear
+
+Usage: flutter_mate --uri <ws://...> waitFor <pattern> [options]
+
+Arguments:
+  pattern    Regex pattern to match against element text/label/value
+
+Options:
+${parser.commands['waitFor']!.usage}
+
+Searches (in order): textContent, semantics.label, semantics.value, semantics.hint.
+Returns when an element matching the pattern is found, or times out.
+
+Examples:
+  # Wait for "Dashboard" text to appear
+  flutter_mate --uri ws://... waitFor "Dashboard"
+
+  # Wait with custom timeout (10 seconds)
+  flutter_mate --uri ws://... waitFor "Loading complete" --timeout 10000
+
+  # Faster polling for responsive checks
+  flutter_mate --uri ws://... waitFor "Ready" --poll 100
+''');
+      break;
+    case 'waitForDisappear':
+      print('''
+waitForDisappear - Wait for an element to disappear
+
+Usage: flutter_mate --uri <ws://...> waitForDisappear <pattern> [options]
+
+Arguments:
+  pattern    Regex pattern to match against element text/label/value
+
+Options:
+${parser.commands['waitForDisappear']!.usage}
+
+Waits until no element matches the pattern, or times out.
+Useful for waiting for loading spinners, dialogs, or overlays to go away.
+
+Examples:
+  # Wait for loading spinner to disappear
+  flutter_mate --uri ws://... waitForDisappear "Loading"
+
+  # Wait for dialog to close
+  flutter_mate --uri ws://... waitForDisappear "Are you sure" --timeout 10000
+''');
+      break;
+    case 'waitForValue':
+      print('''
+waitForValue - Wait for an element's value to match a pattern
+
+Usage: flutter_mate --uri <ws://...> waitForValue <ref> <pattern> [options]
+
+Arguments:
+  ref        Element ref to watch (e.g., w10)
+  pattern    Regex pattern to match against the element's text/value
+
+Options:
+${parser.commands['waitForValue']!.usage}
+
+Polls the specific element until its text content or semantic value matches.
+Useful for waiting for form validation, async data loading, or state changes.
+
+Examples:
+  # Wait for validation message
+  flutter_mate --uri ws://... waitForValue w15 "Valid email"
+
+  # Wait for counter to reach value
+  flutter_mate --uri ws://... waitForValue w20 "^10\$"
+
+  # Wait for field to be filled
+  flutter_mate --uri ws://... waitForValue w10 ".+" --timeout 3000
+''');
+      break;
     default:
       print('No detailed help available for: $command');
       print('Use flutter_mate --help for general usage.');
@@ -842,6 +1027,48 @@ Future<void> _interactiveMode(VmServiceClient client) async {
             print('✅ Waited ${ms}ms');
           }
           break;
+        case 'waitFor':
+        case 'wf':
+          if (args.isEmpty) {
+            print('Usage: waitFor <pattern> [timeout_ms]');
+          } else {
+            final timeout = args.length > 1 ? int.tryParse(args[1]) ?? 5000 : 5000;
+            final r = await client.waitFor(args[0], timeout: Duration(milliseconds: timeout));
+            if (r['success'] == true) {
+              print('✅ Found: ${r['ref']} (matched: "${r['matchedText']}")');
+            } else {
+              print('❌ ${r['error'] ?? 'Not found'}');
+            }
+          }
+          break;
+        case 'waitForDisappear':
+        case 'wfd':
+          if (args.isEmpty) {
+            print('Usage: waitForDisappear <pattern> [timeout_ms]');
+          } else {
+            final timeout = args.length > 1 ? int.tryParse(args[1]) ?? 5000 : 5000;
+            final r = await client.waitForDisappear(args[0], timeout: Duration(milliseconds: timeout));
+            if (r['success'] == true) {
+              print('✅ Element disappeared');
+            } else {
+              print('❌ ${r['error'] ?? 'Still present'}');
+            }
+          }
+          break;
+        case 'waitForValue':
+        case 'wfv':
+          if (args.length < 2) {
+            print('Usage: waitForValue <ref> <pattern> [timeout_ms]');
+          } else {
+            final timeout = args.length > 2 ? int.tryParse(args[2]) ?? 5000 : 5000;
+            final r = await client.waitForValue(args[0], args[1], timeout: Duration(milliseconds: timeout));
+            if (r['success'] == true) {
+              print('✅ Value matched: "${r['matchedText']}"');
+            } else {
+              print('❌ ${r['error'] ?? 'Did not match'}');
+            }
+          }
+          break;
         case 'getText':
         case 'text':
           if (args.isEmpty) {
@@ -898,6 +1125,9 @@ Future<void> _interactiveMode(VmServiceClient client) async {
           print('  keyup, ku <key>  - Release key');
           print('  back             - Navigate back');
           print('  wait <ms>        - Wait milliseconds');
+          print('  waitFor, wf <pattern> [timeout] - Wait for element to appear');
+          print('  waitForDisappear, wfd <pattern> - Wait for element to disappear');
+          print('  waitForValue, wfv <ref> <pattern> - Wait for value match');
           print('  getText, text <ref> - Get element text');
           print('  find, info <ref> - Get detailed element info');
           print('  screenshot, ss   - Take screenshot');
@@ -948,6 +1178,9 @@ Commands:
   focus <ref>           Focus on element
   back                  Navigate back
   wait <ms>             Wait milliseconds
+  waitFor <pattern>     Wait for element to appear (--timeout, --poll)
+  waitForDisappear <p>  Wait for element to disappear
+  waitForValue <ref> <p> Wait for element value to match pattern
   getText <ref>         Get element text
   screenshot [path]     Take screenshot
   extensions            List available service extensions

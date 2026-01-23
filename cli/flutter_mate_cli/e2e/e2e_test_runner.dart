@@ -114,6 +114,13 @@ Future<void> main(List<String> args) async {
       () => _testFindByLabel(client!),
     ], results);
 
+    await _runTestSuite('Wait Tests', [
+      () => _testWaitFor(client!),
+      () => _testWaitForDisappear(client!),
+      () => _testWaitForValue(client!),
+      () => _testWaitForTimeout(client!),
+    ], results);
+
     // 5. Report results
     print('');
     print('${'═' * 60}');
@@ -838,6 +845,112 @@ Future<void> _testFindByLabel(VmServiceClient client) async {
 
   _assert(foundNode != null, 'Should find element with a known label');
   _assert(foundNode!['ref'] != null, 'Should have ref');
+}
+
+// ============================================================================
+// Wait Tests
+// ============================================================================
+
+Future<void> _testWaitFor(VmServiceClient client) async {
+  // waitFor should find an existing element
+  // On the current page (login or dashboard), there should be some text
+
+  // First, let's find what's on the page
+  final snapshot = await client.getSnapshot();
+  final nodes = snapshot['nodes'] as List;
+
+  // Find any text that exists
+  String? existingText;
+  for (final n in nodes) {
+    final node = n as Map<String, dynamic>;
+    final textContent = node['textContent'] as String?;
+    if (textContent != null && textContent.length > 2) {
+      existingText = textContent;
+      break;
+    }
+    final semantics = node['semantics'] as Map?;
+    final label = semantics?['label'] as String?;
+    if (label != null && label.length > 2) {
+      existingText = label;
+      break;
+    }
+  }
+
+  _assert(existingText != null, 'Should find some existing text to wait for');
+
+  // Now waitFor should find it immediately
+  final result = await client.waitFor(
+    existingText!,
+    timeout: const Duration(seconds: 2),
+  );
+
+  _assert(result['success'] == true, 'waitFor should find existing element');
+  _assert(result['ref'] != null, 'Should return ref of found element');
+  _assert(result['matchedText'] != null, 'Should return matched text');
+}
+
+Future<void> _testWaitForDisappear(VmServiceClient client) async {
+  // waitForDisappear should fail fast if element still exists
+  // and succeed if element doesn't exist
+
+  // Try to wait for something that doesn't exist - should succeed immediately
+  final result = await client.waitForDisappear(
+    'NonExistentElement12345XYZABC',
+    timeout: const Duration(seconds: 1),
+  );
+
+  _assert(result['success'] == true,
+      'waitForDisappear should succeed for non-existent element');
+}
+
+Future<void> _testWaitForValue(VmServiceClient client) async {
+  // Find a text element and wait for its current value
+  final snapshot = await client.getSnapshot();
+  final nodes = snapshot['nodes'] as List;
+
+  // Find a text element with content
+  Map<String, dynamic>? textNode;
+  String? textValue;
+  for (final n in nodes) {
+    final node = n as Map<String, dynamic>;
+    final textContent = node['textContent'] as String?;
+    if (textContent != null && textContent.length > 2) {
+      textNode = node;
+      textValue = textContent;
+      break;
+    }
+  }
+
+  if (textNode == null || textValue == null) {
+    // Skip if no text element found
+    print('    (skipped - no text element with content found)');
+    return;
+  }
+
+  final ref = textNode['ref'] as String;
+
+  // Wait for its current value - should succeed immediately
+  final result = await client.waitForValue(
+    ref,
+    textValue.substring(0, (textValue.length / 2).floor()), // Match partial
+    timeout: const Duration(seconds: 2),
+  );
+
+  _assert(result['success'] == true, 'waitForValue should match existing value');
+}
+
+Future<void> _testWaitForTimeout(VmServiceClient client) async {
+  // waitFor should timeout for non-existent element
+  final result = await client.waitFor(
+    'NonExistentElement12345XYZABC',
+    timeout: const Duration(milliseconds: 500),
+    pollInterval: const Duration(milliseconds: 100),
+  );
+
+  _assert(result['success'] == false, 'waitFor should timeout for non-existent element');
+  _assert(result['error'] != null, 'Should have error message');
+  _assert(result['error']!.toString().contains('Timeout'),
+      'Error should mention timeout');
 }
 
 // ============================================================================

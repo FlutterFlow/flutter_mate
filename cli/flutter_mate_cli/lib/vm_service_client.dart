@@ -405,33 +405,9 @@ class VmServiceClient {
       await _refreshSnapshot();
 
       // Search for matching node
-      for (final node in _cachedNodes ?? []) {
-        final ref = node['ref'] as String?;
-
-        // Check textContent first (text from Text/RichText widgets)
-        final textContent = node['textContent'] as String?;
-        if (textContent != null && pattern.hasMatch(textContent)) {
-          return {'success': true, 'ref': ref, 'matchedText': textContent};
-        }
-
-        // Check semantics fields
-        final semantics = node['semantics'] as Map<String, dynamic>?;
-        if (semantics != null) {
-          final label = semantics['label'] as String?;
-          if (label != null && pattern.hasMatch(label)) {
-            return {'success': true, 'ref': ref, 'matchedText': label};
-          }
-
-          final value = semantics['value'] as String?;
-          if (value != null && pattern.hasMatch(value)) {
-            return {'success': true, 'ref': ref, 'matchedText': value};
-          }
-
-          final hint = semantics['hint'] as String?;
-          if (hint != null && pattern.hasMatch(hint)) {
-            return {'success': true, 'ref': ref, 'matchedText': hint};
-          }
-        }
+      final match = _findMatchingNode(pattern);
+      if (match != null) {
+        return match;
       }
 
       await Future.delayed(pollInterval);
@@ -441,6 +417,139 @@ class VmServiceClient {
       'success': false,
       'error': 'Timeout waiting for element matching: $labelPattern'
     };
+  }
+
+  /// Wait for an element to disappear (no longer match the pattern).
+  ///
+  /// Polls the snapshot until no element matches the pattern, or timeout.
+  /// Useful for waiting for loading spinners, dialogs, or overlays to go away.
+  ///
+  /// Returns `{success: true}` when element is gone, or `{success: false, error}`.
+  Future<Map<String, dynamic>> waitForDisappear(
+    String labelPattern, {
+    Duration timeout = const Duration(seconds: 5),
+    Duration pollInterval = const Duration(milliseconds: 200),
+  }) async {
+    _ensureConnected();
+
+    final pattern = RegExp(labelPattern, caseSensitive: false);
+    final deadline = DateTime.now().add(timeout);
+
+    while (DateTime.now().isBefore(deadline)) {
+      // Refresh snapshot cache
+      await _refreshSnapshot();
+
+      // Check if any node still matches
+      final match = _findMatchingNode(pattern);
+      if (match == null) {
+        // No match found - element has disappeared
+        return {'success': true};
+      }
+
+      await Future.delayed(pollInterval);
+    }
+
+    return {
+      'success': false,
+      'error': 'Timeout waiting for element to disappear: $labelPattern'
+    };
+  }
+
+  /// Wait for a specific element's value/text to match a pattern.
+  ///
+  /// Polls the element until its text content or semantic value matches,
+  /// or timeout is reached. Useful for waiting for form validation,
+  /// async data loading, or state changes.
+  ///
+  /// [ref] - The element ref to watch
+  /// [valuePattern] - Regex pattern to match against the element's text/value
+  ///
+  /// Returns `{success: true, matchedText}` or `{success: false, error}`.
+  Future<Map<String, dynamic>> waitForValue(
+    String ref,
+    String valuePattern, {
+    Duration timeout = const Duration(seconds: 5),
+    Duration pollInterval = const Duration(milliseconds: 200),
+  }) async {
+    _ensureConnected();
+
+    final pattern = RegExp(valuePattern, caseSensitive: false);
+    final deadline = DateTime.now().add(timeout);
+
+    while (DateTime.now().isBefore(deadline)) {
+      // Get fresh data for the element
+      final result = await find(ref);
+      if (result['success'] != true) {
+        await Future.delayed(pollInterval);
+        continue;
+      }
+
+      final element = result['result']?['element'] as Map<String, dynamic>?;
+      if (element == null) {
+        await Future.delayed(pollInterval);
+        continue;
+      }
+
+      // Check textContent
+      final textContent = element['textContent'] as String?;
+      if (textContent != null && pattern.hasMatch(textContent)) {
+        return {'success': true, 'matchedText': textContent};
+      }
+
+      // Check semantics value
+      final semantics = element['semantics'] as Map<String, dynamic>?;
+      if (semantics != null) {
+        final value = semantics['value'] as String?;
+        if (value != null && pattern.hasMatch(value)) {
+          return {'success': true, 'matchedText': value};
+        }
+
+        final label = semantics['label'] as String?;
+        if (label != null && pattern.hasMatch(label)) {
+          return {'success': true, 'matchedText': label};
+        }
+      }
+
+      await Future.delayed(pollInterval);
+    }
+
+    return {
+      'success': false,
+      'error': 'Timeout waiting for $ref to match: $valuePattern'
+    };
+  }
+
+  /// Helper to find a node matching a pattern in the cached snapshot.
+  Map<String, dynamic>? _findMatchingNode(RegExp pattern) {
+    for (final node in _cachedNodes ?? []) {
+      final ref = node['ref'] as String?;
+
+      // Check textContent first (text from Text/RichText widgets)
+      final textContent = node['textContent'] as String?;
+      if (textContent != null && pattern.hasMatch(textContent)) {
+        return {'success': true, 'ref': ref, 'matchedText': textContent};
+      }
+
+      // Check semantics fields
+      final semantics = node['semantics'] as Map<String, dynamic>?;
+      if (semantics != null) {
+        final label = semantics['label'] as String?;
+        if (label != null && pattern.hasMatch(label)) {
+          return {'success': true, 'ref': ref, 'matchedText': label};
+        }
+
+        final value = semantics['value'] as String?;
+        if (value != null && pattern.hasMatch(value)) {
+          return {'success': true, 'ref': ref, 'matchedText': value};
+        }
+
+        final hint = semantics['hint'] as String?;
+        if (hint != null && pattern.hasMatch(hint)) {
+          return {'success': true, 'ref': ref, 'matchedText': hint};
+        }
+      }
+    }
+    return null;
   }
 
   // ══════════════════════════════════════════════════════════════════════════

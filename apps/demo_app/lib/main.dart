@@ -18,8 +18,14 @@ class DemoApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
       ),
+      darkTheme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.deepPurple,
+          brightness: Brightness.dark,
+        ),
+      ),
+      themeMode: ThemeMode.system, // Important!
       home: const LoginPage(),
     );
   }
@@ -894,8 +900,9 @@ class _ActionsPageState extends State<ActionsPage> {
                               : Colors.indigo.shade50,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color:
-                                hasFocus ? Colors.indigo : Colors.indigo.shade300,
+                            color: hasFocus
+                                ? Colors.indigo
+                                : Colors.indigo.shade300,
                             width: hasFocus ? 3 : 2,
                           ),
                         ),
@@ -922,7 +929,8 @@ class _ActionsPageState extends State<ActionsPage> {
                               if (_lastKeyPressed != 'None')
                                 Text(
                                   'Last key: $_lastKeyPressed',
-                                  style: TextStyle(color: Colors.indigo.shade600),
+                                  style:
+                                      TextStyle(color: Colors.indigo.shade600),
                                 ),
                             ],
                           ),

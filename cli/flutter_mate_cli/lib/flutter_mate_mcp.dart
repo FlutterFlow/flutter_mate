@@ -116,6 +116,8 @@ base mixin FlutterMateSupport on ToolsSupport {
     registerTool(_hoverTool, _handleHover);
     registerTool(_dragTool, _handleDrag);
     registerTool(_waitForTool, _handleWaitFor);
+    registerTool(_waitForDisappearTool, _handleWaitForDisappear);
+    registerTool(_waitForValueTool, _handleWaitForValue);
     registerTool(_screenshotTool, _handleScreenshot);
 
     return super.initialize(request);
@@ -381,8 +383,63 @@ Returns the ref of the found element and what text matched.''',
         'timeout': Schema.int(
           description: 'Timeout in milliseconds (default: 5000).',
         ),
+        'pollInterval': Schema.int(
+          description: 'Polling interval in milliseconds (default: 200).',
+        ),
       },
       required: ['labelPattern'],
+    ),
+  );
+
+  static final _waitForDisappearTool = Tool(
+    name: 'waitForDisappear',
+    description: '''Wait for an element to disappear.
+
+Polls the UI until no element matches the pattern, or timeout is reached.
+Useful for waiting for loading spinners, dialogs, or overlays to go away.
+
+Returns success when element is no longer found.''',
+    inputSchema: Schema.object(
+      properties: {
+        'labelPattern': Schema.string(
+          description:
+              'Regex pattern to match against element text/label/value/hint.',
+        ),
+        'timeout': Schema.int(
+          description: 'Timeout in milliseconds (default: 5000).',
+        ),
+        'pollInterval': Schema.int(
+          description: 'Polling interval in milliseconds (default: 200).',
+        ),
+      },
+      required: ['labelPattern'],
+    ),
+  );
+
+  static final _waitForValueTool = Tool(
+    name: 'waitForValue',
+    description: '''Wait for a specific element's value to match a pattern.
+
+Polls the element until its text content or semantic value matches the pattern.
+Useful for waiting for form validation, async data loading, or state changes.
+
+Returns the matched text when found.''',
+    inputSchema: Schema.object(
+      properties: {
+        'ref': Schema.string(
+          description: 'Element ref to watch (e.g., "w10").',
+        ),
+        'valuePattern': Schema.string(
+          description: 'Regex pattern to match against the element value/text.',
+        ),
+        'timeout': Schema.int(
+          description: 'Timeout in milliseconds (default: 5000).',
+        ),
+        'pollInterval': Schema.int(
+          description: 'Polling interval in milliseconds (default: 200).',
+        ),
+      },
+      required: ['ref', 'valuePattern'],
     ),
   );
 
@@ -707,6 +764,7 @@ The image is returned as base64 data that can be displayed or analyzed.''',
     if (labelPattern == null) return _missingArg('labelPattern');
 
     final timeoutMs = (request.arguments?['timeout'] as int?) ?? 5000;
+    final pollIntervalMs = (request.arguments?['pollInterval'] as int?) ?? 200;
 
     if (!await _ensureConnected()) {
       return CallToolResult(
@@ -722,6 +780,7 @@ The image is returned as base64 data that can be displayed or analyzed.''',
     final result = await _client!.waitFor(
       labelPattern,
       timeout: Duration(milliseconds: timeoutMs),
+      pollInterval: Duration(milliseconds: pollIntervalMs),
     );
 
     if (result['success'] == true) {
@@ -736,6 +795,87 @@ The image is returned as base64 data that can be displayed or analyzed.''',
 
     return CallToolResult(
       content: [TextContent(text: result['error'] ?? 'Element not found')],
+      isError: true,
+    );
+  }
+
+  Future<CallToolResult> _handleWaitForDisappear(
+      CallToolRequest request) async {
+    final labelPattern = request.arguments?['labelPattern'] as String?;
+    if (labelPattern == null) return _missingArg('labelPattern');
+
+    final timeoutMs = (request.arguments?['timeout'] as int?) ?? 5000;
+    final pollIntervalMs = (request.arguments?['pollInterval'] as int?) ?? 200;
+
+    if (!await _ensureConnected()) {
+      return CallToolResult(
+        content: [
+          TextContent(
+            text: 'Not connected. Set FLUTTER_MATE_URI or use connect tool.',
+          ),
+        ],
+        isError: true,
+      );
+    }
+
+    final result = await _client!.waitForDisappear(
+      labelPattern,
+      timeout: Duration(milliseconds: timeoutMs),
+      pollInterval: Duration(milliseconds: pollIntervalMs),
+    );
+
+    if (result['success'] == true) {
+      return CallToolResult(
+        content: [
+          TextContent(text: 'Element disappeared: "$labelPattern" no longer found'),
+        ],
+      );
+    }
+
+    return CallToolResult(
+      content: [TextContent(text: result['error'] ?? 'Element still present')],
+      isError: true,
+    );
+  }
+
+  Future<CallToolResult> _handleWaitForValue(CallToolRequest request) async {
+    final ref = request.arguments?['ref'] as String?;
+    final valuePattern = request.arguments?['valuePattern'] as String?;
+    if (ref == null) return _missingArg('ref');
+    if (valuePattern == null) return _missingArg('valuePattern');
+
+    final timeoutMs = (request.arguments?['timeout'] as int?) ?? 5000;
+    final pollIntervalMs = (request.arguments?['pollInterval'] as int?) ?? 200;
+
+    if (!await _ensureConnected()) {
+      return CallToolResult(
+        content: [
+          TextContent(
+            text: 'Not connected. Set FLUTTER_MATE_URI or use connect tool.',
+          ),
+        ],
+        isError: true,
+      );
+    }
+
+    final result = await _client!.waitForValue(
+      ref,
+      valuePattern,
+      timeout: Duration(milliseconds: timeoutMs),
+      pollInterval: Duration(milliseconds: pollIntervalMs),
+    );
+
+    if (result['success'] == true) {
+      final matchedText = result['matchedText'];
+      return CallToolResult(
+        content: [
+          TextContent(text: 'Value matched: "$matchedText"'),
+        ],
+      );
+    }
+
+    return CallToolResult(
+      content: [TextContent(text: result['error'] ?? 'Value did not match')],
       isError: true,
     );
   }

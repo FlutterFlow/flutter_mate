@@ -1,6 +1,7 @@
 name: flutter_mate
 description: Automation SDK for Flutter apps - enables in-app AI agents and external control
 version: 0.1.0
+publish_to: none
 repository: https://github.com/user/flutter_mate
 
 environment:

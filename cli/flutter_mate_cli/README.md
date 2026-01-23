@@ -71,6 +71,9 @@ flutter_mate> help
 | `find <ref>` | Get detailed element info |
 | `getText <ref>` | Get element text |
 | `wait <ms>` | Wait milliseconds |
+| `waitFor <pattern>` | Wait for element to appear (`--timeout`, `--poll`) |
+| `waitForDisappear <pattern>` | Wait for element to disappear |
+| `waitForValue <ref> <pattern>` | Wait for element value to match |
 | `extensions` | List service extensions |
 | `attach` | Interactive REPL mode |
 
@@ -133,7 +136,9 @@ Add to `~/.cursor/mcp.json`:
 | `pressKey` | Press keyboard key |
 | `keyDown` | Press key down (hold) |
 | `keyUp` | Release key |
-| `waitFor` | Wait for element matching pattern |
+| `waitFor` | Wait for element to appear (`labelPattern`, `timeout`, `pollInterval`) |
+| `waitForDisappear` | Wait for element to disappear |
+| `waitForValue` | Wait for element value to match pattern |
 
 ## Snapshot Format
 

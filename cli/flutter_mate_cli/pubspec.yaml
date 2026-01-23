@@ -1,6 +1,7 @@
 name: flutter_mate_cli
 description: CLI tool and MCP server for Flutter Mate - automate Flutter apps from the command line or via AI agents
 version: 0.1.0
+publish_to: none
 
 environment:
   sdk: ^3.5.0

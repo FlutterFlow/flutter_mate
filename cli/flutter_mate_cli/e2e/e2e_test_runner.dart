@@ -716,25 +716,15 @@ Future<void> _performLogin(VmServiceClient client) async {
   final textFields = <Map<String, dynamic>>[];
   Map<String, dynamic>? loginButton;
 
-  // Track the "Login button" semantic wrapper
-  String? loginButtonParentRef;
-
   for (final n in nodes) {
     final node = n as Map<String, dynamic>;
     final semantics = node['semantics'] as Map?;
-    final label = semantics?['label'] as String? ?? '';
-    final flags = semantics?['flags'] as List? ?? [];
     final widgetType = node['widget'] as String? ?? '';
     final actions = semantics?['actions'] as List? ?? [];
 
     // Find actual TextField widgets (not Semantics wrappers)
     if (widgetType == 'TextField') {
       textFields.add(node);
-    }
-
-    // Track the "Login button" semantic wrapper
-    if (label.contains('Login button')) {
-      loginButtonParentRef = node['ref'] as String;
     }
 
     // Look for ElevatedButton with tap action - could be wrapped in Login button semantics

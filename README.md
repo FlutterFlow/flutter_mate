@@ -228,7 +228,9 @@ Most actions try Tier 1 first, then fall back to Tier 2:
 | `snapshot({compact, depth, fromRef})` | Get UI tree with refs, labels, actions |
 | `screenshot({ref})` | Capture screenshot (full screen or element) |
 | `annotatedScreenshot()` | Screenshot with ref labels overlaid |
-| `waitFor(pattern, {timeout})` | Wait for element matching pattern |
+| `waitFor(pattern, {timeout, pollInterval})` | Wait for element matching pattern to appear |
+| `waitForDisappear(pattern, {timeout})` | Wait for element to disappear |
+| `waitForValue(ref, pattern, {timeout})` | Wait for element value to match pattern |
 
 #### Snapshot Options
 
@@ -308,6 +310,9 @@ Commands:
   find <ref>            Get detailed element info
   getText <ref>         Get text content from element
   wait <ms>             Wait milliseconds
+  waitFor <pattern>     Wait for element to appear (--timeout, --poll)
+  waitForDisappear <p>  Wait for element to disappear
+  waitForValue <ref> <p> Wait for element value to match
   extensions            List available service extensions
   attach                Interactive REPL mode
 
@@ -345,6 +350,8 @@ When using the MCP server, the following tools are available:
 | `keyDown` | Press key down (hold) |
 | `keyUp` | Release key |
 | `waitFor` | Wait for element matching pattern to appear |
+| `waitForDisappear` | Wait for element to disappear (loading spinners, dialogs) |
+| `waitForValue` | Wait for element value to match pattern |
 
 ---
 

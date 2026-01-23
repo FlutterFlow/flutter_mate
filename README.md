@@ -572,10 +572,10 @@ flutter_mate/
 - [x] MCP Server for AI agent integration
 - [x] Collapsed snapshot format (bounds-based, layout wrapper hiding)
 - [x] Text content extraction for widgets
-- [ ] Screenshot capture (full screen and element-level)
+- [x] Screenshot capture (full screen and element-level)
+- [x] Progressive snapshot options (depth limit, subtree from ref)
+- [x] Hybrid agent support (structured + visual)
 - [ ] Annotated screenshots (ref labels overlaid for visual grounding)
-- [ ] Progressive snapshot options (depth limit, subtree from ref)
-- [ ] Hybrid agent support (structured + visual)
 - [ ] Record & replay
 - [ ] Test generation from recordings
 - [ ] Web platform JS injection (zero-code automation)

@@ -25,8 +25,15 @@ flutter_mate --help
 # Convert to WebSocket URI and use:
 flutter_mate --uri ws://127.0.0.1:12345/abc=/ws snapshot
 
-# Compact mode (only widgets with meaningful info)
-flutter_mate --uri ws://127.0.0.1:12345/abc=/ws -c snapshot
+# Snapshot options
+flutter_mate --uri ws://... snapshot -c        # Compact mode (only meaningful widgets)
+flutter_mate --uri ws://... snapshot --depth 3 # Limit tree depth
+flutter_mate --uri ws://... snapshot --from w6 # Start from specific element as root
+
+# Take screenshots
+flutter_mate --uri ws://... screenshot                 # Full screen (saves to PNG)
+flutter_mate --uri ws://... screenshot --ref w10       # Element only
+flutter_mate --uri ws://... screenshot --path out.png  # Custom path
 
 # Interact with elements
 flutter_mate --uri ws://... tap w10
@@ -45,7 +52,8 @@ flutter_mate> help
 
 | Command | Description |
 |---------|-------------|
-| `snapshot` | Get UI tree (add `-c` for compact mode) |
+| `snapshot` | Get UI tree (options: `-c`, `--depth N`, `--from wX`) |
+| `screenshot` | Capture screenshot (options: `--ref wX`, `--path file.png`) |
 | `tap <ref>` | Tap element |
 | `doubleTap <ref>` | Double tap element |
 | `longPress <ref>` | Long press element |
@@ -65,6 +73,14 @@ flutter_mate> help
 | `wait <ms>` | Wait milliseconds |
 | `extensions` | List service extensions |
 | `attach` | Interactive REPL mode |
+
+### Snapshot Options
+
+| Option | Description |
+|--------|-------------|
+| `-c, --compact` | Only show widgets with meaningful info |
+| `-d, --depth N` | Limit tree depth (e.g., `--depth 3`) |
+| `-f, --from wX` | Start from specific element as root (requires prior snapshot) |
 
 ## MCP Server
 
@@ -95,6 +111,29 @@ Add to `~/.cursor/mcp.json`:
   }
 }
 ```
+
+### MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `connect` | Connect to Flutter app by VM Service URI |
+| `snapshot` | Get UI tree (`compact`, `depth`, `fromRef` options) |
+| `screenshot` | Capture screenshot (full screen or by `ref`) |
+| `find` | Get detailed element info by ref |
+| `tap` | Tap element |
+| `doubleTap` | Double tap element |
+| `longPress` | Long press element |
+| `hover` | Hover over element |
+| `drag` | Drag from one element to another |
+| `setText` | Set text via semantic action |
+| `typeText` | Type text via keyboard simulation |
+| `clear` | Clear text field |
+| `scroll` | Scroll element in a direction |
+| `focus` | Focus element |
+| `pressKey` | Press keyboard key |
+| `keyDown` | Press key down (hold) |
+| `keyUp` | Release key |
+| `waitFor` | Wait for element matching pattern |
 
 ## Snapshot Format
 

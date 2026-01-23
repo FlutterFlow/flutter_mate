@@ -1,1 +1,1 @@
-{"version":2,"entries":[{"package":"flutter_mate_cli","rootUri":"../","packageUri":"lib/"}]}
+{"version":2,"entries":[{"package":"flutter_mate_types","rootUri":"../../../packages/flutter_mate_types/","packageUri":"lib/"},{"package":"flutter_mate_cli","rootUri":"../","packageUri":"lib/"}]}

@@ -132,6 +132,6 @@ dartDevEmbedder.defineLibrary("package:flutter/src/gestures/debug.dart", (functi
   debug[dart.libraryImportUri] = "package:flutter/src/gestures/debug.dart";
   return debug;
 }));
-dartDevEmbedder.debugger.setSourceMap("packages/flutter/src/gestures/debug.dart", '{"version":3,"sourceRoot":"","sources":["debug.dart"],"names":[],"mappings":";;;;;;;;;;;;;;;;;;;;;;;;;;;;;mFA4E4C;SACnC,AAQN;AAPC,UAAI,kCACA,2CACA,4CACA;AACF,mBAAM,4BAAa,MAAM;;AAE3B,YAAO;;AAET,UAAO;EACT;;;;;;;;;MApEK,8BAAwB;;6CAAG;;;;;;;;;;;;;;MAS3B,gCAA0B;;+CAAG;;;;;;;;;;;;;;MAW7B,uCAAiC;;sDAAG;;;;;;;;;;;;;;MAcpC,wCAAkC;;uDAAG;;;;;;;;;;;;;;MAcrC,gCAA0B;;+CAAG","file":"../../../../../../../../../packages/flutter/src/gestures/debug.dart.lib.js"}');
+dartDevEmbedder.debugger.setSourceMap("packages/flutter/src/gestures/debug.dart", '{"version":3,"sourceRoot":"","sources":["debug.dart"],"names":[],"mappings":";;;;;;;;;;;;;;;;;;;;;;;;;;;;;mFA4E4C;AAC1C,SAAO,AAQN;AAPC,UAAI,kCACA,2CACA,4CACA;AACF,mBAAM,4BAAa,MAAM;;AAE3B,YAAO;;AAET,UAAO;EACT;;;;;;;;;MApEK,8BAAwB;;6CAAG;;;;;;;;;;;;;;MAS3B,gCAA0B;;+CAAG;;;;;;;;;;;;;;MAW7B,uCAAiC;;sDAAG;;;;;;;;;;;;;;MAcpC,wCAAkC;;uDAAG;;;;;;;;;;;;;;MAcrC,gCAA0B;;+CAAG","file":"../../../../../../../../../packages/flutter/src/gestures/debug.dart.lib.js"}');
 
 //# sourceMappingURL=debug.dart.lib.js.map

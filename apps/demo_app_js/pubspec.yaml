@@ -9,7 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_mate_gen:
+  flutter_mate:
     path: ../../packages/flutter_mate_gen
 
 dev_dependencies:

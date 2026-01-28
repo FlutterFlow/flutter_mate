@@ -123,6 +123,6 @@ dartDevEmbedder.defineLibrary("package:flutter/src/services/browser_context_menu
   browser_context_menu[dart.libraryImportUri] = "package:flutter/src/services/browser_context_menu.dart";
   return browser_context_menu;
 }));
-dartDevEmbedder.debugger.setSourceMap("packages/flutter/src/services/browser_context_menu.dart", '{"version":3,"sourceRoot":"","sources":["browser_context_menu.dart"],"names":[],"mappings":";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;MAoBkC,iDAAS;;;;;gCAAsB;;;;;;;;;;;;;;;;;;;;AAgBpC,YAAA,AAAU;IAAQ;;mCAkB5B;AACf,YAAO,AAAU,AAAS,AAAyC,oFAAtB,qCAA2B,QAAC;gEACvE,AAAU,8DAAW,QAAX,UAAV,6DAAqB;;IAEzB;;mCAeiB;AACf,YAAO,AAAU,AAAS,AAAwC,oFAArB,oCAA0B,QAAC;gEACtE,AAAU,8DAAW,OAAX,UAAV,6DAAqB;;IAEzB;;;IAvCK,iBAAW;IAEI,iBAA0B;;EAtBxB","file":"../../../../../../../../../packages/flutter/src/services/browser_context_menu.dart.lib.js"}');
+dartDevEmbedder.debugger.setSourceMap("packages/flutter/src/services/browser_context_menu.dart", '{"version":3,"sourceRoot":"","sources":["browser_context_menu.dart"],"names":[],"mappings":";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;MAoBkC,iDAAS;;;;;gCAAsB;;;;;;;;;;;;;;;;;;;;AAgBpC,YAAA,AAAU;IAAQ;;AAkB3C,mCAAe;AACf,YAAO,AAAU,AAAS,AAAyC,oFAAtB,qCAA2B,QAAC;gEACvE,AAAU,8DAAW,QAAX,UAAV,6DAAqB;;IAEzB;;AAeE,mCAAe;AACf,YAAO,AAAU,AAAS,AAAwC,oFAArB,oCAA0B,QAAC;gEACtE,AAAU,8DAAW,OAAX,UAAV,6DAAqB;;IAEzB;;;IAvCK,iBAAW;IAEI,iBAA0B;;EAtBxB","file":"../../../../../../../../../packages/flutter/src/services/browser_context_menu.dart.lib.js"}');
 
 //# sourceMappingURL=browser_context_menu.dart.lib.js.map

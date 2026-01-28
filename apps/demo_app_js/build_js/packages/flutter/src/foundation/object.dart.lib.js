@@ -40,6 +40,6 @@ dartDevEmbedder.defineLibrary("package:flutter/src/foundation/object.dart", (fun
   object[dart.libraryImportUri] = "package:flutter/src/foundation/object.dart";
   return object;
 }));
-dartDevEmbedder.debugger.setSourceMap("packages/flutter/src/foundation/object.dart", '{"version":3,"sourceRoot":"","sources":["object.dart"],"names":[],"mappings":";;;;;;;;;;;;;;;;;;;;;;;;;;wDAWiC,QAAe;SACvC,AAGN;AAFC,uBAAoC,cAAZ,iBAAP,MAAM;AACvB,YAAO;;AAET,UAAO,eAAc;EACvB","file":"../../../../../../../../../packages/flutter/src/foundation/object.dart.lib.js"}');
+dartDevEmbedder.debugger.setSourceMap("packages/flutter/src/foundation/object.dart", '{"version":3,"sourceRoot":"","sources":["object.dart"],"names":[],"mappings":";;;;;;;;;;;;;;;;;;;;;;;;;;wDAWiC,QAAe;AAC9C,SAAO,AAGN;AAFC,uBAAoC,cAAZ,iBAAP,MAAM;AACvB,YAAO;;AAET,UAAO,eAAc;EACvB","file":"../../../../../../../../../packages/flutter/src/foundation/object.dart.lib.js"}');
 
 //# sourceMappingURL=object.dart.lib.js.map

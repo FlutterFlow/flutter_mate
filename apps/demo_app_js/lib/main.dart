@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_mate_gen/flutter_mate_gen.dart';
+import 'package:flutter_mate/flutter_mate.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

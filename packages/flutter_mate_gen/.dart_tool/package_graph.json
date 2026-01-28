@@ -1,10 +1,10 @@
 {
   "roots": [
-    "flutter_mate_gen"
+    "flutter_mate"
   ],
   "packages": [
     {
-      "name": "flutter_mate_gen",
+      "name": "flutter_mate",
       "version": "0.1.0",
       "dependencies": [
         "flutter"

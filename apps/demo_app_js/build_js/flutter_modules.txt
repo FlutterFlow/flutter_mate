@@ -1,4 +1,4 @@
-packages/flutter_mate_gen/flutter_mate_gen.dart.lib.js
+packages/flutter_mate/flutter_mate.dart.lib.js
 packages/flutter/src/cupertino/text_form_field_row.dart.lib.js
 packages/flutter/painting.dart.lib.js
 packages/flutter/src/painting/placeholder_span.dart.lib.js

@@ -40,7 +40,7 @@ void main(List<String> args) async {
   print('flutter_mate_types: $flutterMateTypesRoot');
   print('flutter_mate_gen: $flutterMateGenRoot');
 
-  outputPath ??= p.join(flutterMateGenRoot, 'lib', 'flutter_mate_gen.dart');
+  outputPath ??= p.join(flutterMateGenRoot, 'lib', 'flutter_mate.dart');
 
   final generator = BundleGenerator(
     flutterMateRoot: flutterMateRoot,
@@ -312,7 +312,7 @@ class BundleGenerator {
     buffer.writeln('/// Date: ${DateTime.now().toIso8601String()}');
     buffer.writeln('///');
     buffer.writeln('/// DO NOT EDIT - regenerate instead.');
-    buffer.writeln('library flutter_mate_gen;');
+    buffer.writeln('library flutter_mate;');
     buffer.writeln();
 
     // External imports (sorted and deduplicated, preserving aliases)

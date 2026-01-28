@@ -46,7 +46,7 @@ window.$isInternalBuild = false;
 window.$isFlutterApp = true;
 window.$reloadedSourcesPath = "http://localhost:8085/reloaded_sources.json";
 window.$dartLoader.forceLoadModule("dwds/src/injected/client");
-window.$dartExtensionUri = "ws://[::]:62156/$debug";
+window.$dartExtensionUri = "ws://[::]:63783/$debug";
 
   } else {
     if(window.$dartMainExecuted){
@@ -94,8 +94,8 @@ var scripts = [
   "id": "packages/demo_app/main.dart"
  },
  {
-  "src": "packages/flutter_mate_gen/flutter_mate_gen.dart.lib.js",
-  "id": "packages/flutter_mate_gen/flutter_mate_gen.dart"
+  "src": "packages/flutter_mate/flutter_mate.dart.lib.js",
+  "id": "packages/flutter_mate/flutter_mate.dart"
  },
  {
   "src": "packages/flutter/src/cupertino/text_form_field_row.dart.lib.js",

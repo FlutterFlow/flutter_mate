@@ -44,7 +44,7 @@
       "languageVersion": "3.1"
     },
     {
-      "name": "flutter_mate_gen",
+      "name": "flutter_mate",
       "rootUri": "../",
       "packageUri": "lib/",
       "languageVersion": "3.0"

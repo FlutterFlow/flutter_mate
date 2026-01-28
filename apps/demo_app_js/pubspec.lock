@@ -62,7 +62,7 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.2"
-  flutter_mate_gen:
+  flutter_mate:
     dependency: "direct main"
     description:
       path: "../../packages/flutter_mate_gen"

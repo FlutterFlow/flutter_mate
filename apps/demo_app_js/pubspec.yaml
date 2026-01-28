@@ -1,0 +1,21 @@
+name: demo_app
+description: Demo app for testing flutter_mate automation
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  sdk: ^3.0.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_mate_gen:
+    path: ../../packages/flutter_mate_gen
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true

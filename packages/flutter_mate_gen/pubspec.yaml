@@ -1,0 +1,12 @@
+name: flutter_mate_gen
+description: Generated single-file bundle of flutter_mate for web injection
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.0.0
+  flutter: ^3.0.0
+
+dependencies:
+  flutter:
+    sdk: flutter

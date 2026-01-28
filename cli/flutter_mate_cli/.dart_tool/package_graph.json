@@ -11,6 +11,7 @@
         "dart_mcp",
         "flutter_mate_types",
         "http",
+        "path",
         "vm_service",
         "web_socket_channel"
       ],
@@ -87,6 +88,11 @@
     {
       "name": "vm_service",
       "version": "14.3.1",
+      "dependencies": []
+    },
+    {
+      "name": "path",
+      "version": "1.9.1",
       "dependencies": []
     },
     {
@@ -257,11 +263,6 @@
         "async",
         "stack_trace"
       ]
-    },
-    {
-      "name": "path",
-      "version": "1.9.1",
-      "dependencies": []
     },
     {
       "name": "package_config",

@@ -545,7 +545,10 @@ flutter_mate/
 │   │       ├── flutter_mate.dart   # Public API exports
 │   │       └── src/
 │   │           ├── core/           # Initialization & service extensions
-│   │           ├── snapshot/       # UI tree capture
+│   │           ├── snapshot/       # UI tree capture & formatting
+│   │           │   ├── snapshot.dart
+│   │           │   ├── snapshot_formatter.dart  # Human-readable output
+│   │           │   └── screenshot.dart
 │   │           ├── actions/        # Semantic, gesture, keyboard actions
 │   │           ├── protocol.dart   # Command schemas
 │   │           └── actions.dart    # Action types
@@ -555,14 +558,13 @@ flutter_mate/
 ├── apps/
 │   └── demo_app/                   # Demo Flutter app
 └── cli/
-    └── flutter_mate_cli/           # CLI and MCP server
+    └── flutter_mate_cli/           # CLI and MCP server (thin clients)
         ├── bin/
         │   ├── flutter_mate.dart   # CLI tool
         │   └── mcp_server.dart     # MCP server
         └── lib/
-            ├── vm_service_client.dart
-            ├── flutter_mate_mcp.dart
-            └── snapshot_formatter.dart
+            ├── vm_service_client.dart   # VM Service connection
+            └── flutter_mate_mcp.dart    # MCP tool handlers
 ```
 
 ---

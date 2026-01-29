@@ -122,10 +122,13 @@ class VmServiceClient {
   ///   actions, flags). This significantly reduces response size.
   /// - [depth]: Limit tree depth. Useful for large UIs.
   /// - [fromRef]: Start from specific element as root. Requires prior snapshot.
+  /// - [json]: If true, returns raw JSON nodes (for `--json` output).
+  ///   If false (default), returns pre-formatted text lines for display.
   Future<Map<String, dynamic>> getSnapshot({
     bool compact = false,
     int? depth,
     String? fromRef,
+    bool json = false,
   }) async {
     _ensureConnected();
 
@@ -133,6 +136,7 @@ class VmServiceClient {
     if (compact) args['compact'] = 'true';
     if (depth != null) args['depth'] = depth.toString();
     if (fromRef != null) args['fromRef'] = fromRef;
+    if (json) args['json'] = 'true';
 
     final result = await callExtension(
       'ext.flutter_mate.snapshot',
@@ -150,7 +154,17 @@ class VmServiceClient {
         return {'success': false, 'error': 'Invalid response format'};
       }
 
-      // Extract nodes from snapshot
+      // Check if formatted output was requested
+      if (snapshotData['formatted'] == true) {
+        final lines = snapshotData['lines'] as List<dynamic>? ?? [];
+        return {
+          'success': true,
+          'formatted': true,
+          'lines': lines.cast<String>(),
+        };
+      }
+
+      // Extract nodes from snapshot (raw JSON mode)
       final nodes = snapshotData['nodes'] as List<dynamic>? ?? [];
       _cachedNodes =
           nodes.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -345,8 +359,16 @@ class VmServiceClient {
   /// Get detailed info about a specific element by ref
   ///
   /// Returns the full element data including bounds, semantics, text content.
-  Future<Map<String, dynamic>> find(String ref) async {
-    return callExtension('ext.flutter_mate.find', args: {'ref': ref});
+  /// Find an element by ref and get detailed info.
+  ///
+  /// Options:
+  /// - [format]: If true (default), returns pre-formatted text lines for display.
+  /// Get detailed info about a specific element.
+  /// - [json]: If true, returns raw JSON. If false (default), returns formatted lines.
+  Future<Map<String, dynamic>> find(String ref, {bool json = false}) async {
+    final args = <String, String>{'ref': ref};
+    if (json) args['json'] = 'true';
+    return callExtension('ext.flutter_mate.find', args: args);
   }
 
   /// Get text from an element by ref.

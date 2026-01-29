@@ -8,6 +8,7 @@ import '../actions/gesture_actions.dart';
 import '../actions/keyboard_actions.dart';
 import '../snapshot/snapshot.dart';
 import '../snapshot/screenshot.dart';
+import '../snapshot/snapshot_formatter.dart';
 import 'flutter_mate.dart';
 
 /// VM Service extensions for external control via CLI/MCP.
@@ -19,7 +20,12 @@ import 'flutter_mate.dart';
 ///
 /// **Snapshot:**
 /// - `ext.flutter_mate.snapshot` - Get UI tree with widget refs and semantics
+///   - Options: `compact`, `depth`, `fromRef`, `format`
+///   - When `format=true`, returns pre-formatted text lines for display
+///   - When `format=false` (default), returns raw JSON nodes
 /// - `ext.flutter_mate.find` - Get detailed info about a specific element
+///   - Options: `ref`, `json`
+///   - When `json=true`, returns raw JSON (default: formatted text lines)
 ///
 /// **Ref-based actions (use widget ref from snapshot):**
 /// - `ext.flutter_mate.tap` - Tap element (semantic + gesture fallback)
@@ -151,11 +157,13 @@ class FlutterMateServiceExtensions {
       //   compact=true - filter to only nodes with meaningful info
       //   depth=N - limit tree depth
       //   fromRef=wX - start from specific element as root
+      //   json=true - return raw JSON nodes (default: formatted text lines)
       registerExtension('ext.flutter_mate.snapshot', (method, params) async {
         final compact = params['compact'] == 'true';
         final depthStr = params['depth'];
         final maxDepth = depthStr != null ? int.tryParse(depthStr) : null;
         final fromRef = params['fromRef'];
+        final jsonOutput = params['json'] == 'true';
 
         FlutterMate.waitForFirstFrame();
 
@@ -164,7 +172,21 @@ class FlutterMateServiceExtensions {
           maxDepth: maxDepth,
           fromRef: fromRef,
         );
-        return ServiceExtensionResponse.result(jsonEncode(snap.toJson()));
+
+        if (jsonOutput) {
+          // Return raw JSON nodes
+          return ServiceExtensionResponse.result(jsonEncode(snap.toJson()));
+        }
+
+        // Return formatted text lines for human-readable output (default)
+        final nodesJson = snap.nodes.map((n) => n.toJson()).toList();
+        final lines = formatSnapshot(nodesJson, compact: compact);
+        return ServiceExtensionResponse.result(jsonEncode({
+          'success': snap.success,
+          if (snap.error != null) 'error': snap.error,
+          'formatted': true,
+          'lines': lines,
+        }));
       });
 
       // ext.flutter_mate.longPress - Long press element by ref
@@ -453,8 +475,11 @@ class FlutterMateServiceExtensions {
       });
 
       // ext.flutter_mate.find - Get detailed info about a specific element
+      // Options:
+      //   json=true - return raw JSON (default: formatted text lines)
       registerExtension('ext.flutter_mate.find', (method, params) async {
         final ref = params['ref'];
+        final jsonOutput = params['json'] == 'true';
         if (ref == null) {
           return ServiceExtensionResponse.error(
             ServiceExtensionResponse.invalidParams,
@@ -471,9 +496,20 @@ class FlutterMateServiceExtensions {
           }));
         }
 
+        if (jsonOutput) {
+          // Return raw JSON
+          return ServiceExtensionResponse.result(jsonEncode({
+            'success': true,
+            'element': node.toJson(),
+          }));
+        }
+
+        // Return formatted text lines for human-readable output (default)
+        final lines = formatElementDetails(node.toJson());
         return ServiceExtensionResponse.result(jsonEncode({
           'success': true,
-          'element': node.toJson(),
+          'formatted': true,
+          'lines': lines,
         }));
       });
 

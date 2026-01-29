@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/args.dart';
-import 'package:flutter_mate_cli/snapshot_formatter.dart';
 import 'package:flutter_mate_cli/vm_service_client.dart';
 
 const String version = '0.1.0';
@@ -404,8 +403,7 @@ Future<void> _executeCommand({
           print(
               '✅ Found: ${waitForResult['ref']} (matched: "${waitForResult['matchedText']}")');
         } else {
-          stderr.writeln(
-              '❌ ${waitForResult['error'] ?? 'Element not found'}');
+          stderr.writeln('❌ ${waitForResult['error'] ?? 'Element not found'}');
         }
         break;
       case 'waitForDisappear':
@@ -442,8 +440,7 @@ Future<void> _executeCommand({
           pollInterval: Duration(milliseconds: waitPoll ?? 200),
         );
         if (jsonOutput) {
-          print(
-              const JsonEncoder.withIndent('  ').convert(waitForValueResult));
+          print(const JsonEncoder.withIndent('  ').convert(waitForValueResult));
         } else if (waitForValueResult['success'] == true) {
           print('✅ Value matched: "${waitForValueResult['matchedText']}"');
         } else {
@@ -464,19 +461,25 @@ Future<void> _executeCommand({
           stderr.writeln('Error: find requires a ref (e.g., find w5)');
           exit(1);
         }
-        final findResult = await client.find(args[0]);
         if (jsonOutput) {
+          // Raw JSON output
+          final findResult = await client.find(args[0], json: true);
           print(const JsonEncoder.withIndent('  ').convert(findResult));
-        } else if (findResult['success'] == true) {
-          final element = findResult['result']?['element'] as Map?;
-          if (element != null) {
-            _printElementDetails(element);
-          } else {
-            print('✅ Element found but no details available');
-          }
         } else {
-          stderr.writeln(
-              '❌ find failed: ${findResult['error'] ?? 'unknown error'}');
+          // Formatted output (default)
+          final findResult = await client.find(args[0]);
+          if (findResult['success'] == true) {
+            final result = findResult['result'];
+            if (result?['formatted'] == true) {
+              final lines = result['lines'] as List<dynamic>? ?? [];
+              _printFormattedLines(lines);
+            } else {
+              print('✅ Element found but no details available');
+            }
+          } else {
+            stderr.writeln(
+                '❌ find failed: ${findResult['error'] ?? 'unknown error'}');
+          }
         }
         break;
       case 'screenshot':
@@ -510,30 +513,41 @@ Future<void> _snapshot(
   String? fromRef,
 }) async {
   try {
-    // Get snapshot via FlutterMate service extension
-    // Pass options to SDK for server-side filtering
-    final result = await client.getSnapshot(
-      compact: compact,
-      depth: depth,
-      fromRef: fromRef,
-    );
-    if (result['success'] != true) {
-      stderr.writeln('Error: ${result['error']}');
-      exit(1);
-    }
-
-    final nodes = result['nodes'] as List<dynamic>? ?? [];
-
-    final data = {
-      'success': true,
-      'timestamp': DateTime.now().toIso8601String(),
-      'nodes': nodes,
-    };
-
     if (jsonOutput) {
+      // For JSON output, request raw nodes
+      final result = await client.getSnapshot(
+        compact: compact,
+        depth: depth,
+        fromRef: fromRef,
+        json: true,
+      );
+      if (result['success'] != true) {
+        stderr.writeln('Error: ${result['error']}');
+        exit(1);
+      }
+      final nodes = result['nodes'] as List<dynamic>? ?? [];
+      final data = {
+        'success': true,
+        'timestamp': DateTime.now().toIso8601String(),
+        'nodes': nodes,
+      };
       print(const JsonEncoder.withIndent('  ').convert(data));
     } else {
-      _printSnapshot(data, compact: compact);
+      // Get formatted output from server (default)
+      final result = await client.getSnapshot(
+        compact: compact,
+        depth: depth,
+        fromRef: fromRef,
+      );
+      if (result['success'] != true) {
+        stderr.writeln('Error: ${result['error']}');
+        exit(1);
+      }
+      // Print pre-formatted lines from server
+      final lines = result['lines'] as List<dynamic>? ?? [];
+      for (final line in lines) {
+        print(line);
+      }
     }
   } catch (e, stack) {
     stderr.writeln('Error getting snapshot: $e');
@@ -554,22 +568,8 @@ void _printResult(
   }
 }
 
-void _printSnapshot(Map<String, dynamic> data, {bool compact = false}) {
-  if (data['success'] != true) {
-    stderr.writeln('Error: ${data['error']}');
-    return;
-  }
-
-  final nodes = data['nodes'] as List<dynamic>;
-  final lines = formatSnapshot(nodes, compact: compact);
-  for (final line in lines) {
-    print(line);
-  }
-}
-
-/// Print detailed info about an element using shared formatter
-void _printElementDetails(Map element) {
-  final lines = formatElementDetails(Map<String, dynamic>.from(element));
+/// Print formatted lines from server response.
+void _printFormattedLines(List<dynamic> lines) {
   for (final line in lines) {
     print(line);
   }
@@ -1032,8 +1032,10 @@ Future<void> _interactiveMode(VmServiceClient client) async {
           if (args.isEmpty) {
             print('Usage: waitFor <pattern> [timeout_ms]');
           } else {
-            final timeout = args.length > 1 ? int.tryParse(args[1]) ?? 5000 : 5000;
-            final r = await client.waitFor(args[0], timeout: Duration(milliseconds: timeout));
+            final timeout =
+                args.length > 1 ? int.tryParse(args[1]) ?? 5000 : 5000;
+            final r = await client.waitFor(args[0],
+                timeout: Duration(milliseconds: timeout));
             if (r['success'] == true) {
               print('✅ Found: ${r['ref']} (matched: "${r['matchedText']}")');
             } else {
@@ -1046,8 +1048,10 @@ Future<void> _interactiveMode(VmServiceClient client) async {
           if (args.isEmpty) {
             print('Usage: waitForDisappear <pattern> [timeout_ms]');
           } else {
-            final timeout = args.length > 1 ? int.tryParse(args[1]) ?? 5000 : 5000;
-            final r = await client.waitForDisappear(args[0], timeout: Duration(milliseconds: timeout));
+            final timeout =
+                args.length > 1 ? int.tryParse(args[1]) ?? 5000 : 5000;
+            final r = await client.waitForDisappear(args[0],
+                timeout: Duration(milliseconds: timeout));
             if (r['success'] == true) {
               print('✅ Element disappeared');
             } else {
@@ -1060,8 +1064,10 @@ Future<void> _interactiveMode(VmServiceClient client) async {
           if (args.length < 2) {
             print('Usage: waitForValue <ref> <pattern> [timeout_ms]');
           } else {
-            final timeout = args.length > 2 ? int.tryParse(args[2]) ?? 5000 : 5000;
-            final r = await client.waitForValue(args[0], args[1], timeout: Duration(milliseconds: timeout));
+            final timeout =
+                args.length > 2 ? int.tryParse(args[2]) ?? 5000 : 5000;
+            final r = await client.waitForValue(args[0], args[1],
+                timeout: Duration(milliseconds: timeout));
             if (r['success'] == true) {
               print('✅ Value matched: "${r['matchedText']}"');
             } else {
@@ -1083,11 +1089,13 @@ Future<void> _interactiveMode(VmServiceClient client) async {
           if (args.isEmpty) {
             print('Usage: find <ref>');
           } else {
+            // Interactive mode always uses formatted output
             final r = await client.find(args[0]);
             if (r['success'] == true) {
-              final element = r['result']?['element'] as Map?;
-              if (element != null) {
-                _printElementDetails(element);
+              final result = r['result'];
+              if (result?['formatted'] == true) {
+                final lines = result['lines'] as List<dynamic>? ?? [];
+                _printFormattedLines(lines);
               } else {
                 print('✅ Element found');
               }
@@ -1125,8 +1133,10 @@ Future<void> _interactiveMode(VmServiceClient client) async {
           print('  keyup, ku <key>  - Release key');
           print('  back             - Navigate back');
           print('  wait <ms>        - Wait milliseconds');
-          print('  waitFor, wf <pattern> [timeout] - Wait for element to appear');
-          print('  waitForDisappear, wfd <pattern> - Wait for element to disappear');
+          print(
+              '  waitFor, wf <pattern> [timeout] - Wait for element to appear');
+          print(
+              '  waitForDisappear, wfd <pattern> - Wait for element to disappear');
           print('  waitForValue, wfv <ref> <pattern> - Wait for value match');
           print('  getText, text <ref> - Get element text');
           print('  find, info <ref> - Get detailed element info');

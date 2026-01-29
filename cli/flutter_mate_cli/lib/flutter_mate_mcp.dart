@@ -79,7 +79,6 @@ import 'dart:convert';
 
 import 'package:dart_mcp/server.dart';
 
-import 'snapshot_formatter.dart';
 import 'vm_service_client.dart';
 
 /// Mixin that adds Flutter automation tools to an MCP server.
@@ -595,16 +594,18 @@ The image is returned as base64 data that can be displayed or analyzed.''',
     final depth = request.arguments?['depth'] as int?;
     final fromRef = request.arguments?['fromRef'] as String?;
 
-    // Build args map
-    final args = <String, String>{};
+    // Build args map - request formatted output from server
+    final args = <String, String>{
+      'format': 'true', // Server-side formatting
+    };
     if (compact) args['compact'] = 'true';
     if (depth != null) args['depth'] = depth.toString();
     if (fromRef != null) args['fromRef'] = fromRef;
 
-    // Pass options to SDK for server-side filtering
+    // Pass options to SDK for server-side filtering and formatting
     final result = await _callExtension(
       'ext.flutter_mate.snapshot',
-      args: args.isNotEmpty ? args : null,
+      args: args,
     );
 
     if (result['success'] != true) {
@@ -626,15 +627,14 @@ The image is returned as base64 data that can be displayed or analyzed.''',
       );
     }
 
-    final nodes = data['nodes'] as List<dynamic>? ?? [];
-    final lines = formatSnapshot(nodes, compact: compact);
+    // Get pre-formatted lines from server
+    final lines = (data['lines'] as List<dynamic>?)?.cast<String>() ?? [];
 
     final output = StringBuffer();
     if (compact) {
-      output.writeln(
-          '${lines.length} meaningful elements (from ${nodes.length} nodes)');
+      output.writeln('${lines.length} meaningful elements');
     } else {
-      output.writeln('${lines.length} elements (from ${nodes.length} nodes)');
+      output.writeln('${lines.length} elements');
     }
     output.writeln('');
     for (final line in lines) {
@@ -827,7 +827,8 @@ The image is returned as base64 data that can be displayed or analyzed.''',
     if (result['success'] == true) {
       return CallToolResult(
         content: [
-          TextContent(text: 'Element disappeared: "$labelPattern" no longer found'),
+          TextContent(
+              text: 'Element disappeared: "$labelPattern" no longer found'),
         ],
       );
     }
@@ -956,9 +957,10 @@ The image is returned as base64 data that can be displayed or analyzed.''',
     final ref = request.arguments?['ref'] as String?;
     if (ref == null) return _missingArg('ref');
 
+    // Request formatted output from server
     final result = await _callExtension(
       'ext.flutter_mate.find',
-      args: {'ref': ref},
+      args: {'ref': ref, 'format': 'true'},
     );
 
     if (result['success'] != true) {
@@ -971,16 +973,22 @@ The image is returned as base64 data that can be displayed or analyzed.''',
     }
 
     final data = _parseResult(result['result']);
-    final element = data?['element'] as Map<String, dynamic>?;
-    if (element == null) {
+    if (data == null) {
       return CallToolResult(
         content: [TextContent(text: '❌ Element not found: $ref')],
         isError: true,
       );
     }
 
-    // Use shared formatter for consistent output
-    final lines = formatElementDetails(element);
+    // Get pre-formatted lines from server
+    final lines = (data['lines'] as List<dynamic>?)?.cast<String>() ?? [];
+    if (lines.isEmpty) {
+      return CallToolResult(
+        content: [TextContent(text: '❌ Element not found: $ref')],
+        isError: true,
+      );
+    }
+
     return CallToolResult(
       content: [TextContent(text: lines.join('\n'))],
     );

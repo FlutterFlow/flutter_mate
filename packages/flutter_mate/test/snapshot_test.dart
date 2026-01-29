@@ -12,8 +12,8 @@ void main() {
       await tester.pumpAndSettle();
 
       // Take two snapshots
-      final snapshot1 = await SnapshotService.snapshot();
-      final snapshot2 = await SnapshotService.snapshot();
+      final snapshot1 = SnapshotService.snapshot();
+      final snapshot2 = SnapshotService.snapshot();
 
       expect(snapshot1.success, isTrue);
       expect(snapshot2.success, isTrue);
@@ -35,10 +35,10 @@ void main() {
       await tester.pumpAndSettle();
 
       // Full snapshot
-      final fullSnapshot = await SnapshotService.snapshot();
+      final fullSnapshot = SnapshotService.snapshot();
 
       // Depth-limited snapshot
-      final shallowSnapshot = await SnapshotService.snapshot(maxDepth: 3);
+      final shallowSnapshot = SnapshotService.snapshot(maxDepth: 3);
 
       expect(fullSnapshot.success, isTrue);
       expect(shallowSnapshot.success, isTrue);
@@ -62,10 +62,10 @@ void main() {
       await tester.pumpAndSettle();
 
       // Full snapshot
-      final fullSnapshot = await SnapshotService.snapshot();
+      final fullSnapshot = SnapshotService.snapshot();
 
       // Depth-limited snapshot
-      final shallowSnapshot = await SnapshotService.snapshot(maxDepth: 3);
+      final shallowSnapshot = SnapshotService.snapshot(maxDepth: 3);
 
       // Build ref map from full snapshot
       final fullRefMap = {for (final n in fullSnapshot.nodes) n.ref: n};
@@ -89,7 +89,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Full snapshot first
-      final fullSnapshot = await SnapshotService.snapshot();
+      final fullSnapshot = SnapshotService.snapshot();
       expect(fullSnapshot.nodes.length, greaterThan(2));
 
       // Find a node with children
@@ -100,7 +100,7 @@ void main() {
 
       // Get subtree from that node
       final subtreeSnapshot =
-          await SnapshotService.snapshot(fromRef: nodeWithChildren.ref);
+          SnapshotService.snapshot(fromRef: nodeWithChildren.ref);
 
       expect(subtreeSnapshot.success, isTrue);
       expect(subtreeSnapshot.nodes, isNotEmpty);
@@ -119,7 +119,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Full snapshot
-      final fullSnapshot = await SnapshotService.snapshot();
+      final fullSnapshot = SnapshotService.snapshot();
 
       // Find a mid-tree node
       final midNode = fullSnapshot.nodes.firstWhere(
@@ -129,7 +129,7 @@ void main() {
 
       // Subtree snapshot
       final subtreeSnapshot =
-          await SnapshotService.snapshot(fromRef: midNode.ref);
+          SnapshotService.snapshot(fromRef: midNode.ref);
 
       expect(subtreeSnapshot.success, isTrue);
 
@@ -155,7 +155,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Full snapshot
-      final fullSnapshot = await SnapshotService.snapshot();
+      final fullSnapshot = SnapshotService.snapshot();
 
       // Find a node at depth 2 or less with children
       final rootNode = fullSnapshot.nodes.firstWhere(
@@ -166,7 +166,7 @@ void main() {
       final rootDepth = rootNode.depth;
 
       // Get subtree with depth limit of 1 (should show root + direct children)
-      final limitedSubtree = await SnapshotService.snapshot(
+      final limitedSubtree = SnapshotService.snapshot(
         fromRef: rootNode.ref,
         maxDepth: 1,
       );
@@ -191,7 +191,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Try to get subtree from non-existent ref
-      final snapshot = await SnapshotService.snapshot(fromRef: 'w99999');
+      final snapshot = SnapshotService.snapshot(fromRef: 'w99999');
 
       expect(snapshot.success, isFalse);
       expect(snapshot.error, contains('not found'));
@@ -208,10 +208,10 @@ void main() {
       await tester.pumpAndSettle();
 
       // Full snapshot
-      final fullSnapshot = await SnapshotService.snapshot();
+      final fullSnapshot = SnapshotService.snapshot();
 
       // Compact snapshot
-      final compactSnapshot = await SnapshotService.snapshot(compact: true);
+      final compactSnapshot = SnapshotService.snapshot(compact: true);
 
       expect(fullSnapshot.success, isTrue);
       expect(compactSnapshot.success, isTrue);
@@ -232,7 +232,7 @@ void main() {
       await tester.pumpWidget(const _TestApp());
       await tester.pumpAndSettle();
 
-      final snapshot = await SnapshotService.snapshot();
+      final snapshot = SnapshotService.snapshot();
 
       expect(snapshot.success, isTrue);
       expect(snapshot.nodes, isNotEmpty);
@@ -263,7 +263,7 @@ void main() {
       await tester.pumpWidget(const _TestApp());
       await tester.pumpAndSettle();
 
-      final snapshot = await SnapshotService.snapshot(maxDepth: 0);
+      final snapshot = SnapshotService.snapshot(maxDepth: 0);
 
       expect(snapshot.success, isTrue);
       expect(snapshot.nodes.length, equals(1));

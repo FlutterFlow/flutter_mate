@@ -18,7 +18,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Take a snapshot first to populate cache
-      await SnapshotService.snapshot();
+      SnapshotService.snapshot();
 
       // Try to capture non-existent element - should return null immediately
       final bytes = await ScreenshotService.captureElement('w99999');
@@ -37,7 +37,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Take a snapshot first to populate cache
-      await SnapshotService.snapshot();
+      SnapshotService.snapshot();
 
       // Try to capture non-existent element
       final base64 = await ScreenshotService.captureElementAsBase64('w99999');

@@ -106,7 +106,7 @@ class CommandExecutor {
   // ════════════════════════════════════════════════════════════════════════════
 
   static Future<CommandResponse> _executeSnapshot(SnapshotCommand cmd) async {
-    final snapshot = await SnapshotService.snapshot();
+    final snapshot = SnapshotService.snapshot();
 
     if (!snapshot.success) {
       return CommandResponse.fail(cmd.id, snapshot.error ?? 'Snapshot failed');
@@ -353,7 +353,7 @@ class CommandExecutor {
       final startTime = DateTime.now();
 
       while (DateTime.now().difference(startTime) < timeout) {
-        final snapshot = await SnapshotService.snapshot();
+        final snapshot = SnapshotService.snapshot();
         final node = snapshot.nodes.firstWhere(
           (n) => n.ref == cmd.forRef,
           orElse: () => snapshot.nodes.first,
@@ -384,7 +384,7 @@ class CommandExecutor {
   static Future<CommandResponse> _executeBack(BackCommand cmd) async {
     // Try to use the back action from semantics
     // Look for a back button or use navigation pop
-    final snapshot = await SnapshotService.snapshot();
+    final snapshot = SnapshotService.snapshot();
 
     // Look for back button
     for (final node in snapshot.nodes) {
@@ -414,7 +414,7 @@ class CommandExecutor {
   }
 
   static Future<CommandResponse> _executeGetText(GetTextCommand cmd) async {
-    final snapshot = await SnapshotService.snapshot();
+    final snapshot = SnapshotService.snapshot();
     final node = snapshot[cmd.ref];
 
     if (node == null) {
@@ -427,7 +427,7 @@ class CommandExecutor {
   }
 
   static Future<CommandResponse> _executeIsVisible(IsVisibleCommand cmd) async {
-    final snapshot = await SnapshotService.snapshot();
+    final snapshot = SnapshotService.snapshot();
     final node = snapshot[cmd.ref];
 
     if (node == null) {

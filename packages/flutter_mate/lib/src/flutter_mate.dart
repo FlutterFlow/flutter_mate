@@ -74,7 +74,7 @@ class FlutterMate {
   // === Snapshot ===
 
   /// Get a snapshot of the current UI
-  static Future<CombinedSnapshot> snapshot() => SnapshotService.snapshot();
+  static CombinedSnapshot snapshot() => SnapshotService.snapshot();
 
   // === Semantic Actions ===
 

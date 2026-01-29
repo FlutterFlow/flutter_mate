@@ -24,7 +24,7 @@ class GestureActions {
   static Future<bool> doubleTapGesture(String ref) async {
     FlutterMate.ensureInitialized();
 
-    final snap = await SnapshotService.snapshot();
+    final snap = SnapshotService.snapshot();
     final nodeInfo = snap[ref];
     if (nodeInfo == null) {
       debugPrint('FlutterMate: Node not found: $ref');
@@ -89,7 +89,7 @@ class GestureActions {
   static Future<bool> longPressGesture(String ref) async {
     FlutterMate.ensureInitialized();
 
-    final snap = await SnapshotService.snapshot();
+    final snap = SnapshotService.snapshot();
     final nodeInfo = snap[ref];
     if (nodeInfo == null) {
       debugPrint('FlutterMate: Node not found: $ref');
@@ -285,7 +285,7 @@ class GestureActions {
   static Future<bool> scrollGesture(String ref, Offset delta) async {
     FlutterMate.ensureInitialized();
 
-    final snap = await SnapshotService.snapshot();
+    final snap = SnapshotService.snapshot();
     final node = snap[ref];
     if (node == null) {
       debugPrint('FlutterMate: scrollGesture - Node not found: $ref');
@@ -323,7 +323,7 @@ class GestureActions {
   static Future<bool> hover(String ref) async {
     FlutterMate.ensureInitialized();
 
-    final snap = await SnapshotService.snapshot();
+    final snap = SnapshotService.snapshot();
     final nodeInfo = snap[ref];
     if (nodeInfo == null) {
       debugPrint('FlutterMate: Node not found: $ref');
@@ -385,7 +385,7 @@ class GestureActions {
   static Future<bool> dragFromTo(String fromRef, String toRef) async {
     FlutterMate.ensureInitialized();
 
-    final snap = await SnapshotService.snapshot();
+    final snap = SnapshotService.snapshot();
     final fromNode = snap[fromRef];
     final toNode = snap[toRef];
 

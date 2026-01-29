@@ -49,7 +49,7 @@ SemanticsNode? findSemanticsNode(String ref) {
 Future<String?> findByLabel(String label) async {
   FlutterMate.ensureInitialized();
 
-  final snap = await SnapshotService.snapshot();
+  final snap = SnapshotService.snapshot();
   final lowerLabel = label.toLowerCase();
 
   for (final node in snap.nodes) {
@@ -98,7 +98,7 @@ Future<String?> findByLabel(String label) async {
 Future<List<String>> findAllByLabel(String labelPattern) async {
   FlutterMate.ensureInitialized();
 
-  final snap = await SnapshotService.snapshot();
+  final snap = SnapshotService.snapshot();
   final pattern = RegExp(labelPattern, caseSensitive: false);
   final refs = <String>[];
 
@@ -164,7 +164,7 @@ Future<String?> waitFor(
   final deadline = DateTime.now().add(timeout);
 
   while (DateTime.now().isBefore(deadline)) {
-    final snap = await SnapshotService.snapshot();
+    final snap = SnapshotService.snapshot();
     for (final node in snap.nodes) {
       // Check textContent first (from Text/RichText widgets)
       final textContent = node.textContent;

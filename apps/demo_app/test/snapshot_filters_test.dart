@@ -13,10 +13,10 @@ void main() {
       await tester.pumpAndSettle();
 
       // Full snapshot
-      final fullSnapshot = await SnapshotService.snapshot();
+      final fullSnapshot = SnapshotService.snapshot();
 
       // Shallow snapshot (depth 3)
-      final shallowSnapshot = await SnapshotService.snapshot(maxDepth: 3);
+      final shallowSnapshot = SnapshotService.snapshot(maxDepth: 3);
 
       expect(fullSnapshot.success, isTrue);
       expect(shallowSnapshot.success, isTrue);
@@ -40,7 +40,7 @@ void main() {
       await tester.pumpWidget(const DemoApp());
       await tester.pumpAndSettle();
 
-      final snapshot = await SnapshotService.snapshot(maxDepth: 0);
+      final snapshot = SnapshotService.snapshot(maxDepth: 0);
 
       expect(snapshot.success, isTrue);
       expect(snapshot.nodes.length, equals(1));
@@ -58,14 +58,14 @@ void main() {
       await tester.pumpAndSettle();
 
       // Full snapshot
-      final fullSnapshot = await SnapshotService.snapshot();
+      final fullSnapshot = SnapshotService.snapshot();
       final fullRefs = {for (final n in fullSnapshot.nodes) n.ref: n.widget};
 
       // Depth 5 snapshot
-      final depth5Snapshot = await SnapshotService.snapshot(maxDepth: 5);
+      final depth5Snapshot = SnapshotService.snapshot(maxDepth: 5);
 
       // Depth 3 snapshot
-      final depth3Snapshot = await SnapshotService.snapshot(maxDepth: 3);
+      final depth3Snapshot = SnapshotService.snapshot(maxDepth: 3);
 
       // All refs in depth-limited snapshots should match full snapshot
       for (final node in depth5Snapshot.nodes) {
@@ -92,7 +92,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Full snapshot first
-      final fullSnapshot = await SnapshotService.snapshot();
+      final fullSnapshot = SnapshotService.snapshot();
 
       // Find a mid-level node with children
       final midNode = fullSnapshot.nodes.firstWhere(
@@ -102,7 +102,7 @@ void main() {
 
       // Get subtree
       final subtreeSnapshot =
-          await SnapshotService.snapshot(fromRef: midNode.ref);
+          SnapshotService.snapshot(fromRef: midNode.ref);
 
       expect(subtreeSnapshot.success, isTrue);
       expect(subtreeSnapshot.nodes, isNotEmpty);
@@ -125,7 +125,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Full snapshot
-      final fullSnapshot = await SnapshotService.snapshot();
+      final fullSnapshot = SnapshotService.snapshot();
       final fullRefMap = {for (final n in fullSnapshot.nodes) n.ref: n};
 
       // Find a node at depth >= 4
@@ -136,7 +136,7 @@ void main() {
 
       // Subtree snapshot
       final subtreeSnapshot =
-          await SnapshotService.snapshot(fromRef: deepNode.ref);
+          SnapshotService.snapshot(fromRef: deepNode.ref);
 
       // All refs should match their full snapshot counterparts
       for (final node in subtreeSnapshot.nodes) {
@@ -160,7 +160,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Try invalid ref
-      final snapshot = await SnapshotService.snapshot(fromRef: 'w99999');
+      final snapshot = SnapshotService.snapshot(fromRef: 'w99999');
 
       expect(snapshot.success, isFalse);
       expect(snapshot.error, isNotNull);
@@ -180,7 +180,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Full snapshot
-      final fullSnapshot = await SnapshotService.snapshot();
+      final fullSnapshot = SnapshotService.snapshot();
 
       // Find a node at depth >= 3 with children
       final midNode = fullSnapshot.nodes.firstWhere(
@@ -193,7 +193,7 @@ void main() {
       final rootDepth = midNode.depth;
 
       // Get subtree with depth limit of 1 (root + direct children)
-      final limitedSubtree = await SnapshotService.snapshot(
+      final limitedSubtree = SnapshotService.snapshot(
         fromRef: midNode.ref,
         maxDepth: 1,
       );
@@ -219,7 +219,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Full snapshot
-      final fullSnapshot = await SnapshotService.snapshot();
+      final fullSnapshot = SnapshotService.snapshot();
 
       // Pick any node with children
       final node = fullSnapshot.nodes.firstWhere(
@@ -227,7 +227,7 @@ void main() {
       );
 
       // Get only that node (depth 0 relative to fromRef)
-      final singleNodeSnapshot = await SnapshotService.snapshot(
+      final singleNodeSnapshot = SnapshotService.snapshot(
         fromRef: node.ref,
         maxDepth: 0,
       );
@@ -249,10 +249,10 @@ void main() {
       await tester.pumpAndSettle();
 
       // Full snapshot
-      final fullSnapshot = await SnapshotService.snapshot();
+      final fullSnapshot = SnapshotService.snapshot();
 
       // Compact snapshot
-      final compactSnapshot = await SnapshotService.snapshot(compact: true);
+      final compactSnapshot = SnapshotService.snapshot(compact: true);
 
       expect(fullSnapshot.success, isTrue);
       expect(compactSnapshot.success, isTrue);
@@ -272,7 +272,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Compact snapshot
-      final compactSnapshot = await SnapshotService.snapshot(compact: true);
+      final compactSnapshot = SnapshotService.snapshot(compact: true);
 
       // Find nodes that have semantics labels
       final nodesWithLabels = compactSnapshot.nodes.where(
@@ -296,9 +296,9 @@ void main() {
       await tester.pumpAndSettle();
 
       // Take 3 snapshots
-      final snapshot1 = await SnapshotService.snapshot();
-      final snapshot2 = await SnapshotService.snapshot();
-      final snapshot3 = await SnapshotService.snapshot();
+      final snapshot1 = SnapshotService.snapshot();
+      final snapshot2 = SnapshotService.snapshot();
+      final snapshot3 = SnapshotService.snapshot();
 
       // All should have same number of nodes
       expect(snapshot1.nodes.length, equals(snapshot2.nodes.length));
@@ -322,11 +322,11 @@ void main() {
       await tester.pumpAndSettle();
 
       // Full snapshot
-      final fullSnapshot = await SnapshotService.snapshot();
+      final fullSnapshot = SnapshotService.snapshot();
 
       // Various filtered snapshots
-      final compactSnapshot = await SnapshotService.snapshot(compact: true);
-      final depth5Snapshot = await SnapshotService.snapshot(maxDepth: 5);
+      final compactSnapshot = SnapshotService.snapshot(compact: true);
+      final depth5Snapshot = SnapshotService.snapshot(maxDepth: 5);
 
       // Build full ref map
       final fullRefMap = {for (final n in fullSnapshot.nodes) n.ref: n.widget};
@@ -359,7 +359,7 @@ void main() {
 
       // Both should return same data
       final mate = await FlutterMate.snapshot();
-      final service = await SnapshotService.snapshot();
+      final service = SnapshotService.snapshot();
 
       expect(mate.success, equals(service.success));
       expect(mate.nodes.length, equals(service.nodes.length));

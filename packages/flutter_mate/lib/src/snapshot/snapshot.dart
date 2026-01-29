@@ -29,34 +29,28 @@ class SnapshotService {
   ///   Requires a previous snapshot to have been taken to map refs to elements.
   ///
   /// ```dart
-  /// final snapshot = await SnapshotService.snapshot();
+  /// final snapshot = SnapshotService.snapshot();
   /// print(snapshot);
   ///
   /// // Compact mode - only nodes with info
-  /// final compact = await SnapshotService.snapshot(compact: true);
+  /// final compact = SnapshotService.snapshot(compact: true);
   ///
   /// // Limited depth - only top 3 levels
-  /// final shallow = await SnapshotService.snapshot(maxDepth: 3);
+  /// final shallow = SnapshotService.snapshot(maxDepth: 3);
   ///
   /// // Subtree from specific element
-  /// final subtree = await SnapshotService.snapshot(fromRef: 'w15');
+  /// final subtree = SnapshotService.snapshot(fromRef: 'w15');
   /// ```
-  static Future<CombinedSnapshot> snapshot({
+  static CombinedSnapshot snapshot({
     bool compact = false,
     int? maxDepth,
     String? fromRef,
-  }) async {
+  }) {
     FlutterMate.ensureInitialized();
 
     // Clear caches for fresh detection
     _offstageStatusCache.clear();
     _parentChildOffstageMap.clear();
-
-    // Wait for first frame if needed
-    final rootElement = WidgetsBinding.instance.rootElement;
-    if (rootElement == null) {
-      await FlutterMate.waitForFirstFrame();
-    }
 
     if (WidgetsBinding.instance.rootElement == null) {
       return CombinedSnapshot(

@@ -8,6 +8,7 @@ import '../actions/gesture_actions.dart';
 import '../actions/keyboard_actions.dart';
 import '../snapshot/snapshot.dart';
 import '../snapshot/screenshot.dart';
+import 'flutter_mate.dart';
 
 /// VM Service extensions for external control via CLI/MCP.
 ///
@@ -156,7 +157,9 @@ class FlutterMateServiceExtensions {
         final maxDepth = depthStr != null ? int.tryParse(depthStr) : null;
         final fromRef = params['fromRef'];
 
-        final snap = await SnapshotService.snapshot(
+        FlutterMate.waitForFirstFrame();
+
+        final snap = SnapshotService.snapshot(
           compact: compact,
           maxDepth: maxDepth,
           fromRef: fromRef,
@@ -459,7 +462,7 @@ class FlutterMateServiceExtensions {
           );
         }
 
-        final snap = await SnapshotService.snapshot();
+        final snap = SnapshotService.snapshot();
         final node = snap[ref];
         if (node == null) {
           return ServiceExtensionResponse.result(jsonEncode({

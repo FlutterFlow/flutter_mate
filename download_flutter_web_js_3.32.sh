@@ -68,7 +68,9 @@ fvm flutter run -d web-server \
     --no-enable-dart-profiling \
     --track-widget-creation \
     --web-experimental-hot-reload \
+    --start-paused \
     --debug \
+    --no-pub \
     --no-devtools \
     --no-dds \
     > /tmp/flutter_web_server_$PORT.log 2>&1 &

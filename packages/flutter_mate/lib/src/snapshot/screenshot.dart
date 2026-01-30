@@ -113,12 +113,17 @@ class ScreenshotService {
           await _captureRenderObject(renderView, renderView.size, pixelRatio);
       if (fullImage == null) return null;
 
-      // Calculate crop rect in pixel coordinates
+      // Calculate the effective pixel ratio from the actual image dimensions
+      // This handles Retina displays where the image may be captured at device pixel ratio
+      final logicalSize = renderView.size;
+      final effectivePixelRatio = fullImage.width / logicalSize.width;
+
+      // Calculate crop rect in pixel coordinates using the effective ratio
       final cropRect = ui.Rect.fromLTWH(
-        globalOffset.dx * pixelRatio,
-        globalOffset.dy * pixelRatio,
-        size.width * pixelRatio,
-        size.height * pixelRatio,
+        globalOffset.dx * effectivePixelRatio,
+        globalOffset.dy * effectivePixelRatio,
+        size.width * effectivePixelRatio,
+        size.height * effectivePixelRatio,
       );
 
       // Clamp to image bounds

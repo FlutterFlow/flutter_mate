@@ -49,6 +49,9 @@ class ScreenshotService {
 
   /// Capture a screenshot of a specific element by ref.
   ///
+  /// Takes a full screenshot and crops it to the element's bounds.
+  /// This approach works for any element, regardless of layer type.
+  ///
   /// Returns PNG-encoded bytes of the element's screenshot, or null if not found.
   ///
   /// ```dart
@@ -66,47 +69,114 @@ class ScreenshotService {
         return null;
       }
 
-      // Find the render object
-      RenderObject? renderObject;
-      if (element is RenderObjectElement) {
-        renderObject = element.renderObject;
+      // Find the render object (must be a RenderBox for bounds)
+      RenderBox? renderBox;
+      if (element is RenderObjectElement && element.renderObject is RenderBox) {
+        renderBox = element.renderObject as RenderBox;
       } else {
-        // Search for a render object in descendants
-        void findRenderObject(Element el) {
-          if (renderObject != null) return;
-          if (el is RenderObjectElement) {
-            renderObject = el.renderObject;
+        // Search for a RenderBox in descendants
+        void findRenderBox(Element el) {
+          if (renderBox != null) return;
+          if (el is RenderObjectElement && el.renderObject is RenderBox) {
+            renderBox = el.renderObject as RenderBox;
             return;
           }
-          el.visitChildren(findRenderObject);
+          el.visitChildren(findRenderBox);
         }
 
-        findRenderObject(element);
+        findRenderBox(element);
       }
 
-      if (renderObject == null) {
-        debugPrint('FlutterMate: No render object for: $ref');
+      if (renderBox == null) {
+        debugPrint('FlutterMate: No RenderBox for: $ref');
         return null;
       }
 
-      // Get the size of the render object
-      final size = renderObject!.paintBounds.size;
+      // Get the global position and size of the element
+      final globalOffset = renderBox!.localToGlobal(Offset.zero);
+      final size = renderBox!.size;
+
       if (size.isEmpty) {
         debugPrint('FlutterMate: Element has zero size: $ref');
         return null;
       }
 
-      // Capture the render object
-      final image = await _captureRenderObject(renderObject!, size, pixelRatio);
-      if (image == null) return null;
+      // Capture full screenshot first
+      final renderViews = RendererBinding.instance.renderViews;
+      if (renderViews.isEmpty) {
+        debugPrint('FlutterMate: No render views available');
+        return null;
+      }
+
+      final renderView = renderViews.first;
+      final fullImage =
+          await _captureRenderObject(renderView, renderView.size, pixelRatio);
+      if (fullImage == null) return null;
+
+      // Calculate crop rect in pixel coordinates
+      final cropRect = ui.Rect.fromLTWH(
+        globalOffset.dx * pixelRatio,
+        globalOffset.dy * pixelRatio,
+        size.width * pixelRatio,
+        size.height * pixelRatio,
+      );
+
+      // Clamp to image bounds
+      final clampedRect = ui.Rect.fromLTWH(
+        cropRect.left.clamp(0, fullImage.width.toDouble()),
+        cropRect.top.clamp(0, fullImage.height.toDouble()),
+        cropRect.width.clamp(0, fullImage.width - cropRect.left),
+        cropRect.height.clamp(0, fullImage.height - cropRect.top),
+      );
+
+      if (clampedRect.isEmpty) {
+        debugPrint('FlutterMate: Element is outside visible area: $ref');
+        fullImage.dispose();
+        return null;
+      }
+
+      // Crop the image using a picture recorder
+      final croppedImage = await _cropImage(fullImage, clampedRect);
+      fullImage.dispose();
+
+      if (croppedImage == null) return null;
 
       // Encode to PNG
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      image.dispose();
+      final byteData =
+          await croppedImage.toByteData(format: ui.ImageByteFormat.png);
+      croppedImage.dispose();
 
       return byteData?.buffer.asUint8List();
     } catch (e, stack) {
       debugPrint('FlutterMate: Element screenshot failed: $e\n$stack');
+      return null;
+    }
+  }
+
+  /// Crop an image to the specified rectangle.
+  static Future<ui.Image?> _cropImage(ui.Image source, ui.Rect cropRect) async {
+    try {
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+
+      // Draw the cropped portion
+      canvas.drawImageRect(
+        source,
+        cropRect,
+        ui.Rect.fromLTWH(0, 0, cropRect.width, cropRect.height),
+        Paint(),
+      );
+
+      final picture = recorder.endRecording();
+      final image = await picture.toImage(
+        cropRect.width.round(),
+        cropRect.height.round(),
+      );
+      picture.dispose();
+
+      return image;
+    } catch (e) {
+      debugPrint('FlutterMate: Failed to crop image: $e');
       return null;
     }
   }

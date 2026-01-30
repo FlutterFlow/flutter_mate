@@ -18,72 +18,127 @@ flutter_mate --help
 
 ## CLI Usage
 
+The CLI uses a daemon architecture for fast, persistent connections:
+
 ```bash
-# Get the VM Service URI from Flutter console when running your app:
-#   A Dart VM Service on macOS is available at: http://127.0.0.1:12345/abc=/
+# Launch a Flutter app and connect automatically
+flutter_mate run -d macos
+flutter_mate run -d chrome --web-browser-flag="--headless"
 
-# Convert to WebSocket URI and use:
-flutter_mate --uri ws://127.0.0.1:12345/abc=/ws snapshot
+# Or connect to an already running app
+# (Get the VM Service URI from Flutter console when running your app)
+flutter_mate connect ws://127.0.0.1:12345/abc=/ws
 
-# Snapshot options
-flutter_mate --uri ws://... snapshot -c        # Compact mode (only meaningful widgets)
-flutter_mate --uri ws://... snapshot --depth 3 # Limit tree depth
-flutter_mate --uri ws://... snapshot --from w6 # Start from specific element as root
+# Now run commands (no URI needed - daemon maintains connection)
+flutter_mate snapshot
+flutter_mate snapshot -c                 # Compact mode
+flutter_mate snapshot --depth 3          # Limit tree depth
+flutter_mate tap w10
+flutter_mate setText w5 "hello@example.com"
+flutter_mate screenshot --path out.png
 
-# Take screenshots
-flutter_mate --uri ws://... screenshot                 # Full screen (saves to PNG)
-flutter_mate --uri ws://... screenshot --ref w10       # Element only
-flutter_mate --uri ws://... screenshot --path out.png  # Custom path
+# Check connection status
+flutter_mate status
 
-# Interact with elements
-flutter_mate --uri ws://... tap w10
-flutter_mate --uri ws://... setText w5 "hello@example.com"
-flutter_mate --uri ws://... scroll w15 down
+# Session management (for multiple apps)
+flutter_mate -s staging run -d chrome
+flutter_mate -s staging snapshot
+flutter_mate session list
 
-# Interactive REPL mode
-flutter_mate --uri ws://... attach
-flutter_mate> snapshot
-flutter_mate> sc              # compact snapshot
-flutter_mate> tap w10
-flutter_mate> help
+# Cleanup
+flutter_mate close
 ```
 
 ## Commands
 
+### App Lifecycle
+
+| Command | Description |
+|---------|-------------|
+| `run [flutter-args...]` | Launch app with flutter run args |
+| `connect <uri>` | Connect to existing app by VM Service URI |
+| `close` | Close app and stop daemon |
+| `status` | Show connection status |
+| `session list` | List active sessions |
+
+### Introspection
+
 | Command | Description |
 |---------|-------------|
 | `snapshot` | Get UI tree (options: `-c`, `--depth N`, `--from wX`) |
+| `find <ref>` | Get detailed element info |
 | `screenshot` | Capture screenshot (options: `--ref wX`, `--path file.png`) |
+| `getText <ref>` | Get element text |
+
+### Interactions
+
+| Command | Description |
+|---------|-------------|
 | `tap <ref>` | Tap element |
 | `doubleTap <ref>` | Double tap element |
 | `longPress <ref>` | Long press element |
 | `hover <ref>` | Hover over element |
 | `drag <from> <to>` | Drag between elements |
+| `focus <ref>` | Focus element |
+
+### Text Input
+
+| Command | Description |
+|---------|-------------|
 | `setText <ref> <text>` | Set text (semantic action) |
 | `typeText <ref> <text>` | Type text (keyboard simulation) |
 | `clear <ref>` | Clear text field |
-| `scroll <ref> [dir]` | Scroll element |
+
+### Scrolling & Keyboard
+
+| Command | Description |
+|---------|-------------|
+| `scroll <ref> [dir]` | Scroll element (up, down, left, right) |
 | `swipe <dir>` | Swipe gesture |
-| `focus <ref>` | Focus element |
 | `pressKey <key>` | Press keyboard key |
-| `keyDown <key>` | Press key down |
+| `keyDown <key>` | Press key down (hold) |
 | `keyUp <key>` | Release key |
-| `find <ref>` | Get detailed element info |
-| `getText <ref>` | Get element text |
+
+### Waiting
+
+| Command | Description |
+|---------|-------------|
 | `wait <ms>` | Wait milliseconds |
 | `waitFor <pattern>` | Wait for element to appear (`--timeout`, `--poll`) |
 | `waitForDisappear <pattern>` | Wait for element to disappear |
 | `waitForValue <ref> <pattern>` | Wait for element value to match |
-| `extensions` | List service extensions |
-| `attach` | Interactive REPL mode |
 
-### Snapshot Options
+### Global Options
 
 | Option | Description |
 |--------|-------------|
-| `-c, --compact` | Only show widgets with meaningful info |
-| `-d, --depth N` | Limit tree depth (e.g., `--depth 3`) |
-| `-f, --from wX` | Start from specific element as root (requires prior snapshot) |
+| `-s, --session <name>` | Session name (default: "default") |
+| `-j, --json` | Output as JSON |
+| `-h, --help` | Show help |
+| `-v, --version` | Show version |
+
+## Examples
+
+```bash
+# Headless testing workflow
+flutter_mate run -d chrome --web-browser-flag="--headless"
+flutter_mate snapshot -c
+flutter_mate setText w10 "test@example.com"
+flutter_mate setText w13 "password123"
+flutter_mate tap w17
+flutter_mate waitFor "Dashboard"
+flutter_mate screenshot --path result.png
+flutter_mate close
+
+# Multiple sessions
+flutter_mate -s app1 run -d macos
+flutter_mate -s app2 run -d chrome
+flutter_mate -s app1 snapshot
+flutter_mate -s app2 tap w5
+flutter_mate session list
+flutter_mate -s app1 close
+flutter_mate -s app2 close
+```
 
 ## MCP Server
 
@@ -136,7 +191,7 @@ Add to `~/.cursor/mcp.json`:
 | `pressKey` | Press keyboard key |
 | `keyDown` | Press key down (hold) |
 | `keyUp` | Release key |
-| `waitFor` | Wait for element to appear (`labelPattern`, `timeout`, `pollInterval`) |
+| `waitFor` | Wait for element to appear |
 | `waitForDisappear` | Wait for element to disappear |
 | `waitForValue` | Wait for element value to match pattern |
 
@@ -160,3 +215,24 @@ Format: `[ref] Widget (text) value="..." {state} [actions] (flags)`
 - **state** - Validation, input type, etc.
 - **actions** - Available semantic actions
 - **flags** - Widget properties (Button, TextField, etc.)
+
+## Architecture
+
+The CLI uses a daemon architecture for performance:
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  flutter_mate   │────▶│     Daemon      │────▶│   Flutter App   │
+│     CLI         │     │  (Unix socket)  │     │  (VM Service)   │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+
+Session files: ~/.flutter_mate/
+  - default.sock    # Unix socket for IPC
+  - default.pid     # Daemon process ID
+  - default.uri     # Connected VM Service URI
+```
+
+Benefits:
+- **Fast commands** - No reconnection overhead per command
+- **Session persistence** - Connection maintained across CLI invocations
+- **Multiple sessions** - Run tests against multiple apps simultaneously

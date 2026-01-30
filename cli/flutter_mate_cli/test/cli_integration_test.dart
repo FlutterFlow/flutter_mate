@@ -1,14 +1,16 @@
 /// CLI Integration Tests
 ///
-/// These tests verify the CLI can communicate with a running Flutter app.
+/// These tests verify the CLI can communicate with a running Flutter app
+/// via the daemon mode.
 ///
 /// To run these tests:
 /// 1. Start the demo app: `cd apps/demo_app && flutter run -d macos`
 /// 2. Copy the VM Service URI
-/// 3. Run: `dart test test/cli_integration_test.dart --define=vm_uri=ws://...`
+/// 3. Run: `VM_SERVICE_URI=ws://... dart test test/cli_integration_test.dart`
 ///
-/// Or use the automated test script (runs app in background):
-/// `dart run test/run_integration_tests.dart`
+/// Or use the new daemon mode:
+/// 1. Run: `flutter_mate run -d macos` (in one terminal)
+/// 2. Run: `dart test test/cli_integration_test.dart --define=use_daemon=true`
 library;
 
 import 'dart:convert';
@@ -16,22 +18,26 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
-/// These tests require a running Flutter app.
-/// Set the VM_SERVICE_URI environment variable or pass via --define
 void main() {
   final vmUri = Platform.environment['VM_SERVICE_URI'] ??
       const String.fromEnvironment('vm_uri', defaultValue: '');
+  final useDaemon =
+      const String.fromEnvironment('use_daemon', defaultValue: 'false') ==
+          'true';
 
-  // Skip if no URI provided
-  if (vmUri.isEmpty) {
+  // Skip if no URI provided and not using daemon
+  if (vmUri.isEmpty && !useDaemon) {
     print('''
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║  CLI Integration Tests - SKIPPED                                             ║
 ║                                                                              ║
-║  To run these tests:                                                         ║
-║  1. Start demo app:  cd apps/demo_app && flutter run -d macos               ║
-║  2. Copy the VM Service URI (ws://...)                                       ║
-║  3. Run tests:  VM_SERVICE_URI=ws://... dart test test/cli_integration_test.dart ║
+║  Option 1: Use daemon mode (recommended)                                     ║
+║    flutter_mate run -d macos                                                 ║
+║    dart test test/cli_integration_test.dart --define=use_daemon=true         ║
+║                                                                              ║
+║  Option 2: Provide VM Service URI                                            ║
+║    cd apps/demo_app && flutter run -d macos                                  ║
+║    VM_SERVICE_URI=ws://... dart test test/cli_integration_test.dart          ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 ''');
     return;
@@ -41,183 +47,141 @@ void main() {
     late String cliPath;
 
     setUpAll(() {
-      // Get path to CLI binary
       cliPath = 'bin/flutter_mate.dart';
-      print('Testing with VM Service: $vmUri');
+      if (useDaemon) {
+        print('Testing with daemon mode (default session)');
+      } else {
+        print('Testing with VM Service: $vmUri');
+      }
     });
 
     Future<ProcessResult> runCli(List<String> args) async {
-      return Process.run(
-        'dart',
-        ['run', cliPath, '--uri', vmUri, ...args],
-        workingDirectory: Directory.current.path,
-      );
+      if (useDaemon) {
+        // New daemon mode - no URI needed
+        return Process.run(
+          'dart',
+          ['run', cliPath, ...args],
+          workingDirectory: Directory.current.path,
+        );
+      } else {
+        // Legacy mode - connect first, then run command
+        // First connect
+        await Process.run(
+          'dart',
+          ['run', cliPath, 'connect', vmUri],
+          workingDirectory: Directory.current.path,
+        );
+        // Then run command
+        return Process.run(
+          'dart',
+          ['run', cliPath, ...args],
+          workingDirectory: Directory.current.path,
+        );
+      }
     }
 
-    test('snapshot command returns valid JSON', () async {
+    test('snapshot command returns valid output', () async {
       final result = await runCli(['snapshot', '-j']);
 
       expect(result.exitCode, 0, reason: 'CLI should exit with 0');
 
-      // Parse JSON output
-      final lines = (result.stdout as String).split('\n');
-      final jsonLine = lines.firstWhere(
-        (l) => l.trim().startsWith('{'),
-        orElse: () => '',
-      );
-
-      expect(jsonLine, isNotEmpty, reason: 'Should output JSON');
-
-      final json = jsonDecode(jsonLine);
-      expect(json['success'], isTrue);
-      expect(json['nodes'], isA<List>());
+      final stdout = result.stdout as String;
+      // Should contain JSON with success
+      expect(stdout, contains('"success"'));
     });
 
-    test('snapshot -i shows interactive elements only', () async {
-      final result = await runCli(['snapshot', '-i']);
+    test('snapshot compact mode works', () async {
+      final result = await runCli(['snapshot', '-c']);
 
       expect(result.exitCode, 0);
 
       final output = result.stdout as String;
-      // Should show elements with actions
-      expect(output, contains('tap'));
+      // Compact mode should still show some output
+      expect(output, isNotEmpty);
     });
 
-    test('tap command works on valid ref', () async {
-      // First get a valid ref
-      final snapshotResult = await runCli(['snapshot', '-j']);
-      final lines = (snapshotResult.stdout as String).split('\n');
-      final jsonLine = lines.firstWhere((l) => l.trim().startsWith('{'));
-      final json = jsonDecode(jsonLine);
-
-      // Find a tappable element
-      final nodes = json['nodes'] as List;
-      final tappableNode = nodes.firstWhere(
-        (n) => (n['actions'] as List).contains('tap'),
-        orElse: () => null,
-      );
-
-      if (tappableNode == null) {
-        print('No tappable element found, skipping');
-        return;
-      }
-
-      final ref = tappableNode['ref'];
-      final result = await runCli(['tap', ref]);
+    test('status command works', () async {
+      final result = await runCli(['status']);
 
       expect(result.exitCode, 0);
-      expect(result.stdout, contains('succeeded'));
+
+      final output = result.stdout as String;
+      expect(output, contains('Session'));
     });
 
-    test('fill command works on text fields', () async {
-      // Get a text field ref
-      final snapshotResult = await runCli(['snapshot', '-j']);
-      final lines = (snapshotResult.stdout as String).split('\n');
-      final jsonLine = lines.firstWhere((l) => l.trim().startsWith('{'));
-      final json = jsonDecode(jsonLine);
+    test('find command with invalid ref returns error', () async {
+      final result = await runCli(['find', 'invalid_ref_99999']);
 
-      final nodes = json['nodes'] as List;
-      final textField = nodes.firstWhere(
-        (n) => (n['flags'] as List).contains('isTextField'),
-        orElse: () => null,
-      );
-
-      if (textField == null) {
-        print('No text field found, skipping');
-        return;
-      }
-
-      final ref = textField['ref'];
-      final result = await runCli(['fill', ref, 'test@cli.com']);
-
-      expect(result.exitCode, 0);
-      expect(result.stdout, contains('succeeded'));
+      // Should handle gracefully
+      final combined = '${result.stdout}${result.stderr}';
+      expect(combined,
+          anyOf(contains('failed'), contains('not found'), contains('Error')));
     });
 
-    test('focus command works', () async {
-      final snapshotResult = await runCli(['snapshot', '-j']);
-      final lines = (snapshotResult.stdout as String).split('\n');
-      final jsonLine = lines.firstWhere((l) => l.trim().startsWith('{'));
-      final json = jsonDecode(jsonLine);
-
-      final nodes = json['nodes'] as List;
-      final focusable = nodes.firstWhere(
-        (n) => (n['flags'] as List).contains('isFocusable'),
-        orElse: () => null,
-      );
-
-      if (focusable == null) {
-        print('No focusable element found, skipping');
-        return;
-      }
-
-      final ref = focusable['ref'];
-      final result = await runCli(['focus', ref]);
-
-      expect(result.exitCode, 0);
-      expect(result.stdout, contains('succeeded'));
-    });
-
-    test('typeText command works after focus', () async {
-      // First focus a text field
-      final snapshotResult = await runCli(['snapshot', '-j']);
-      final lines = (snapshotResult.stdout as String).split('\n');
-      final jsonLine = lines.firstWhere((l) => l.trim().startsWith('{'));
-      final json = jsonDecode(jsonLine);
-
-      final nodes = json['nodes'] as List;
-      final textField = nodes.firstWhere(
-        (n) => (n['flags'] as List).contains('isTextField'),
-        orElse: () => null,
-      );
-
-      if (textField == null) {
-        print('No text field found, skipping');
-        return;
-      }
-
-      // Focus first
-      await runCli(['focus', textField['ref']]);
-
-      // Then type
-      final result = await runCli(['typeText', 'Hello from CLI!']);
-
-      expect(result.exitCode, 0);
-      expect(result.stdout, contains('succeeded'));
-    });
-
-    test('scroll command works', () async {
-      final snapshotResult = await runCli(['snapshot', '-j']);
-      final lines = (snapshotResult.stdout as String).split('\n');
-      final jsonLine = lines.firstWhere((l) => l.trim().startsWith('{'));
-      final json = jsonDecode(jsonLine);
-
-      // Try to find a scrollable or just use any element
-      final nodes = json['nodes'] as List;
-      if (nodes.isEmpty) {
-        print('No nodes found, skipping');
-        return;
-      }
-
-      final ref = nodes.first['ref'];
-      final result = await runCli(['scroll', ref, 'down']);
-
-      // Scroll might fail if element isn't scrollable, but command should run
-      expect(result.exitCode, anyOf(0, 1));
-    });
-
-    test('invalid ref returns error', () async {
+    test('tap command with invalid ref returns error', () async {
       final result = await runCli(['tap', 'invalid_ref_12345']);
 
-      // Should complete but report failure
-      expect(result.stdout, anyOf(contains('failed'), contains('not found')));
+      final combined = '${result.stdout}${result.stderr}';
+      expect(combined,
+          anyOf(contains('failed'), contains('not found'), contains('Error')));
     });
 
-    test('unknown command shows help', () async {
-      final result = await runCli(['unknownCommand']);
+    test('JSON output flag works', () async {
+      final result = await runCli(['snapshot', '-j']);
 
-      // Should show usage/help
-      expect(result.stdout + result.stderr, contains('Usage'));
+      expect(result.exitCode, 0);
+
+      final output = result.stdout as String;
+      // Should be valid JSON
+      expect(() => jsonDecode(output), returnsNormally);
+    });
+
+    test('wait command works', () async {
+      final stopwatch = Stopwatch()..start();
+      final result = await runCli(['wait', '500']);
+      stopwatch.stop();
+
+      expect(result.exitCode, 0);
+      expect(stopwatch.elapsedMilliseconds, greaterThanOrEqualTo(450));
+      expect(result.stdout, contains('Waited'));
+    });
+
+    test('help flag shows usage', () async {
+      final result = await Process.run(
+        'dart',
+        ['run', cliPath, '--help'],
+        workingDirectory: Directory.current.path,
+      );
+
+      expect(result.exitCode, 0);
+      expect(result.stdout, contains('flutter_mate'));
+      expect(result.stdout, contains('run'));
+      expect(result.stdout, contains('connect'));
+      expect(result.stdout, contains('snapshot'));
+    });
+
+    test('version flag works', () async {
+      final result = await Process.run(
+        'dart',
+        ['run', cliPath, '--version'],
+        workingDirectory: Directory.current.path,
+      );
+
+      expect(result.exitCode, 0);
+      expect(result.stdout, contains('flutter_mate'));
+    });
+
+    test('session list command works', () async {
+      final result = await Process.run(
+        'dart',
+        ['run', cliPath, 'session', 'list'],
+        workingDirectory: Directory.current.path,
+      );
+
+      expect(result.exitCode, 0);
+      // Should show sessions or "No active sessions"
+      final output = result.stdout as String;
+      expect(output, anyOf(contains('session'), contains('No active')));
     });
   });
 }

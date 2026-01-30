@@ -4,24 +4,41 @@
 ///
 /// ## Available Tools
 ///
-/// - `connect` - Connect to a running Flutter app via VM Service
+/// **Connection:**
+/// - `connect` - Connect to a running Flutter app via VM Service URI
+/// - `status` - Check connection status
+/// - `close` - Disconnect from Flutter app
+///
+/// **Introspection:**
 /// - `snapshot` - Capture UI tree with element refs (collapsed view)
 /// - `find` - Get detailed info about a specific element
 /// - `screenshot` - Capture screenshot (full screen or specific element)
+///
+/// **Touch Actions:**
 /// - `tap` - Tap element (tries semantic action, falls back to gesture)
 /// - `doubleTap` - Double tap an element
 /// - `longPress` - Long press an element
 /// - `hover` - Hover over an element (trigger onHover/onEnter)
 /// - `drag` - Drag from one element to another
+///
+/// **Text Input:**
 /// - `setText` - Set text via semantic action (for Semantics widgets)
 /// - `typeText` - Type text via keyboard simulation (for TextField widgets)
+/// - `clear` - Clear text from a text field
+///
+/// **Navigation:**
 /// - `scroll` - Scroll element in a direction
 /// - `focus` - Focus an element (for text input)
+///
+/// **Keyboard:**
 /// - `pressKey` - Press a keyboard key (enter, tab, escape, etc.)
 /// - `keyDown` - Press a key down (hold without releasing)
 /// - `keyUp` - Release a key
-/// - `clear` - Clear text from a text field
+///
+/// **Wait:**
 /// - `waitFor` - Wait for element with matching label/text to appear
+/// - `waitForDisappear` - Wait for element to disappear
+/// - `waitForValue` - Wait for element value to match pattern
 ///
 /// ## Snapshot Format
 ///
@@ -99,6 +116,8 @@ base mixin FlutterMateSupport on ToolsSupport {
     // Register all Flutter Mate tools BEFORE super.initialize()
     // so they're included in the capabilities response
     registerTool(_connectTool, _handleConnect);
+    registerTool(_statusTool, _handleStatus);
+    registerTool(_closeTool, _handleClose);
     registerTool(_snapshotTool, _handleSnapshot);
     registerTool(_findTool, _handleFind);
     registerTool(_tapTool, _handleTap);
@@ -183,6 +202,20 @@ The URI will be automatically normalized (http→ws, adds /ws suffix if needed).
       },
       required: ['uri'],
     ),
+  );
+
+  static final _statusTool = Tool(
+    name: 'status',
+    description: 'Check the connection status to the Flutter app.',
+    annotations:
+        ToolAnnotations(title: 'Connection Status', readOnlyHint: true),
+    inputSchema: Schema.object(properties: {}),
+  );
+
+  static final _closeTool = Tool(
+    name: 'close',
+    description: 'Disconnect from the Flutter app.',
+    inputSchema: Schema.object(properties: {}),
   );
 
   static final _snapshotTool = Tool(
@@ -585,6 +618,46 @@ The image is returned as base64 data that can be displayed or analyzed.''',
       return CallToolResult(
         content: [TextContent(text: 'Failed to connect: $e')],
         isError: true,
+      );
+    }
+  }
+
+  Future<CallToolResult> _handleStatus(CallToolRequest request) async {
+    final connected = _client != null;
+    final uri = _wsUri;
+
+    final status = StringBuffer();
+    status.writeln('Connection Status:');
+    status.writeln('  Connected: $connected');
+    if (uri != null) {
+      status.writeln('  URI: $uri');
+    }
+
+    return CallToolResult(
+      content: [TextContent(text: status.toString())],
+    );
+  }
+
+  Future<CallToolResult> _handleClose(CallToolRequest request) async {
+    if (_client == null) {
+      return CallToolResult(
+        content: [TextContent(text: 'Not connected to any Flutter app.')],
+      );
+    }
+
+    try {
+      await _client!.disconnect();
+      _client = null;
+      _wsUri = null;
+
+      return CallToolResult(
+        content: [TextContent(text: 'Disconnected from Flutter app.')],
+      );
+    } catch (e) {
+      _client = null;
+      _wsUri = null;
+      return CallToolResult(
+        content: [TextContent(text: 'Disconnected (with error: $e)')],
       );
     }
   }

@@ -304,7 +304,8 @@ class VmServiceClient {
 
   /// Refresh snapshot cache (used by waitFor for polling)
   Future<void> _refreshSnapshot() async {
-    final result = await getSnapshot();
+    // Request raw JSON nodes (not formatted lines) for searching
+    final result = await getSnapshot(json: true);
     if (result['success'] == true) {
       _cachedNodes =
           (result['nodes'] as List<dynamic>?)?.cast<Map<String, dynamic>>();

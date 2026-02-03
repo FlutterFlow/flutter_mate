@@ -88,46 +88,8 @@ void main() {
       final session = SessionState('test');
       expect(session.name, 'test');
       expect(session.isConnected, false);
-      expect(session.isLaunched, false);
-      expect(session.canKillApp, false);
-      expect(session.canHotReload, false);
-    });
-
-    test('Log buffer respects max size', () {
-      final session = SessionState('test');
-
-      // Add more logs than max size
-      for (var i = 0; i < SessionState.maxLogBufferSize + 100; i++) {
-        session.addLog('Line $i');
-      }
-
-      expect(session.logBuffer.length, SessionState.maxLogBufferSize);
-      expect(session.logBuffer.first, 'Line 100'); // First 100 were removed
-    });
-
-    test('getLogs returns correct subset', () {
-      final session = SessionState('test');
-      for (var i = 0; i < 10; i++) {
-        session.addLog('Line $i');
-      }
-
-      final allLogs = session.getLogs();
-      expect(allLogs.length, 10);
-
-      final lastFive = session.getLogs(5);
-      expect(lastFive.length, 5);
-      expect(lastFive.first, 'Line 5');
-      expect(lastFive.last, 'Line 9');
-    });
-
-    test('clearLogs empties buffer', () {
-      final session = SessionState('test');
-      session.addLog('Line 1');
-      session.addLog('Line 2');
-      expect(session.logBuffer.isNotEmpty, true);
-
-      session.clearLogs();
-      expect(session.logBuffer.isEmpty, true);
+      expect(session.vmClient, isNull);
+      expect(session.vmUri, isNull);
     });
 
     test('toStatusJson returns correct structure', () {
@@ -136,9 +98,7 @@ void main() {
 
       expect(status['session'], 'mySession');
       expect(status['connected'], false);
-      expect(status['launched'], false);
-      expect(status['canHotReload'], false);
-      expect(status['canKillApp'], false);
+      expect(status['uri'], isNull);
     });
   });
 
@@ -232,7 +192,6 @@ void main() {
         final data = response.data as Map<String, dynamic>?;
         expect(data?['session'], testSession);
         expect(data?['connected'], false);
-        expect(data?['launched'], false);
 
         // Close daemon
         try {

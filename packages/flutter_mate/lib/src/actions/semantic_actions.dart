@@ -91,6 +91,7 @@ class SemanticActions {
     // TextField may handle it internally even without advertising
     node.owner?.performAction(node.id, SemanticsAction.setText, text);
     await FlutterMate.delay(const Duration(milliseconds: 100));
+    await FlutterMate.pumpIfTesting();
 
     return true;
   }
@@ -133,6 +134,7 @@ class SemanticActions {
         debugPrint('FlutterMate: Scroll via semantic action on w${current.id}');
         current.owner?.performAction(current.id, action);
         await FlutterMate.delay(const Duration(milliseconds: 300));
+        await FlutterMate.pumpIfTesting();
         return true;
       }
       current = current.parent;
@@ -167,6 +169,7 @@ class SemanticActions {
 
     node.owner?.performAction(node.id, action);
     await FlutterMate.delay(const Duration(milliseconds: 100));
+    await FlutterMate.pumpIfTesting();
 
     return true;
   }

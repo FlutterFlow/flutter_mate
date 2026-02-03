@@ -2,15 +2,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_mate/flutter_mate.dart';
 import 'package:demo_app/main.dart';
 
+/// Helper to set up FlutterMate tests with common boilerplate
+Future<SemanticsHandle> setupTest(WidgetTester tester) async {
+  final handle = tester.ensureSemantics();
+  FlutterMate.initializeForTest(tester: tester);
+  await FlutterMate.pumpApp(const DemoApp());
+  return handle;
+}
+
 /// Tests for snapshot filtering features (depth, fromRef, compact)
 void main() {
   group('Snapshot Depth Filter', () {
     testWidgets('maxDepth limits tree depth', (tester) async {
-      final semanticsHandle = tester.ensureSemantics();
-      FlutterMate.initializeForTest();
-
-      await tester.pumpWidget(const DemoApp());
-      await tester.pumpAndSettle();
+      final semanticsHandle = await setupTest(tester);
 
       // Full snapshot
       final fullSnapshot = SnapshotService.snapshot();
@@ -34,11 +38,7 @@ void main() {
     });
 
     testWidgets('depth 0 returns only root node', (tester) async {
-      final semanticsHandle = tester.ensureSemantics();
-      FlutterMate.initializeForTest();
-
-      await tester.pumpWidget(const DemoApp());
-      await tester.pumpAndSettle();
+      final semanticsHandle = await setupTest(tester);
 
       final snapshot = SnapshotService.snapshot(maxDepth: 0);
 
@@ -51,11 +51,7 @@ void main() {
     });
 
     testWidgets('refs are stable across different depth limits', (tester) async {
-      final semanticsHandle = tester.ensureSemantics();
-      FlutterMate.initializeForTest();
-
-      await tester.pumpWidget(const DemoApp());
-      await tester.pumpAndSettle();
+      final semanticsHandle = await setupTest(tester);
 
       // Full snapshot
       final fullSnapshot = SnapshotService.snapshot();
@@ -85,11 +81,7 @@ void main() {
   group('Snapshot fromRef Filter', () {
     testWidgets('fromRef returns subtree starting at specified node',
         (tester) async {
-      final semanticsHandle = tester.ensureSemantics();
-      FlutterMate.initializeForTest();
-
-      await tester.pumpWidget(const DemoApp());
-      await tester.pumpAndSettle();
+      final semanticsHandle = await setupTest(tester);
 
       // Full snapshot first
       final fullSnapshot = SnapshotService.snapshot();
@@ -118,11 +110,7 @@ void main() {
     });
 
     testWidgets('fromRef preserves original ref values', (tester) async {
-      final semanticsHandle = tester.ensureSemantics();
-      FlutterMate.initializeForTest();
-
-      await tester.pumpWidget(const DemoApp());
-      await tester.pumpAndSettle();
+      final semanticsHandle = await setupTest(tester);
 
       // Full snapshot
       final fullSnapshot = SnapshotService.snapshot();
@@ -153,11 +141,7 @@ void main() {
     });
 
     testWidgets('fromRef with invalid ref returns error', (tester) async {
-      final semanticsHandle = tester.ensureSemantics();
-      FlutterMate.initializeForTest();
-
-      await tester.pumpWidget(const DemoApp());
-      await tester.pumpAndSettle();
+      final semanticsHandle = await setupTest(tester);
 
       // Try invalid ref
       final snapshot = SnapshotService.snapshot(fromRef: 'w99999');
@@ -173,11 +157,7 @@ void main() {
   group('Snapshot fromRef + Depth Combined', () {
     testWidgets('fromRef with depth is relative to subtree root',
         (tester) async {
-      final semanticsHandle = tester.ensureSemantics();
-      FlutterMate.initializeForTest();
-
-      await tester.pumpWidget(const DemoApp());
-      await tester.pumpAndSettle();
+      final semanticsHandle = await setupTest(tester);
 
       // Full snapshot
       final fullSnapshot = SnapshotService.snapshot();
@@ -212,11 +192,7 @@ void main() {
 
     testWidgets('fromRef with depth 0 returns only the specified node',
         (tester) async {
-      final semanticsHandle = tester.ensureSemantics();
-      FlutterMate.initializeForTest();
-
-      await tester.pumpWidget(const DemoApp());
-      await tester.pumpAndSettle();
+      final semanticsHandle = await setupTest(tester);
 
       // Full snapshot
       final fullSnapshot = SnapshotService.snapshot();
@@ -242,11 +218,7 @@ void main() {
 
   group('Snapshot Compact Mode', () {
     testWidgets('compact mode filters structural nodes', (tester) async {
-      final semanticsHandle = tester.ensureSemantics();
-      FlutterMate.initializeForTest();
-
-      await tester.pumpWidget(const DemoApp());
-      await tester.pumpAndSettle();
+      final semanticsHandle = await setupTest(tester);
 
       // Full snapshot
       final fullSnapshot = SnapshotService.snapshot();
@@ -265,11 +237,7 @@ void main() {
 
     testWidgets('compact mode preserves nodes with semantic info',
         (tester) async {
-      final semanticsHandle = tester.ensureSemantics();
-      FlutterMate.initializeForTest();
-
-      await tester.pumpWidget(const DemoApp());
-      await tester.pumpAndSettle();
+      final semanticsHandle = await setupTest(tester);
 
       // Compact snapshot
       final compactSnapshot = SnapshotService.snapshot(compact: true);
@@ -289,11 +257,7 @@ void main() {
 
   group('Snapshot Ref Stability', () {
     testWidgets('refs are consistent across multiple snapshots', (tester) async {
-      final semanticsHandle = tester.ensureSemantics();
-      FlutterMate.initializeForTest();
-
-      await tester.pumpWidget(const DemoApp());
-      await tester.pumpAndSettle();
+      final semanticsHandle = await setupTest(tester);
 
       // Take 3 snapshots
       final snapshot1 = SnapshotService.snapshot();
@@ -315,11 +279,7 @@ void main() {
 
     testWidgets('refs are consistent between full and filtered snapshots',
         (tester) async {
-      final semanticsHandle = tester.ensureSemantics();
-      FlutterMate.initializeForTest();
-
-      await tester.pumpWidget(const DemoApp());
-      await tester.pumpAndSettle();
+      final semanticsHandle = await setupTest(tester);
 
       // Full snapshot
       final fullSnapshot = SnapshotService.snapshot();
@@ -351,11 +311,7 @@ void main() {
 
   group('FlutterMate Convenience Methods', () {
     testWidgets('FlutterMate.snapshot() uses SnapshotService', (tester) async {
-      final semanticsHandle = tester.ensureSemantics();
-      FlutterMate.initializeForTest();
-
-      await tester.pumpWidget(const DemoApp());
-      await tester.pumpAndSettle();
+      final semanticsHandle = await setupTest(tester);
 
       // Both should return same data
       final mate = await FlutterMate.snapshot();

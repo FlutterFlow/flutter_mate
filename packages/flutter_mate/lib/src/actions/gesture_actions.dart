@@ -38,6 +38,7 @@ class GestureActions {
     }
 
     await doubleTapAt(Offset(centerPoint.x, centerPoint.y));
+    await FlutterMate.pumpIfTesting();
     return true;
   }
 
@@ -82,6 +83,7 @@ class GestureActions {
     final box = ro;
     final center = box.localToGlobal(box.size.center(Offset.zero));
     await tapAt(center);
+    await FlutterMate.pumpIfTesting();
     return true;
   }
 
@@ -104,6 +106,7 @@ class GestureActions {
     }
 
     await longPressAt(Offset(centerPoint.x, centerPoint.y));
+    await FlutterMate.pumpIfTesting();
     return true;
   }
 
@@ -165,6 +168,7 @@ class GestureActions {
     debugPrint('FlutterMate: scrollGesture $direction from $from to $to');
 
     await drag(from: from, to: to);
+    await FlutterMate.pumpIfTesting();
 
     return true;
   }
@@ -310,6 +314,7 @@ class GestureActions {
 
     // Wait for scroll physics to settle
     await FlutterMate.delay(const Duration(milliseconds: 100));
+    await FlutterMate.pumpIfTesting();
 
     return true;
   }
@@ -337,6 +342,7 @@ class GestureActions {
     }
 
     await hoverAt(Offset(centerPoint.x, centerPoint.y));
+    await FlutterMate.pumpIfTesting();
     return true;
   }
 
@@ -409,6 +415,7 @@ class GestureActions {
       from: Offset(fromCenter.x, fromCenter.y),
       to: Offset(toCenter.x, toCenter.y),
     );
+    await FlutterMate.pumpIfTesting();
     return true;
   }
 
@@ -478,6 +485,7 @@ class GestureActions {
       to: Offset(endX, endY),
       duration: const Duration(milliseconds: 200),
     );
+    await FlutterMate.pumpIfTesting();
 
     return true;
   }

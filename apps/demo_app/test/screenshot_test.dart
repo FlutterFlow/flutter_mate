@@ -2,6 +2,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_mate/flutter_mate.dart';
 import 'package:demo_app/main.dart';
 
+/// Helper to set up FlutterMate tests with common boilerplate
+Future<SemanticsHandle> setupTest(WidgetTester tester) async {
+  final handle = tester.ensureSemantics();
+  FlutterMate.initializeForTest(tester: tester);
+  await FlutterMate.pumpApp(const DemoApp());
+  return handle;
+}
+
 /// Tests for screenshot functionality
 ///
 /// Note: Actual screenshot capture doesn't work in Flutter's test environment
@@ -11,11 +19,7 @@ void main() {
   group('ScreenshotService', () {
     testWidgets('captureElement returns null for non-existent ref',
         (tester) async {
-      final semanticsHandle = tester.ensureSemantics();
-      FlutterMate.initializeForTest();
-
-      await tester.pumpWidget(const DemoApp());
-      await tester.pumpAndSettle();
+      final semanticsHandle = await setupTest(tester);
 
       // Take a snapshot first to populate cache
       SnapshotService.snapshot();
@@ -30,11 +34,7 @@ void main() {
 
     testWidgets('captureElementAsBase64 returns null for non-existent ref',
         (tester) async {
-      final semanticsHandle = tester.ensureSemantics();
-      FlutterMate.initializeForTest();
-
-      await tester.pumpWidget(const DemoApp());
-      await tester.pumpAndSettle();
+      final semanticsHandle = await setupTest(tester);
 
       // Take a snapshot first to populate cache
       SnapshotService.snapshot();

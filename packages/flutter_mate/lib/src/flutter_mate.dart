@@ -48,7 +48,23 @@ class FlutterMate {
   static Future<void> initialize() => core.FlutterMate.initialize();
 
   /// Initialize for widget tests
-  static void initializeForTest() => core.FlutterMate.initializeForTest();
+  ///
+  /// If [tester] is provided (a `WidgetTester` from flutter_test), FlutterMate
+  /// will automatically call `pumpAndSettle()` after each action.
+  static void initializeForTest({dynamic tester}) =>
+      core.FlutterMate.initializeForTest(tester: tester);
+
+  /// Pump a widget for testing.
+  ///
+  /// Combines `tester.pumpWidget()` and `tester.pumpAndSettle()` into one call.
+  /// Requires a tester to be provided to [initializeForTest].
+  ///
+  /// ```dart
+  /// FlutterMate.initializeForTest(tester: tester);
+  /// await FlutterMate.pumpApp(const MyApp());
+  /// ```
+  static Future<void> pumpApp(Widget app, {bool settle = true}) =>
+      core.FlutterMate.pumpApp(app, settle: settle);
 
   /// Dispose Flutter Mate resources
   static void dispose() => core.FlutterMate.dispose();

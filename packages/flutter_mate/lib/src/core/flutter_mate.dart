@@ -152,20 +152,81 @@ class FlutterMate {
   ///
   /// This also enables test mode which skips real delays (incompatible with FakeAsync).
   ///
+  /// If [tester] is provided (a `WidgetTester` from flutter_test), FlutterMate
+  /// will automatically call `pumpAndSettle()` after each action, eliminating
+  /// the need for manual pump calls.
+  ///
   /// ```dart
   /// testWidgets('my test', (tester) async {
-  ///   final handle = tester.ensureSemantics();
-  ///   FlutterMate.initializeForTest();
-  ///   // ... test code ...
-  ///   handle.dispose();
+  ///   tester.ensureSemantics();
+  ///   FlutterMate.initializeForTest(tester: tester);
+  ///   await tester.pumpWidget(const MyApp());
+  ///
+  ///   // No manual pump calls needed!
+  ///   await FlutterMate.fillByLabel('Email', 'test@example.com');
+  ///   await FlutterMate.tapByLabel('Login');
   /// });
   /// ```
-  static void initializeForTest() {
+  static void initializeForTest({dynamic tester}) {
     _initialized = true;
     _testMode = true;
+    _tester = tester;
   }
 
   static bool _testMode = false;
+
+  // WidgetTester instance for auto-pumping (stored as dynamic to avoid
+  // flutter_test dependency in production code)
+  static dynamic _tester;
+
+  /// Pump the widget tree if in test mode with a tester provided.
+  ///
+  /// This is called automatically after each action when a tester is provided
+  /// to [initializeForTest]. You typically don't need to call this manually.
+  ///
+  /// [settle] - If true (default), calls `pumpAndSettle()`. If false, calls `pump()`.
+  static Future<void> pumpIfTesting({bool settle = true}) async {
+    if (_tester != null) {
+      if (settle) {
+        await (_tester as dynamic).pumpAndSettle();
+      } else {
+        await (_tester as dynamic).pump();
+      }
+    }
+  }
+
+  /// Pump a widget for testing.
+  ///
+  /// This combines `tester.pumpWidget()` and `tester.pumpAndSettle()` into a
+  /// single call. Requires a tester to be provided to [initializeForTest].
+  ///
+  /// ```dart
+  /// testWidgets('my test', (tester) async {
+  ///   tester.ensureSemantics();
+  ///   FlutterMate.initializeForTest(tester: tester);
+  ///   await FlutterMate.pumpApp(const MyApp());
+  ///
+  ///   // App is ready, no manual pump calls needed!
+  ///   await FlutterMate.tapByLabel('Login');
+  /// });
+  /// ```
+  ///
+  /// [settle] - If true (default), calls `pumpAndSettle()` after pumping.
+  /// If false, calls `pump()` once.
+  static Future<void> pumpApp(Widget app, {bool settle = true}) async {
+    if (_tester == null) {
+      throw StateError(
+        'FlutterMate.pumpApp() requires a tester. '
+        'Call FlutterMate.initializeForTest(tester: tester) first.',
+      );
+    }
+    await (_tester as dynamic).pumpWidget(app);
+    if (settle) {
+      await (_tester as dynamic).pumpAndSettle();
+    } else {
+      await (_tester as dynamic).pump();
+    }
+  }
 
   /// Whether running in test mode (skips real delays)
   static bool get isTestMode => _testMode;
@@ -250,6 +311,8 @@ class FlutterMate {
     _semanticsHandle?.dispose();
     _semanticsHandle = null;
     _initialized = false;
+    _testMode = false;
+    _tester = null;
   }
 
   /// Ensure FlutterMate is initialized

@@ -103,12 +103,15 @@ class KeyboardActions {
           await FlutterMate.dispatchTextInput(currentText);
         }
         debugPrint('FlutterMate: Typed "$text" via platform messages');
+        await FlutterMate.pumpIfTesting();
         return true;
       } else {
         // Release mode: fall back to EditableTextState
         debugPrint(
             'FlutterMate: Release mode - using EditableTextState fallback');
-        return _typeTextViaEditableState(text);
+        final result = await _typeTextViaEditableState(text);
+        await FlutterMate.pumpIfTesting();
+        return result;
       }
     } catch (e, stack) {
       debugPrint('FlutterMate: typeText error: $e\n$stack');
@@ -204,6 +207,7 @@ class KeyboardActions {
         selection: TextSelection.collapsed(offset: 0),
       ));
       debugPrint('FlutterMate: Text cleared');
+      await FlutterMate.pumpIfTesting();
       return true;
     } catch (e) {
       debugPrint('FlutterMate: clearText error: $e');
@@ -225,6 +229,7 @@ class KeyboardActions {
       await FlutterMate.delay(const Duration(milliseconds: 30));
       await keyUp(key);
       await FlutterMate.delay(const Duration(milliseconds: 30));
+      await FlutterMate.pumpIfTesting();
 
       return true;
     } catch (e) {
@@ -379,6 +384,7 @@ class KeyboardActions {
       await keyUp(key,
           control: control, shift: shift, alt: alt, command: command);
       await FlutterMate.delay(const Duration(milliseconds: 30));
+      await FlutterMate.pumpIfTesting();
 
       return true;
     } catch (e) {

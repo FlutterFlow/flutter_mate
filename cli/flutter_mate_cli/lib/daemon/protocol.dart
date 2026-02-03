@@ -124,7 +124,6 @@ Response? parseResponse(String input) {
 /// All supported daemon actions.
 abstract class Actions {
   // App lifecycle
-  static const run = 'run';
   static const connect = 'connect';
   static const close = 'close';
   static const status = 'status';

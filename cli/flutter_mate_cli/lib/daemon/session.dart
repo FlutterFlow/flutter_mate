@@ -4,9 +4,7 @@ import 'package:flutter_mate_cli/vm_service_client.dart';
 
 /// Manages the state of a daemon session.
 ///
-/// Each session can have:
-/// - A VM Service connection to a Flutter app
-/// - Optionally, a Flutter process that we launched (via `run` command)
+/// Each session has a VM Service connection to a Flutter app.
 class SessionState {
   /// Session name (e.g., "default", "staging").
   final String name;
@@ -17,50 +15,10 @@ class SessionState {
   /// VM Service WebSocket URI.
   String? vmUri;
 
-  /// Flutter process (only set if we launched it via `run` command).
-  /// If null, the app was started externally and we connected via `connect`.
-  Process? flutterProcess;
-
-  /// Buffer for Flutter process stdout (for log streaming).
-  final List<String> logBuffer = [];
-
-  /// Maximum number of log lines to keep in buffer.
-  static const int maxLogBufferSize = 1000;
-
   SessionState(this.name);
 
   /// Whether we have a VM Service connection.
   bool get isConnected => vmClient != null;
-
-  /// Whether we launched the Flutter app (vs. connected to existing).
-  bool get isLaunched => flutterProcess != null;
-
-  /// Whether we can kill the app (only if we launched it).
-  bool get canKillApp => flutterProcess != null;
-
-  /// Whether we can hot reload (only if we launched it).
-  bool get canHotReload => flutterProcess != null;
-
-  /// Add a log line to the buffer.
-  void addLog(String line) {
-    logBuffer.add(line);
-    if (logBuffer.length > maxLogBufferSize) {
-      logBuffer.removeAt(0);
-    }
-  }
-
-  /// Clear the log buffer.
-  void clearLogs() {
-    logBuffer.clear();
-  }
-
-  /// Get recent logs.
-  List<String> getLogs([int? count]) {
-    if (count == null || count >= logBuffer.length) {
-      return List.from(logBuffer);
-    }
-    return logBuffer.sublist(logBuffer.length - count);
-  }
 
   /// Disconnect from VM Service.
   Future<void> disconnect() async {
@@ -73,34 +31,16 @@ class SessionState {
     vmUri = null;
   }
 
-  /// Kill the Flutter process if we launched it.
-  Future<void> killFlutterProcess() async {
-    if (flutterProcess != null) {
-      flutterProcess!.kill(ProcessSignal.sigterm);
-      // Give it a moment to exit gracefully
-      await Future.delayed(const Duration(milliseconds: 500));
-      // Force kill if still running
-      flutterProcess!.kill(ProcessSignal.sigkill);
-      flutterProcess = null;
-    }
-  }
-
-  /// Full cleanup: disconnect and kill process.
+  /// Full cleanup: disconnect.
   Future<void> close() async {
     await disconnect();
-    await killFlutterProcess();
-    clearLogs();
   }
 
   /// Get status info for this session.
   Map<String, dynamic> toStatusJson() => {
         'session': name,
         'connected': isConnected,
-        'launched': isLaunched,
         'uri': vmUri,
-        'canHotReload': canHotReload,
-        'canKillApp': canKillApp,
-        'logBufferSize': logBuffer.length,
       };
 }
 
@@ -155,11 +95,6 @@ String getUriPath(String session) {
   return '${getAppDir()}/$session.uri';
 }
 
-/// Get the Flutter process PID file path.
-String getFlutterPidPath(String session) {
-  return '${getAppDir()}/$session.flutter_pid';
-}
-
 /// Get a consistent TCP port for a session (Windows fallback).
 int _getPortForSession(String session) {
   var hash = 0;
@@ -184,7 +119,6 @@ void cleanupSessionFiles(String session) {
     getSocketPath(session),
     getPidPath(session),
     getUriPath(session),
-    getFlutterPidPath(session),
   ];
 
   for (final path in files) {

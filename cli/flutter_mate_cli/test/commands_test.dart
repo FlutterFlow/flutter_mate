@@ -5,21 +5,6 @@ import 'package:test/test.dart';
 void main() {
   group('Command Builders', () {
     group('App Lifecycle', () {
-      test('buildRunCommand creates correct request', () {
-        final request = buildRunCommand(['-d', 'chrome', '--headless']);
-
-        expect(request.action, Actions.run);
-        expect(request.args['args'], ['-d', 'chrome', '--headless']);
-        expect(request.id, isNotEmpty);
-      });
-
-      test('buildRunCommand with empty args', () {
-        final request = buildRunCommand([]);
-
-        expect(request.action, Actions.run);
-        expect(request.args['args'], isEmpty);
-      });
-
       test('buildConnectCommand creates correct request', () {
         final request = buildConnectCommand('ws://localhost:12345/abc=/ws');
 
@@ -337,9 +322,8 @@ void main() {
       ids.add(buildTapCommand('w1').id);
       ids.add(buildSnapshotCommand().id);
       ids.add(buildCloseCommand().id);
-      ids.add(buildRunCommand([]).id);
 
-      expect(ids.length, 5); // All unique
+      expect(ids.length, 4); // All unique
     });
   });
 }

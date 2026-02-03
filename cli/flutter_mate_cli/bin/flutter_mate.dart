@@ -20,10 +20,6 @@ void main(List<String> arguments) async {
   // APP LIFECYCLE COMMANDS
   // ══════════════════════════════════════════════════════════════════════════
 
-  final runParser = ArgParser()
-    ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help for run');
-  parser.addCommand('run', runParser);
-
   final connectParser = ArgParser()
     ..addFlag('help',
         abbr: 'h', negatable: false, help: 'Show help for connect');
@@ -267,10 +263,6 @@ Future<void> _executeCommand({
     // ════════════════════════════════════════════════════════════════════════
     // APP LIFECYCLE
     // ════════════════════════════════════════════════════════════════════════
-
-    case 'run':
-      await _handleRun(args, session, jsonOutput);
-      break;
 
     case 'connect':
       if (args.isEmpty) {
@@ -544,27 +536,6 @@ Future<void> _executeCommand({
 // ════════════════════════════════════════════════════════════════════════════
 // APP LIFECYCLE HANDLERS
 // ════════════════════════════════════════════════════════════════════════════
-
-Future<void> _handleRun(
-    List<String> flutterArgs, String session, bool jsonOutput) async {
-  await ensureDaemon(session);
-
-  final request = buildRunCommand(flutterArgs);
-  final response = await sendCommand(request, session);
-
-  if (jsonOutput) {
-    print(const JsonEncoder.withIndent('  ').convert(response.toJson()));
-  } else if (response.success) {
-    final data = response.data as Map<String, dynamic>?;
-    print('✅ App launched');
-    if (data?['uri'] != null) {
-      print('   VM Service: ${data!['uri']}');
-    }
-  } else {
-    stderr.writeln('❌ Failed to launch: ${response.error}');
-    exit(1);
-  }
-}
 
 Future<void> _handleConnect(String uri, String session, bool jsonOutput) async {
   await ensureDaemon(session);
@@ -1037,10 +1008,8 @@ Future<void> _ensureConnected(String session) async {
     if (data?['connected'] != true) {
       stderr.writeln('Error: Not connected to a Flutter app');
       stderr.writeln('');
-      stderr.writeln('Use one of:');
-      stderr.writeln('  flutter_mate run -d chrome    # Launch a new app');
-      stderr
-          .writeln('  flutter_mate connect <uri>    # Connect to existing app');
+      stderr.writeln('First, run your Flutter app with: flutter run');
+      stderr.writeln('Then connect with: flutter_mate connect <uri>');
       exit(1);
     }
   }
@@ -1058,28 +1027,6 @@ void _printActionResult(String action, Response response, bool jsonOutput) {
 
 void _printCommandHelp(String command, ArgParser parser) {
   switch (command) {
-    case 'run':
-      print('''
-run - Launch a Flutter app and connect to it
-
-Usage: flutter_mate run [flutter-run-args...]
-
-All arguments after 'run' are passed directly to 'flutter run'.
-
-Examples:
-  # Run on macOS
-  flutter_mate run -d macos
-
-  # Run on Chrome (headless)
-  flutter_mate run -d chrome --web-browser-flag="--headless"
-
-  # Run with dart defines
-  flutter_mate run -d chrome --dart-define=API_URL=http://localhost
-
-  # Run specific flavor
-  flutter_mate run --flavor production
-''');
-      break;
     case 'connect':
       print('''
 connect - Connect to an existing Flutter app
@@ -1200,9 +1147,8 @@ flutter_mate - Control Flutter apps via daemon
 Usage: flutter_mate [-s session] <command> [arguments]
 
 App Lifecycle:
-  run [flutter-args...]   Launch app (all flutter run args supported)
-  connect <uri>           Connect to existing app via VM Service URI
-  close                   Close app and stop daemon
+  connect <uri>           Connect to running Flutter app via VM Service URI
+  close                   Disconnect and stop daemon
   status                  Show connection status
 
 Session Management:
@@ -1248,20 +1194,18 @@ Options:
 ${parser.usage}
 
 Examples:
-  # Launch app and run commands
-  flutter_mate run -d chrome --web-browser-flag="--headless"
-  flutter_mate snapshot
+  # First, launch your Flutter app separately
+  flutter run -d chrome
+
+  # Then connect and interact
+  flutter_mate connect ws://127.0.0.1:12345/abc=/ws
+  flutter_mate snapshot -c
   flutter_mate tap w10
   flutter_mate screenshot
   flutter_mate close
 
-  # Connect to existing app
-  flutter_mate connect ws://127.0.0.1:12345/abc=/ws
-  flutter_mate snapshot -c
-  flutter_mate tap w5
-
   # Multiple sessions
-  flutter_mate -s staging run -d chrome
+  flutter_mate -s staging connect ws://127.0.0.1:54321/xyz=/ws
   flutter_mate -s staging snapshot
   flutter_mate session list
 ''');

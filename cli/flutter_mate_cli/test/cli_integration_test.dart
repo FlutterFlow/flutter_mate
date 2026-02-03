@@ -5,12 +5,9 @@
 ///
 /// To run these tests:
 /// 1. Start the demo app: `cd apps/demo_app && flutter run -d macos`
-/// 2. Copy the VM Service URI
-/// 3. Run: `VM_SERVICE_URI=ws://... dart test test/cli_integration_test.dart`
-///
-/// Or use the new daemon mode:
-/// 1. Run: `flutter_mate run -d macos` (in one terminal)
-/// 2. Run: `dart test test/cli_integration_test.dart --define=use_daemon=true`
+/// 2. Copy the VM Service URI from the Flutter console
+/// 3. Connect: `flutter_mate connect ws://...`
+/// 4. Run: `dart test test/cli_integration_test.dart --define=use_daemon=true`
 library;
 
 import 'dart:convert';
@@ -31,12 +28,12 @@ void main() {
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║  CLI Integration Tests - SKIPPED                                             ║
 ║                                                                              ║
-║  Option 1: Use daemon mode (recommended)                                     ║
-║    flutter_mate run -d macos                                                 ║
-║    dart test test/cli_integration_test.dart --define=use_daemon=true         ║
+║  To run these tests:                                                         ║
+║    1. cd apps/demo_app && flutter run -d macos                               ║
+║    2. flutter_mate connect ws://...                                          ║
+║    3. dart test test/cli_integration_test.dart --define=use_daemon=true      ║
 ║                                                                              ║
-║  Option 2: Provide VM Service URI                                            ║
-║    cd apps/demo_app && flutter run -d macos                                  ║
+║  Or provide the URI directly:                                                ║
 ║    VM_SERVICE_URI=ws://... dart test test/cli_integration_test.dart          ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 ''');
@@ -155,7 +152,6 @@ void main() {
 
       expect(result.exitCode, 0);
       expect(result.stdout, contains('flutter_mate'));
-      expect(result.stdout, contains('run'));
       expect(result.stdout, contains('connect'));
       expect(result.stdout, contains('snapshot'));
     });

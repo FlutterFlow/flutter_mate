@@ -132,9 +132,6 @@ class FlutterMateDaemon {
       // APP LIFECYCLE
       // ════════════════════════════════════════════════════════════════════
 
-      case Actions.run:
-        return _handleRun(request);
-
       case Actions.connect:
         return _handleConnect(request);
 
@@ -242,26 +239,6 @@ class FlutterMateDaemon {
   // ══════════════════════════════════════════════════════════════════════════
   // APP LIFECYCLE HANDLERS
   // ══════════════════════════════════════════════════════════════════════════
-
-  Future<Response> _handleRun(Request request) async {
-    if (session.isConnected) {
-      return Response.error(
-          request.id, 'Already connected. Use "close" first.');
-    }
-
-    final flutterArgs = request.args['args'] as List<dynamic>? ?? [];
-    final args = flutterArgs.cast<String>();
-
-    try {
-      final uri = await _launchFlutterApp(args);
-      return Response.success(request.id, {
-        'uri': uri,
-        'launched': true,
-      });
-    } catch (e) {
-      return Response.error(request.id, 'Failed to launch app: $e');
-    }
-  }
 
   Future<Response> _handleConnect(Request request) async {
     if (session.isConnected) {
@@ -714,84 +691,19 @@ class FlutterMateDaemon {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // APP LAUNCHING
+  // HELPERS
   // ══════════════════════════════════════════════════════════════════════════
 
-  Future<String> _launchFlutterApp(List<String> args) async {
-    // Find flutter executable
-    final flutterPath = _findFlutter();
-
-    // Start flutter run process
-    final process = await Process.start(
-      flutterPath,
-      ['run', ...args],
-      mode: ProcessStartMode.normal,
-    );
-
-    session.flutterProcess = process;
-
-    // Write flutter PID to file
-    File(getFlutterPidPath(sessionName))
-        .writeAsStringSync(process.pid.toString());
-
-    // Capture stdout and extract VM Service URI
-    final uriCompleter = Completer<String>();
-    final buffer = StringBuffer();
-
-    process.stdout.transform(utf8.decoder).listen((data) {
-      buffer.write(data);
-      session.addLog(data);
-
-      // Look for VM Service URI
-      if (!uriCompleter.isCompleted) {
-        final uri = _extractVmServiceUri(buffer.toString());
-        if (uri != null) {
-          uriCompleter.complete(uri);
-        }
-      }
-    });
-
-    process.stderr.transform(utf8.decoder).listen((data) {
-      session.addLog('[stderr] $data');
-    });
-
-    // Wait for URI with timeout
-    final uri = await uriCompleter.future.timeout(
-      const Duration(minutes: 2),
-      onTimeout: () {
-        process.kill();
-        throw TimeoutException('Timed out waiting for VM Service URI');
-      },
-    );
-
-    // Connect to VM Service
-    session.vmClient = VmServiceClient(uri);
-    await session.vmClient!.connect();
-    session.vmUri = uri;
-
-    // Write URI to file
-    File(getUriPath(sessionName)).writeAsStringSync(uri);
-
-    return uri;
+  void _ensureConnected(String requestId) {
+    if (!session.isConnected) {
+      throw StateError('Not connected. Use "connect" first.');
+    }
   }
 
-  String? _extractVmServiceUri(String output) {
-    // Look for patterns like:
-    // "A Dart VM Service on macOS is available at: http://127.0.0.1:12345/abc=/"
-    // "The Dart VM service is listening on http://127.0.0.1:12345/abc=/"
-    final wsPattern = RegExp(r'ws://[^\s]+');
-    final httpPattern = RegExp(r'http://127\.0\.0\.1:\d+/[^\s]+');
-
-    final wsMatch = wsPattern.firstMatch(output);
-    if (wsMatch != null) {
-      return wsMatch.group(0);
-    }
-
-    final httpMatch = httpPattern.firstMatch(output);
-    if (httpMatch != null) {
-      return _normalizeVmServiceUri(httpMatch.group(0)!);
-    }
-
+  int? _parseInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value);
     return null;
   }
 
@@ -815,52 +727,6 @@ class FlutterMateDaemon {
     }
 
     return normalized;
-  }
-
-  String _findFlutter() {
-    // Check FLUTTER_ROOT
-    final flutterRoot = Platform.environment['FLUTTER_ROOT'];
-    if (flutterRoot != null) {
-      final flutterBin = Platform.isWindows
-          ? '$flutterRoot/bin/flutter.bat'
-          : '$flutterRoot/bin/flutter';
-      if (File(flutterBin).existsSync()) {
-        return flutterBin;
-      }
-    }
-
-    // Check common locations
-    final candidates = [
-      '/usr/local/bin/flutter',
-      '${Platform.environment['HOME']}/flutter/bin/flutter',
-      '${Platform.environment['HOME']}/Development/flutter/bin/flutter',
-    ];
-
-    for (final path in candidates) {
-      if (File(path).existsSync()) {
-        return path;
-      }
-    }
-
-    // Fall back to PATH
-    return 'flutter';
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // HELPERS
-  // ══════════════════════════════════════════════════════════════════════════
-
-  void _ensureConnected(String requestId) {
-    if (!session.isConnected) {
-      throw StateError('Not connected. Use "run" or "connect" first.');
-    }
-  }
-
-  int? _parseInt(dynamic value) {
-    if (value == null) return null;
-    if (value is int) return value;
-    if (value is String) return int.tryParse(value);
-    return null;
   }
 
   // ══════════════════════════════════════════════════════════════════════════

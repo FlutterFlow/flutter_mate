@@ -6,15 +6,6 @@ import 'package:flutter_mate_cli/daemon/protocol.dart';
 // COMMAND BUILDERS
 // ════════════════════════════════════════════════════════════════════════════
 
-/// Build a 'run' command request.
-Request buildRunCommand(List<String> flutterArgs) {
-  return Request(
-    id: generateRequestId(),
-    action: Actions.run,
-    args: {'args': flutterArgs},
-  );
-}
-
 /// Build a 'connect' command request.
 Request buildConnectCommand(String uri) {
   return Request(

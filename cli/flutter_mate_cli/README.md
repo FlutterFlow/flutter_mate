@@ -21,12 +21,12 @@ flutter_mate --help
 The CLI uses a daemon architecture for fast, persistent connections:
 
 ```bash
-# Launch a Flutter app and connect automatically
-flutter_mate run -d macos
-flutter_mate run -d chrome --web-browser-flag="--headless"
+# First, launch your Flutter app separately
+flutter run -d macos
+# or
+flutter run -d chrome --web-browser-flag="--headless"
 
-# Or connect to an already running app
-# (Get the VM Service URI from Flutter console when running your app)
+# Then connect using the VM Service URI from the Flutter console
 flutter_mate connect ws://127.0.0.1:12345/abc=/ws
 
 # Now run commands (no URI needed - daemon maintains connection)
@@ -41,7 +41,7 @@ flutter_mate screenshot --path out.png
 flutter_mate status
 
 # Session management (for multiple apps)
-flutter_mate -s staging run -d chrome
+flutter_mate -s staging connect ws://127.0.0.1:54321/xyz=/ws
 flutter_mate -s staging snapshot
 flutter_mate session list
 
@@ -55,9 +55,8 @@ flutter_mate close
 
 | Command | Description |
 |---------|-------------|
-| `run [flutter-args...]` | Launch app with flutter run args |
-| `connect <uri>` | Connect to existing app by VM Service URI |
-| `close` | Close app and stop daemon |
+| `connect <uri>` | Connect to running Flutter app by VM Service URI |
+| `close` | Disconnect and stop daemon |
 | `status` | Show connection status |
 | `session list` | List active sessions |
 
@@ -121,7 +120,11 @@ flutter_mate close
 
 ```bash
 # Headless testing workflow
-flutter_mate run -d chrome --web-browser-flag="--headless"
+# Terminal 1: Start your Flutter app
+flutter run -d chrome --web-browser-flag="--headless"
+
+# Terminal 2: Connect and run commands
+flutter_mate connect ws://127.0.0.1:12345/abc=/ws
 flutter_mate snapshot -c
 flutter_mate setText w10 "test@example.com"
 flutter_mate setText w13 "password123"
@@ -130,9 +133,9 @@ flutter_mate waitFor "Dashboard"
 flutter_mate screenshot --path result.png
 flutter_mate close
 
-# Multiple sessions
-flutter_mate -s app1 run -d macos
-flutter_mate -s app2 run -d chrome
+# Multiple sessions (for testing multiple apps simultaneously)
+flutter_mate -s app1 connect ws://127.0.0.1:12345/abc=/ws
+flutter_mate -s app2 connect ws://127.0.0.1:54321/xyz=/ws
 flutter_mate -s app1 snapshot
 flutter_mate -s app2 tap w5
 flutter_mate session list

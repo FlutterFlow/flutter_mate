@@ -129,9 +129,19 @@ class FlutterMate {
   /// Call this once at app startup (typically in main()).
   /// This enables semantics which is required for UI inspection.
   ///
+  /// **Note:** FlutterMate only works in debug/profile builds. In release
+  /// builds, this method does nothing and returns immediately.
+  ///
   /// Can be called before or after runApp() - it will wait appropriately.
   static Future<void> initialize() async {
     if (_initialized) return;
+
+    // FlutterMate only works in debug/profile builds
+    // In release mode, service extensions and platform message injection don't work
+    if (!_isDebugMode) {
+      debugPrint('FlutterMate: Skipping initialization in release mode');
+      return;
+    }
 
     WidgetsFlutterBinding.ensureInitialized();
 
@@ -143,6 +153,16 @@ class FlutterMate {
 
     _initialized = true;
     debugPrint('FlutterMate: Initialized (semantics enabled)');
+  }
+
+  /// Check if running in debug mode
+  static bool get _isDebugMode {
+    bool isDebug = false;
+    assert(() {
+      isDebug = true;
+      return true;
+    }());
+    return isDebug;
   }
 
   /// Initialize for widget tests (use with tester.ensureSemantics())
@@ -316,11 +336,20 @@ class FlutterMate {
   }
 
   /// Ensure FlutterMate is initialized
+  ///
+  /// Throws [StateError] if not initialized in debug/profile mode.
+  /// In release mode, this is a no-op (FlutterMate doesn't work in release).
   static void ensureInitialized() {
+    // In release mode, FlutterMate doesn't work - silently return
+    if (!_isDebugMode) return;
+
     if (!_initialized) {
       throw StateError(
         'FlutterMate not initialized. Call FlutterMate.initialize() first.',
       );
     }
   }
+
+  /// Whether FlutterMate is available (debug/profile mode only)
+  static bool get isAvailable => _isDebugMode && _initialized;
 }

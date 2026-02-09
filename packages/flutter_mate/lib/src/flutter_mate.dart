@@ -72,6 +72,9 @@ class FlutterMate {
   /// Whether running in test mode
   static bool get isTestMode => core.FlutterMate.isTestMode;
 
+  /// Whether FlutterMate is available (debug/profile mode only)
+  static bool get isAvailable => core.FlutterMate.isAvailable;
+
   // === Text Controller Registration ===
 
   /// Register a TextEditingController for use with fillByName

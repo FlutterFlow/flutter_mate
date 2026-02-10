@@ -77,15 +77,6 @@
       ]
     },
     {
-      "name": "web_socket_channel",
-      "version": "2.4.0",
-      "dependencies": [
-        "async",
-        "crypto",
-        "stream_channel"
-      ]
-    },
-    {
       "name": "vm_service",
       "version": "14.3.1",
       "dependencies": []
@@ -486,6 +477,24 @@
       "dependencies": [
         "meta",
         "path"
+      ]
+    },
+    {
+      "name": "web_socket_channel",
+      "version": "3.0.3",
+      "dependencies": [
+        "async",
+        "crypto",
+        "stream_channel",
+        "web",
+        "web_socket"
+      ]
+    },
+    {
+      "name": "web_socket",
+      "version": "1.0.1",
+      "dependencies": [
+        "web"
       ]
     }
   ],

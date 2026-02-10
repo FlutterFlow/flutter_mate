@@ -285,9 +285,9 @@
     },
     {
       "name": "vm_service",
-      "rootUri": "file:///Users/wenkaifan/.pub-cache/hosted/pub.dev/vm_service-14.3.1",
+      "rootUri": "file:///Users/wenkaifan/.pub-cache/hosted/pub.dev/vm_service-15.0.2",
       "packageUri": "lib/",
-      "languageVersion": "3.3"
+      "languageVersion": "3.5"
     },
     {
       "name": "watcher",
